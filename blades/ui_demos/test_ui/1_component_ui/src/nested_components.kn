@@ -1,0 +1,32 @@
+// nested_components.kn — Nested component composition via JSX
+// NOTE: nested component calls parsed & typechecked but crash at runtime
+use std::runtime
+
+component StatCard(label: String, value: String, accent: String):
+    render <box background="#252540" corner_radius={8.0} padding={12.0}>
+        <stack direction="vertical" spacing={4.0}>
+            <text value={value} font_size={24.0} fill_color={accent} />
+            <text value={label} font_size={11.0} fill_color="#8888A0" />
+        </stack>
+    </box>
+
+component Dashboard():
+    render <panel title="Nested Components — Composition Proof" fill_color="#1a1a2e">
+        <stack direction="vertical" spacing={12.0} padding={16.0}>
+            <text value="Nested Components Proof" font_size={18.0} fill_color="#E8E8F0" />
+            <text value="Uppercase JSX tags → component dispatch." font_size={12.0} fill_color="#8888A0" />
+            <StatCard label="World + Surface" value="PASS" accent="#21D4A1" />
+            <StatCard label="JSX Composition" value="PASS" accent="#4A90D9" />
+            <StatCard label="Prop Passing" value="PASS" accent="#E8914A" />
+            <text value="STATUS: Parse+typecheck pass. Runtime crash on nested calls." font_size={12.0} fill_color="#E84A5F" />
+        </stack>
+    </panel>
+
+world NCWorld:
+    surface native_ui => Dashboard
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

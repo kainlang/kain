@@ -1,0 +1,243 @@
+// ============================================================================
+//  raycast.kn — Terrain Sculpt: Static Terrain + Dynamic Click Deformation
+// ============================================================================
+//
+//  WHAT:        A 50×50 static terrain you can CLICK to deform. Each click
+//               creates a smooth bump at the exact 3D hit point. The bump
+//               PERSISTS — click elsewhere to create a new bump (old one
+//               stays). Three concurrent bumps stored in world state.
+//
+//  NO PULSE:    Terrain is static — no wave animation. The main loop
+//               polls stdin via interact_poll(). When a click hits the
+//               terrain, the raycast data is stored and terrain rebuilds.
+//               Between clicks the program sits idle (read_line blocks).
+//
+//  LAYERS:      L0 (fn, let, var, while), electron_interact (raycast),
+//               electron_bridge, electron_extras (bg, fog, ambient)
+//
+//  COMPILE:     cd X:/blades/web/electron
+//               kain build demos/raycast.kn --target llvm
+// ============================================================================
+
+use std::runtime
+use std::math
+use std::time
+use electron_bridge
+use electron_extras
+use electron_interact
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const GRID:    Int   = 50
+const COLS:    Int   = GRID
+const ROWS:    Int   = GRID
+const SIZE:    Float = 14.0
+const SPACING: Float = SIZE / GRID
+
+// ============================================================================
+//  TERRAIN HEIGHT — STATIC base shape + sculpt bumps
+// ============================================================================
+//  NO time parameter — the base terrain never animates.
+//  Three aim points (b0/b1/b2) each add a smooth inverse-quadratic bump.
+//  Each click fills the next slot, cycling through all three.
+
+fn terrain_height(fx: Float, fz: Float,
+    b0x: Float, b0z: Float, b0s: Float,
+    b1x: Float, b1z: Float, b1s: Float,
+    b2x: Float, b2z: Float, b2s: Float) -> Float:
+
+    let dist: Float = sqrt(fx * fx + fz * fz)
+
+    // Static base shape — gentle rolling hills, no time component
+    let base: Float = sin(fx * 0.30) * cos(fz * 0.25) * 1.50 + sin(fx * 0.80 + fz * 0.60) * 0.80 + cos(dist * 0.40) * 0.50
+
+    // Bump 0
+    let d0x: Float = fx - b0x
+    let d0z: Float = fz - b0z
+    let bump0: Float = b0s / (1.0 + (d0x * d0x + d0z * d0z) * 0.5)
+
+    // Bump 1
+    let d1x: Float = fx - b1x
+    let d1z: Float = fz - b1z
+    let bump1: Float = b1s / (1.0 + (d1x * d1x + d1z * d1z) * 0.5)
+
+    // Bump 2
+    let d2x: Float = fx - b2x
+    let d2z: Float = fz - b2z
+    let bump2: Float = b2s / (1.0 + (d2x * d2x + d2z * d2z) * 0.5)
+
+    return base + bump0 + bump1 + bump2
+
+// ============================================================================
+//  HELPERS — rebuild terrain mesh from world state
+// ============================================================================
+
+fn rebuild_terrain():
+    var json: String = "{\"cmd\":\"update\",\"id\":\"terrain\",\"type\":\"custom_mesh\",\"verts\":["
+    var row: Int = 0
+    var first_vert: Int = 1
+    while row < ROWS:
+        var col: Int = 0
+        while col < COLS:
+            let fx: Float = (col - COLS / 2) * SPACING
+            let fz: Float = (row - ROWS / 2) * SPACING
+            let y: Float = terrain_height(fx, fz,
+                SculptState.bump0_x, SculptState.bump0_z, SculptState.bump0_strength,
+                SculptState.bump1_x, SculptState.bump1_z, SculptState.bump1_strength,
+                SculptState.bump2_x, SculptState.bump2_z, SculptState.bump2_strength)
+            if first_vert == 0:
+                json = json + ","
+            first_vert = 0
+            json = json + str(fx) + "," + str(y) + "," + str(fz)
+            col = col + 1
+        row = row + 1
+    json = json + "]}"
+    println(json)
+
+// ============================================================================
+//  STATE
+// ============================================================================
+
+world SculptState:
+    state ready:            Int = 0
+    // Three persistent bump slots — click cycles through them
+    state bump0_x:         Float = 0.0
+    state bump0_z:         Float = 0.0
+    state bump0_strength:  Float = 0.0
+    state bump1_x:         Float = 0.0
+    state bump1_z:         Float = 0.0
+    state bump1_strength:  Float = 0.0
+    state bump2_x:         Float = 0.0
+    state bump2_z:         Float = 0.0
+    state bump2_strength:  Float = 0.0
+    state bump_slot:        Int = 0       // 0 → 1 → 2 → 0
+    state sculpt_count:     Int = 0
+
+// ============================================================================
+//  CREATE INITIAL TERRAIN MESH — flat base shape, no bumps
+// ============================================================================
+
+fn create_initial_terrain():
+    var verts: String = "["
+    var indices: String = "["
+    var row: Int = 0
+    var first_v: Int = 1
+    while row < ROWS:
+        var col: Int = 0
+        while col < COLS:
+            let fx: Float = (col - COLS / 2) * SPACING
+            let fz: Float = (row - ROWS / 2) * SPACING
+            let y: Float = terrain_height(fx, fz,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            if first_v == 0:
+                verts = verts + ","
+            first_v = 0
+            verts = verts + str(fx) + "," + str(y) + "," + str(fz)
+            col = col + 1
+        row = row + 1
+    verts = verts + "]"
+
+    row = 0
+    var first_idx: Int = 1
+    while row < ROWS - 1:
+        var col: Int = 0
+        while col < COLS - 1:
+            let tl: Int = row * COLS + col
+            let tr: Int = tl + 1
+            let bl: Int = (row + 1) * COLS + col
+            let br: Int = bl + 1
+            if first_idx == 0:
+                indices = indices + ","
+            first_idx = 0
+            indices = indices + str(tl) + "," + str(bl) + "," + str(tr)
+            indices = indices + ","
+            indices = indices + str(tr) + "," + str(bl) + "," + str(br)
+            col = col + 1
+        row = row + 1
+    indices = indices + "]"
+
+    println("{\"cmd\":\"create\",\"id\":\"terrain\",\"type\":\"custom_mesh\",\"verts\":"
+        + verts + ",\"indices\":" + indices + ",\"color\":\"#5588aa\"}")
+
+// ============================================================================
+//  MAIN — stdin polling loop, no pulse
+// ============================================================================
+//  The loop calls interact_poll() which blocks on read_line() until an
+//  event arrives from Electron (mousemove, click, raycast, etc.).
+//  When a raycast hit is detected, the click position is stored in the
+//  next bump slot (cycling 0→1→2→0) and the terrain is rebuilt.
+//  Between events, the program sleeps at the read_line() call — no busy
+//  waiting, no wasted CPU, no pulse timer firing uselessly.
+
+fn main() -> Int with IO:
+    let init: Int = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // Scene setup
+    camera_look_at(0.0, 6.0, 16.0, 0.0, 0.0, 0.0)
+    set_background("#040018")
+    set_fog("#040018", 12.0, 35.0)
+    set_ambient("#1a1a3a", 0.4)
+
+    // Create initial flat terrain
+    create_initial_terrain()
+
+    // HUD
+    telemetry_string("status", "RAYCAST: click the terrain to sculpt")
+    telemetry("verts", ROWS * COLS)
+
+    SculptState.ready = 1
+
+    // ── MAIN LOOP: poll stdin, react to raycast hits ───────────────
+    var tick: Int = 0
+    var last_bump_slot: Int = -1
+    while tick < 999999:
+        // Read ONE event from stdin (blocks until something arrives)
+        interact_poll()
+
+        // Check if there's a NEW raycast hit (one we haven't processed)
+        if ray_hit() and ray_hit_id() == "terrain":
+            // Store this click in the current bump slot
+            let slot: Int = SculptState.bump_slot
+            if slot == 0:
+                SculptState.bump0_x = ray_hit_x()
+                SculptState.bump0_z = ray_hit_z()
+                SculptState.bump0_strength = 3.0
+            elif slot == 1:
+                SculptState.bump1_x = ray_hit_x()
+                SculptState.bump1_z = ray_hit_z()
+                SculptState.bump1_strength = 3.0
+            else:
+                SculptState.bump2_x = ray_hit_x()
+                SculptState.bump2_z = ray_hit_z()
+                SculptState.bump2_strength = 3.0
+
+            // Advance to next slot (0→1→2→0)
+            SculptState.bump_slot = (slot + 1) % 3
+            SculptState.sculpt_count = SculptState.sculpt_count + 1
+
+            // Rebuild the terrain mesh with the new bump
+            rebuild_terrain()
+
+            // Telemetry
+            telemetry("sculpts", SculptState.sculpt_count)
+            telemetry("slot", slot)
+            telemetry_float("bump_x", ray_hit_x())
+            telemetry_float("bump_z", ray_hit_z())
+
+        // Clear per-frame interaction state (click_count, just-pressed keys)
+        interact_clear()
+
+        tick = tick + 1
+
+    let sd: Int = runtime_shutdown()
+    if sd != 0:
+        return 200 + sd
+    return 0
+
+// ============================================================================
+//  END raycast.kn
+// ============================================================================

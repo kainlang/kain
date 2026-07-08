@@ -1,0 +1,29 @@
+// ============================================================================
+//  voxel_viewer.kn — Isometric Voxel Landscape via Kain natural C include
+// ============================================================================
+//  include native/voxel_bridge.h as vox  →  exposes vox_init, vox_frame, etc.
+// ============================================================================
+
+include native/voxel_bridge.h as vox
+
+use std::runtime
+
+fn main() -> Int with Unsafe:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let demo = vox_init(1280, 720)
+    if demo == 0:
+        let shutdown = runtime_shutdown()
+        return 1
+
+    while vox_running(demo) != 0:
+        let status = vox_frame(demo)
+        if status < 0:
+            break
+
+    vox_destroy(demo)
+
+    let shutdown = runtime_shutdown()
+    return if shutdown != 0: 200 + shutdown else: 0

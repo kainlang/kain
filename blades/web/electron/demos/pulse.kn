@@ -1,0 +1,420 @@
+// ============================================================================
+//  pulse.kn — HEARTBEAT: Asymmetric Beating Heart + Blood Flow + Vein Network
+// ============================================================================
+//
+//  WHAT:        A living, breathing heart simulation. A torusKnot core pulses
+//               with an asymmetric heartbeat (quick systole, slow diastole).
+//               6 branching vein lines pulse with delayed peripheral dilation.
+//               120 blood cell particles orbit the core, clustering toward the
+//               center during each squeeze — like real cardiac blood flow.
+//               80 capillary dust motes float at the outer edges for depth.
+//               Two point lights: a warm red heart-light that blazes during
+//               systole, and a cool blue rim-light that orbits slowly.
+//
+//  VISUALS:     heart_core      — torusKnot, the main heart muscle
+//               vein_0..5        — 6 branching vessels (lines)
+//               blood_cells      — 120 red particles, orbit + cluster on beat
+//               capillaries      — 80 tiny gold particles, peripheral dust
+//               heart_light      — warm point light pulsing with each beat
+//               rim_light        — cool blue orbiting accent light
+//
+//  INTERACTION (via electron_interact):
+//               1/2/3            — BPM mode: Slow (40) / Normal (72) / Fast (120)
+//               R                — reset auto-rotate
+//               F                — toggle fog
+//               Click anywhere   — trigger a palpitation (extra-strong squeeze)
+//
+//  CONTROLS:    Auto-rotate camera orbits the heart cinematically.
+//               Watch the blood cells cluster toward center on each beat.
+//
+//  PALETTE:     Warm blood-reds (#cc0022, #ff2200, #ff4422, #ff8866)
+//               Background: deep blood-tinged darkness (#0a0018)
+//
+//  LAYERS:      L5 (pulse 16ms), L1 (world ready-gate),
+//               electron_extras (bg/fog/emissive/lights/rotation/auto-rotate),
+//               electron_interact (keyboard + click input)
+//
+//  BUILD:       cd X:/blades/web/electron
+//               kain build demos/pulse.kn --target llvm
+//               cp .kain/out/x86_64-windows/dev/ll/pulse/compile/pulse.exe demos/
+//               ./demos/pulse.exe
+//
+//  COMPLETELY REDESIGNED — June 2026
+//  Previous version: clock face with sweeping hand and ripple rings.
+//  New version: living heart with asymmetric pulse, blood flow, and vein network.
+// ============================================================================
+
+use std::runtime
+use std::math
+use std::time
+use electron_bridge
+use electron_extras
+use electron_interact
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const VEIN_COUNT:      Int   = 6
+const BLOOD_COUNT:     Int   = 120
+const CAPILLARY_COUNT: Int   = 80
+
+const BPM_SLOW:        Int   = 40
+const BPM_NORMAL:      Int   = 72
+const BPM_FAST:        Int   = 120
+
+const PALP_DURATION:   Int   = 18       // ticks a palpitation lasts (~288ms)
+
+// ============================================================================
+//  LAYER 1: STATE AUTHORITY — world holds scene state + ready gate
+// ============================================================================
+
+world HeartScene:
+    state ready:          Int   = 0
+    state bpm:            Int   = BPM_NORMAL
+    state fog_on:         Int   = 1
+
+    state palp_phase:     Int   = 0      // >0 = palpitation active, counts down
+    state palp_count:     Int   = 0
+
+    state beat_count:     Int   = 0
+    state beat_phase_prev: Float = 0.0   // previous beat phase for edge detection
+
+// ============================================================================
+//  LAYER 5: TEMPORAL — 16ms pulse drives the heart animation
+// ============================================================================
+//
+//  Every 16ms (~60fps):
+//    1. Poll keyboard + click input
+//    2. Compute heartbeat phase (systole/recoil/diastole)
+//    3. Animate torusKnot core (scale + rotation + emissive glow)
+//    4. Animate 6 vein lines (branch positions + color pulse)
+//    5. Update 120 blood cell particles (orbit + cluster)
+//    6. Update 80 capillary particles (peripheral dust)
+//    7. Animate lights (heart pulse + rim orbit)
+//    8. Emit telemetry
+//    9. Detect new beat for counter
+
+pulse heart_beat every 16 ms:
+    if HeartScene.ready == 0:
+        return
+
+    let tick: Int = pulse_tick
+    let bpm:  Int = HeartScene.bpm
+
+    // ── KEYBOARD + CLICK INPUT ──────────────────────────────────────────
+    interact_poll()
+
+    // 1 key: slow BPM (40 — deep rest)
+    if key_just_pressed("1"):
+        HeartScene.bpm = BPM_SLOW
+
+    // 2 key: normal BPM (72 — resting heart rate)
+    if key_just_pressed("2"):
+        HeartScene.bpm = BPM_NORMAL
+
+    // 3 key: fast BPM (120 — exercise / adrenaline)
+    if key_just_pressed("3"):
+        HeartScene.bpm = BPM_FAST
+
+    // R key: reset auto-rotate to default
+    if key_just_pressed("r"):
+
+    // F key: toggle fog on/off
+    if key_just_pressed("f"):
+        if HeartScene.fog_on == 1:
+            HeartScene.fog_on = 0
+            set_fog("#0a0018", 999.0, 1000.0)     // fog off (far plane)
+        else:
+            HeartScene.fog_on = 1
+            set_fog("#0a0018", 5.0, 18.0)          // intimate fog on
+
+    // Click: trigger palpitation (extra-strong heart squeeze)
+    var ci: Int = 0
+    while ci < click_count():
+        HeartScene.palp_phase = PALP_DURATION
+        HeartScene.palp_count = HeartScene.palp_count + 1
+        ci = ci + 1
+
+    // ── PALPITATION COUNTDOWN ───────────────────────────────────────────
+    if HeartScene.palp_phase > 0:
+        HeartScene.palp_phase = HeartScene.palp_phase - 1
+
+    let palpitating: Bool = HeartScene.palp_phase > 0
+
+    // ── COMPUTE BEAT PHASE ──────────────────────────────────────────────
+    // beat_len = 60000ms / (16ms * bpm) ticks per full heartbeat
+    let beat_len: Int = 3750 / bpm
+    if beat_len < 1:
+        return
+
+    let phase: Float = (tick % beat_len) / beat_len
+
+    // Detect new beat: phase wraps around from end to start
+    if HeartScene.beat_phase_prev > 0.85 and phase < 0.15:
+        HeartScene.beat_count = HeartScene.beat_count + 1
+    HeartScene.beat_phase_prev = phase
+
+    // ── ASYMMETRIC HEARTBEAT CURVE ──────────────────────────────────────
+    //  lub (systole):   0-15%  — quick contraction
+    //  dub (recoil):   15-25%  — elastic bounce-back
+    //  rest (diastole): 25-100% — slow relaxation until next beat
+    //
+    //  palpitation bonus: extra squeeze + glow during click bursts
+
+    let palp_extra: Float = if palpitating: 0.4 else: 0.0
+
+    var heart_scale: Float = 1.0
+    var heart_glow:  Float = 2.0
+    var light_intensity: Float = 2.0
+
+    if phase < 0.15:
+        // SYSTOLE — the squeeze
+        let frac: Float = phase / 0.15
+        heart_scale = 1.0 - frac * 0.12                       // 1.00→0.88
+        heart_glow  = 2.0 + frac * 3.5 + palp_extra * 1.5    // 2.0→5.5+
+        light_intensity = 1.5 + frac * 3.0 + palp_extra       // 1.5→4.5+
+
+    elif phase < 0.25:
+        // RECOIL — bounce back after squeeze
+        let frac: Float = (phase - 0.15) / 0.10
+        heart_scale = 0.88 + frac * 0.16                      // 0.88→1.04
+        heart_glow  = 5.5 - frac * 3.0 + palp_extra * 0.5    // 5.5→2.5
+        light_intensity = 4.5 - frac * 2.0 + palp_extra * 0.3 // 4.5→2.5
+
+    else:
+        // DIASTOLE — relaxation
+        let frac: Float = (phase - 0.25) / 0.75
+        heart_scale = 1.04 - frac * 0.04                      // 1.04→1.00
+        heart_glow  = 2.5 - frac * 1.0                        // 2.5→1.5
+        light_intensity = 2.5 - frac * 1.0                    // 2.5→1.5
+
+    // ── HEART CORE: torusKnot ───────────────────────────────────────────
+    //  Slow spin on all three axes for organic feel
+    let t: Float = tick * 0.04
+    let rx: Float = t * 0.3
+    let ry: Float = t * 0.5
+    let rz: Float = t * 0.2
+    let hs: Float = heart_scale
+
+    update_transform_r("heart_core", 0.0, 0.0, 0.0,
+        rx, ry, rz,
+        hs, hs, hs)
+
+    update_emissive("heart_core", "#ff2200", heart_glow)
+
+    // ── VEINS: 6 branching vessels ──────────────────────────────────────
+    //  Each vein is a 2-segment line (center → mid → tip).
+    //  Veins contract slightly during systole and glow brighter.
+    var v: Int = 0
+    while v < VEIN_COUNT:
+        let v_angle: Float = (v * 6.283185307) / VEIN_COUNT + t * 0.08
+        let vein_len: Float = 2.8 + sin(t * 0.4 + v * 1.2) * 0.4
+
+        // Veins have a delayed response to the heartbeat (peripheral lag)
+        let v_delay: Float = (v as Float) / VEIN_COUNT * 0.18
+        let v_phase: Float = phase + v_delay
+        let v_systole: Bool = v_phase < 0.15
+        let v_recoil:  Bool = v_phase >= 0.15 and v_phase < 0.25
+
+        // Vein contraction: mild during systole
+        let vein_squeeze: Float = if v_systole: 0.92 elif v_recoil: 1.02 else: 1.0
+        let vl: Float = vein_len * vein_squeeze
+
+        // Midpoint: slight perpendicular wobble
+        let mid_div: Float = 0.55
+        let wobble: Float = sin(t * 0.6 + v * 1.5) * 0.15
+
+        let pts = json_array()
+        json_array_push(pts, point(
+            cos(v_angle) * 0.3,
+            sin(v_angle * 2.0) * 0.1,
+            sin(v_angle) * 0.3
+        ))
+        json_array_push(pts, point(
+            cos(v_angle) * vl * mid_div + cos(v_angle + 1.57) * wobble,
+            sin(v_angle * 2.0 + 0.3) * 0.25,
+            sin(v_angle) * vl * mid_div + sin(v_angle + 1.57) * wobble
+        ))
+        json_array_push(pts, point(
+            cos(v_angle) * vl,
+            sin(v_angle * 2.0 + 0.6) * 0.4,
+            sin(v_angle) * vl
+        ))
+
+        let vid: String = "vein_" + str(v)
+        update_line_points(vid, pts)
+
+        // Vein color: brightens during its local systole
+        var vein_color: String = "#cc3344"
+        if v_systole:
+            vein_color = "#ff8866"
+        elif v_recoil:
+            vein_color = "#ff5544"
+
+        update_color(vid, vein_color)
+
+        v = v + 1
+
+    // ── BLOOD CELL PARTICLES: 120 orbiting red cells ────────────────────
+    //  Particles orbit the heart. During systole, they cluster toward the
+    //  center (simulating blood being pumped through the chambers).
+    var blood_json: String = "{\"cmd\":\"update\",\"id\":\"blood_cells\",\"flat\":["
+    var b: Int = 0
+    while b < BLOOD_COUNT:
+        if b > 0:
+            blood_json = blood_json + ","
+
+        let b_angle: Float = (b * 6.283185307) / BLOOD_COUNT + t * (0.4 + heart_scale * 0.2)
+        let b_radius_base: Float = 1.0 + sin(b * 0.7 + t * 1.1) * 0.7
+
+        // Clustering during systole: radius shrinks
+        let cluster_factor: Float = if phase < 0.15:
+            0.55
+        elif phase < 0.25:
+            0.85
+        else:
+            1.0
+
+        let b_radius: Float = b_radius_base * cluster_factor
+        let b_height: Float = sin(b_angle * 3.0 + t * 1.3) * 0.3 * cluster_factor
+
+        blood_json = blood_json + str(cos(b_angle) * b_radius)
+        blood_json = blood_json + ","
+        blood_json = blood_json + str(b_height)
+        blood_json = blood_json + ","
+        blood_json = blood_json + str(sin(b_angle) * b_radius)
+
+        b = b + 1
+    blood_json = blood_json + "]}"
+    println(blood_json)
+
+    // Blood cell size pulses with the heartbeat
+    let blood_size: Float = 0.07 + heart_glow * 0.012
+    update_particle_size("blood_cells", blood_size)
+
+    // ── CAPILLARY PARTICLES: 80 fine peripheral dust ────────────────────
+    //  Tiny gold specks that drift slowly at the outer edges, providing
+    //  depth and atmosphere.
+    var cap_json: String = "{\"cmd\":\"update\",\"id\":\"capillaries\",\"flat\":["
+    var c: Int = 0
+    while c < CAPILLARY_COUNT:
+        if c > 0:
+            cap_json = cap_json + ","
+
+        let ca: Float = c * 1.7 + t * 0.15
+        let cr: Float = 3.2 + sin(c * 0.5 + t * 0.25) * 1.8
+        let cy: Float = sin(ca * 2.3 + t * 0.4) * 0.7
+
+        cap_json = cap_json + str(cos(ca) * cr)
+        cap_json = cap_json + ","
+        cap_json = cap_json + str(cy)
+        cap_json = cap_json + ","
+        cap_json = cap_json + str(sin(ca) * cr)
+
+        c = c + 1
+    cap_json = cap_json + "]}"
+    println(cap_json)
+
+    // Capillary size: fine, with subtle breathing
+    let cap_size: Float = 0.025 + sin(t * 0.4) * 0.01
+    update_particle_size("capillaries", cap_size)
+
+    // ── LIGHTS ───────────────────────────────────────────────────────────
+    //  Heart light: warm red, at center, blazing during systole
+    let light_color: String = if palpitating: "#ff6633" else: "#ff4422"
+    update_light("heart_light", light_color, light_intensity)
+    update_light_position("heart_light",
+        0.0,
+        0.5 + heart_scale * 0.3,
+        0.0)
+
+    //  Rim light: cool blue, orbits slowly for depth contrast
+    let rim_angle: Float = t * 0.3
+    update_light_position("rim_light",
+        cos(rim_angle) * 5.0,
+        2.0 + sin(rim_angle * 1.5) * 0.8,
+        sin(rim_angle) * 5.0)
+    let rim_intensity: Float = 0.8 + sin(t * 0.5) * 0.2
+    update_light("rim_light", "#4488ff", rim_intensity)
+
+    // ── TELEMETRY ───────────────────────────────────────────────────────
+    telemetry("tick",           tick)
+    telemetry("bpm",            HeartScene.bpm)
+    telemetry("beats",          HeartScene.beat_count)
+    telemetry("palpitations",   HeartScene.palp_count)
+    telemetry_float("glow",     heart_glow)
+    telemetry_float("scale",    heart_scale)
+
+    let status_str: String = if palpitating: "♥ PALPITATION" else: "♥ beating"
+    telemetry_string("status", status_str)
+
+    // ── CLEAR PER-FRAME INPUT STATE ─────────────────────────────────────
+    interact_clear()
+
+// ============================================================================
+//  LAYER 0: PLAIN CODE — main sets up the scene, then keeps process alive
+// ============================================================================
+
+fn main() -> Int with IO:
+    let init: Int = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // ── SCENE ATMOSPHERE ────────────────────────────────────────────────
+    set_background("#0a0018")               // deep blood-tinged darkness
+    set_fog("#0a0018", 5.0, 18.0)          // intimate fog for close-up drama
+    set_ambient("#220011", 0.2)             // very dim warm ambient
+
+    // ── CAMERA — intimate front view ────────────────────────────────────
+    camera_look_at(0.0, 1.0, 5.5, 0.0, 0.0, 0.0)
+
+    // ── HEART CORE — torusKnot, the main heart muscle ──────────────────
+    create_mesh("heart_core", "torusKnot", "#cc0022")
+    update_emissive("heart_core", "#ff2200", 2.0)
+    update_transform("heart_core", 0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
+
+    // ── VEINS — 6 branching vessel lines ───────────────────────────────
+    var v: Int = 0
+    while v < VEIN_COUNT:
+        let vid: String = "vein_" + str(v)
+        create_lines(vid, "#cc3344")
+        v = v + 1
+
+    // ── BLOOD CELLS — 120 red particles orbiting the heart ─────────────
+    create_particles("blood_cells", BLOOD_COUNT, "#ff4444")
+    update_particle_size("blood_cells", 0.08)
+
+    // ── CAPILLARIES — 80 fine gold dust particles ──────────────────────
+    create_particles("capillaries", CAPILLARY_COUNT, "#ff8866")
+    update_particle_size("capillaries", 0.025)
+
+    // ── LIGHTS ──────────────────────────────────────────────────────────
+    create_light("heart_light", "point", "#ff4422", 2.0, 0.0, 0.5, 0.0)
+    create_light("rim_light", "point", "#4488ff", 1.0, 5.0, 2.0, 0.0)
+
+    // ── HUD ─────────────────────────────────────────────────────────────
+    telemetry_string("status", "♥ HEARTBEAT: 1/2/3=BPM  F=fog  R=reset  click=palp")
+    telemetry("bpm", BPM_NORMAL)
+    telemetry("beats", 0)
+    telemetry("palpitations", 0)
+    telemetry("blood_cells", BLOOD_COUNT)
+    telemetry("capillaries", CAPILLARY_COUNT)
+
+    // ── READY — pulse starts firing ────────────────────────────────────
+    HeartScene.ready = 1
+
+    // ── KEEP-ALIVE ──────────────────────────────────────────────────────
+    var tick: Int = 0
+    while tick < 999999:
+        let _ = sleep_millis(1000)
+        tick = tick + 1
+
+    let sd: Int = runtime_shutdown()
+    if sd != 0:
+        return 200 + sd
+    return 0
+
+// ============================================================================
+//  END pulse.kn — Heartbeat: Living Heart Simulation
+// ============================================================================

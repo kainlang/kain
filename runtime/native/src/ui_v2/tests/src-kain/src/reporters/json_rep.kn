@@ -1,0 +1,187 @@
+// ============================================================================
+//  json_rep.kn — JSON output emitter for Kaintana test runner
+//
+//  Produces structured JSON output to stdout for CI ingestion.
+//  Each test run produces a JSON suite document with per-test results
+//  and a summary.
+//
+//  Format:
+//    {
+//      "suite": "kaintana_core",
+//      "timestamp": 1751145600000,
+//      "backend": "null",
+//      "framebuffer": { "width": 320, "height": 240 },
+//      "results": [
+//        { "name": "hello_box", "status": "pass", ... }
+//      ],
+//      "summary": { "total": 1, "pass": 1, "fail": 0, "duration_us": 42 }
+//    }
+//
+//  Ladder: Layer 0 — Pure string building. No world, no actor.
+// ============================================================================
+
+use std::json
+use std::time
+
+// ============================================================================
+//  TEST RESULT — typed data for one test case result
+// ============================================================================
+
+pub struct TestResult:
+    name:           String
+    status:         String     // "pass", "fail", "skip", "error"
+    cmd_count:      Int
+    expected_cmds:  String
+    pixel_status:   String     // "pass", "fail", "skip", "size-error"
+    first_mismatch: Int        // -1 = no mismatch, byte offset otherwise
+    duration_us:    Int
+    error_message:  String     // "" if no error
+
+pub struct SuiteSummary:
+    total:      Int
+    pass_count: Int
+    fail_count: Int
+    skip_count: Int
+    duration_us: Int
+
+// ============================================================================
+//  EMIT JSON RESULT — produce one result object
+// ============================================================================
+
+pub fn build_result_object(result: TestResult) -> JsonObject:
+    let obj = json_object()
+
+    let _name = json_object_set_string(obj, "name", result.name)
+    let _status = json_object_set_string(obj, "status", result.status)
+    let _cmds = json_object_set_int(obj, "cmd_count", result.cmd_count)
+    let _expected = json_object_set_string(obj, "expected_cmds", result.expected_cmds)
+    let _pixel = json_object_set_string(obj, "pixel_check", result.pixel_status)
+    let _duration = json_object_set_int(obj, "duration_us", result.duration_us)
+
+    if result.first_mismatch >= 0:
+        let _mismatch = json_object_set_int(obj, "first_mismatch", result.first_mismatch)
+
+    if result.error_message != "":
+        let _err = json_object_set_string(obj, "error", result.error_message)
+
+    return obj
+
+// ============================================================================
+//  BUILD SUITE OBJECT — wrap all results into a suite document
+// ============================================================================
+
+pub fn build_suite_object(
+    results: Array<TestResult>,
+    fb_w: Int,
+    fb_h: Int,
+    backend: String,
+) -> JsonObject:
+    let root = json_object()
+    let _suite = json_object_set_string(root, "suite", "kaintana_core")
+    let _ts = json_object_set_int(root, "timestamp", now_millis())
+    let _backend = json_object_set_string(root, "backend", backend)
+
+    // Framebuffer info
+    let fb_obj = json_object()
+    let _fbw = json_object_set_int(fb_obj, "width", fb_w)
+    let _fbh = json_object_set_int(fb_obj, "height", fb_h)
+    let _fb = json_object_set_object(root, "framebuffer", fb_obj)
+
+    // Results array
+    let results_arr = json_array()
+    var i: Int = 0
+    while i < len(results):
+        let result_obj = build_result_object(results[i])
+        let _push = json_array_push_object(results_arr, result_obj)
+        i = i + 1
+    let _results = json_object_set_array(root, "results", results_arr)
+
+    // Summary
+    let summary = build_summary(results)
+    let _summary = json_object_set_object(root, "summary", summary)
+
+    return root
+
+// ============================================================================
+//  BUILD SUMMARY — aggregate pass/fail counts
+// ============================================================================
+
+fn build_summary(results: Array<TestResult>) -> JsonObject:
+    var total: Int = 0
+    var pass_count: Int = 0
+    var fail_count: Int = 0
+    var skip_count: Int = 0
+    var max_duration: Int = 0
+
+    var i: Int = 0
+    while i < len(results):
+        let r = results[i]
+        total = total + 1
+        if r.status == "pass":
+            pass_count = pass_count + 1
+        elif r.status == "fail" or r.status == "error":
+            fail_count = fail_count + 1
+        else:
+            skip_count = skip_count + 1
+        if r.duration_us > max_duration:
+            max_duration = r.duration_us
+        i = i + 1
+
+    let obj = json_object()
+    let _total = json_object_set_int(obj, "total", total)
+    let _pass = json_object_set_int(obj, "pass", pass_count)
+    let _fail = json_object_set_int(obj, "fail", fail_count)
+    let _skip = json_object_set_int(obj, "skip", skip_count)
+    let _duration = json_object_set_int(obj, "duration_us", max_duration)
+    return obj
+
+// ============================================================================
+//  PRINT SUITE — serialize suite to stdout
+// ============================================================================
+
+pub fn print_suite(suite: JsonObject):
+    println(json_stringify(suite))
+
+// ============================================================================
+//  PRINT RESULT LINE — emit single result as JSON line
+// ============================================================================
+
+pub fn print_result_line(result: TestResult):
+    let obj = build_result_object(result)
+    println(json_stringify(obj))
+
+// ============================================================================
+//  QUICK RESULT — convenience constructor for passing tests
+// ============================================================================
+
+pub fn passing_result(name: String, cmd_count: Int, expected: String, duration_us: Int) -> TestResult:
+    return TestResult {
+        name: name,
+        status: "pass",
+        cmd_count: cmd_count,
+        expected_cmds: expected,
+        pixel_status: "pass",
+        first_mismatch: -1,
+        duration_us: duration_us,
+        error_message: "",
+    }
+
+pub fn failing_result(
+    name: String,
+    cmd_count: Int,
+    expected: String,
+    pixel_status: String,
+    first_mismatch: Int,
+    duration_us: Int,
+    error_message: String,
+) -> TestResult:
+    return TestResult {
+        name: name,
+        status: "fail",
+        cmd_count: cmd_count,
+        expected_cmds: expected,
+        pixel_status: pixel_status,
+        first_mismatch: first_mismatch,
+        duration_us: duration_us,
+        error_message: error_message,
+    }

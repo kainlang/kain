@@ -1,0 +1,25 @@
+function_name	kain_concept	llvm_ir_pattern	llvm_c_api	status	lines
+compile_block	fn/scope	Emit scope push/pop, defer stack, ephemeral candidate analysis, stmt loop, scope cleanup	LLVMBasicBlockAppend	needs-review	858-916
+compile_block_with_result	fn/scope	Same as compile_block but returns last expr value with retain/release for block result	LLVMBasicBlockAppend	needs-review	918-1030
+emit_heap_owned_i8_guard	ownership/RC	alloca i1 + store 0/1 for heap-owned i8* guard	—	needs-review	1032-1056
+emit_rc_retain_if_heap_i8	ownership/RC	Check i8* != null, call @rc_retain	LLVMBuildCall	needs-review	1058-1072
+emit_rc_release_if_heap_i8	ownership/RC	Check i8* != null, call @rc_release	LLVMBuildCall	needs-review	1074-1088
+emit_heap_owned_retain_for_transfer	ownership/RC	Set guard to 1 for heap-owned i8* transfer	—	mapped	1090-1111
+emit_release	ownership/RC	Dispatch release: i8*→rc_release, %struct*→call @dtor_*, JSON→json_release	LLVMBuildCall	needs-review	1113-1132
+emit_release_if_new_object_expr	ownership/RC	Check if expr is new object to skip release	—	mapped	1134-1138
+emit_scope_cleanup_for_vars	ownership/scope	Emit release for all vars in current scope	—	needs-review	1140-1143
+emit_scope_cleanup_for_vars_except	ownership/scope	Emit release for scope vars except transfer set	—	needs-review	1145-1190
+emit_scope_exit	ownership/scope	Pop scope, emit defers, cleanup	—	mapped	1192-1195
+emit_current_scope_defers	defer	Emit all defers from current defer scope	—	needs-review	1197-1202
+emit_all_defer_cleanups	defer	Emit all defer cleanups across all scopes	—	mapped	1204-1206
+emit_defer_cleanups_from_depth	defer	Emit defers from depth N to end	—	needs-review	1208-1214
+emit_defer_exprs	defer	Emit individual defer expressions	—	needs-review	1216-1224
+emit_scope_exit_except	ownership/scope	Scope exit with exception set for transfer	—	mapped	1226-1230
+emit_all_scopes_cleanup	ownership/scope	Emit cleanup across all scopes	—	mapped	1232-1235
+emit_all_scopes_cleanup_except	ownership/scope	Emit cleanup across all scopes except transfer	—	needs-review	1237-1283
+collect_helper_owned_pointer_transfer_locals	ownership	Collect helper-owned pointer locals at scope boundary	—	mapped	1285-1329
+helper_owned_pointer_transfer_locals_for_expr	ownership	Check which helper-owned locals an expr touches	—	mapped	1331-1335
+match_fallback_value_for_type	match	Generate zero value fallback for match type	—	mapped	1337-1349
+is_new_object	fn/ownership	Detect if expr produces new RC=1 object	—	mapped	1351-1365
+compile_if_statement	if/elif/else	Emit br/icmp/phi for if/elif/else chains	LLVMBuildCondBr/BuildPhi	needs-review	1367-1412
+compile_stmt	all statements	~850-line dispatcher: let, assignment, while, for, loop, return, break, continue, defers	LLVMBuildAlloca/BuildStore/etc	needs-review	1414-2213

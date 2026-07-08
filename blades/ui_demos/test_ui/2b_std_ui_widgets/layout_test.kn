@@ -1,0 +1,217 @@
+// ============================================================================
+//  layout_test.kn — Layout Test (self-contained, native elements only)
+//
+//  Demonstrates layout primitives using native <stack>, <box>, <text>.
+//  No imported components.
+//
+//  Usage: kain build layout_test.kn --target llvm
+// ============================================================================
+
+use std::runtime
+
+component LayoutTestApp(width=960, height=620):
+    render <panel title="Layout Test" fill_color="bg">
+        <text value="LAYOUT TEST — HStack / VStack / Spacer / Padding / Divider" font_size={18} fill_color="accent" />
+
+        <text value="" font_size={8} />
+
+        // ── HStack: horizontal mixed colors ──────────────────────────────────
+        <text value="HSTACK — Horizontal (native stack direction=horizontal)" font_size={14} fill_color="text" />
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={4} width={80} height={40}>
+                <text value="" />
+            </box>
+            <box fill_color="accent2" corner_radius={4} width={120} height={40}>
+                <text value="" />
+            </box>
+            <box fill_color="accent3" corner_radius={4} width={80} height={40}>
+                <text value="" />
+            </box>
+            <box fill_color="accent4" corner_radius={4} width={100} height={40}>
+                <text value="" />
+            </box>
+            <box fill_color="accent" corner_radius={4} width={60} height={40}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={8} />
+
+        // ── HStack: alignment variants (mixed heights) ──────────────────────
+        <text value="HSTACK — Alignment: start / center / end (mixed heights)" font_size={14} fill_color="text" />
+
+        <text value="Alignment: start" font_size={12} fill_color="text_dim" />
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={4} width={100} height={24}>
+                <text value="" />
+            </box>
+            <box fill_color="accent2" corner_radius={4} width={100} height={36}>
+                <text value="" />
+            </box>
+            <box fill_color="accent3" corner_radius={4} width={100} height={20}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={4} />
+
+        <text value="Alignment: center" font_size={12} fill_color="text_dim" />
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={4} width={100} height={24}>
+                <text value="" />
+            </box>
+            <box fill_color="accent2" corner_radius={4} width={100} height={36}>
+                <text value="" />
+            </box>
+            <box fill_color="accent3" corner_radius={4} width={100} height={20}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={4} />
+
+        <text value="Alignment: end" font_size={12} fill_color="text_dim" />
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={4} width={100} height={24}>
+                <text value="" />
+            </box>
+            <box fill_color="accent2" corner_radius={4} width={100} height={36}>
+                <text value="" />
+            </box>
+            <box fill_color="accent3" corner_radius={4} width={100} height={20}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={8} />
+
+        // ── VStack: vertical arrangement ─────────────────────────────────────
+        <text value="VSTACK — Vertical (native stack direction=vertical)" font_size={14} fill_color="text" />
+
+        <stack direction="horizontal" spacing={12}>
+            <stack direction="vertical" spacing={4}>
+                <box fill_color="surface" corner_radius={4} width={220} height={28}>
+                    <text value="" />
+                </box>
+                <box fill_color="surface" corner_radius={4} width={220} height={28}>
+                    <text value="" />
+                </box>
+                <box fill_color="surface" corner_radius={4} width={220} height={28}>
+                    <text value="" />
+                </box>
+            </stack>
+
+            <stack direction="vertical" spacing={2}>
+                <box fill_color="accent2" corner_radius={2} width={220} height={20}>
+                    <text value="" />
+                </box>
+                <box fill_color="accent2" corner_radius={2} width={220} height={20}>
+                    <text value="" />
+                </box>
+                <box fill_color="accent2" corner_radius={2} width={220} height={20}>
+                    <text value="" />
+                </box>
+                <box fill_color="accent2" corner_radius={2} width={220} height={20}>
+                    <text value="" />
+                </box>
+            </stack>
+
+            <stack direction="vertical" spacing={8}>
+                <box fill_color="accent4" corner_radius={4} width={80} height={24}>
+                    <text value="" />
+                </box>
+                <box fill_color="accent4" corner_radius={4} width={80} height={24}>
+                    <text value="" />
+                </box>
+            </stack>
+        </stack>
+
+        <text value="" font_size={8} />
+
+        // ── Spacer demonstration ─────────────────────────────────────────────
+        <text value="SPACER — Flexible gap pushes items apart" font_size={14} fill_color="text" />
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={6} width={120} height={32}>
+                <text value="" />
+            </box>
+            <box fill_color="transparent" width={200} height={32}>
+                <text value="" />
+            </box>
+            <box fill_color="accent2" corner_radius={6} width={120} height={32}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={8} />
+
+        // ── Dividers ─────────────────────────────────────────────────────────
+        <text value="DIVIDERS — Horizontal and vertical separators" font_size={14} fill_color="text" />
+
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="surface" corner_radius={4} width={120} height={36}>
+                <text value="" />
+            </box>
+            <box fill_color="border" width={2} height={36}>
+                <text value="" />
+            </box>
+            <box fill_color="surface" corner_radius={4} width={120} height={36}>
+                <text value="" />
+            </box>
+            <box fill_color="border" width={2} height={36}>
+                <text value="" />
+            </box>
+            <box fill_color="surface" corner_radius={4} width={120} height={36}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={4} />
+
+        // Horizontal divider
+        <box fill_color="border" width={920} height={2}>
+            <text value="" />
+        </box>
+
+        <text value="" font_size={8} />
+
+        // ── Nested layout ────────────────────────────────────────────────────
+        <text value="NESTED — Horizontal > Vertical x2" font_size={14} fill_color="text" />
+
+        <stack direction="horizontal" spacing={12}>
+            <stack direction="vertical" spacing={4}>
+                <box fill_color="accent" corner_radius={2} width={430} height={20}>
+                    <text value="" />
+                </box>
+                <box fill_color="accent2" corner_radius={2} width={430} height={20}>
+                    <text value="" />
+                </box>
+                <box fill_color="accent3" corner_radius={2} width={430} height={20}>
+                    <text value="" />
+                </box>
+            </stack>
+
+            <stack direction="vertical" spacing={4}>
+                <box fill_color="surface" corner_radius={4} width={450} height={32}>
+                    <text value="" />
+                </box>
+                <box fill_color="surface2" corner_radius={4} width={450} height={32}>
+                    <text value="" />
+                </box>
+            </stack>
+        </stack>
+
+        <text value="" font_size={8} />
+
+        <text value="LAYOUT API — All native stack-based composition" font_size={12} fill_color="text_dim" />
+        <text value="stack direction=horizontal: row | stack direction=vertical: column | box: colored rectangle" font_size={11} fill_color="text_dim" />
+        <text value="Theme colors: accent=teal accent2=blue accent3=orange accent4=red surface=dark-panel border=gray-line" font_size={11} fill_color="text_dim" />
+    </panel>
+
+world LayoutTestWorld:
+    surface native_ui => LayoutTestApp
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

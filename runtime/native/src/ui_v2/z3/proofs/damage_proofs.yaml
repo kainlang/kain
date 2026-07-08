@@ -1,0 +1,4 @@
+# damage_proofs.yaml — Z3 proof pack: pipeline state machine
+# Proves: pipeline state machine is total (no undefined transitions),
+# no orphan dirty nodes after propagation, dirty count bounded by
+# tree size, lazy sleep never misses a child change.

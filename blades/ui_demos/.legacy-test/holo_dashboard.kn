@@ -1,0 +1,420 @@
+// ============================================================================
+//  holo_dashboard.kn — HOLO DASH: Modern Holographic Dashboard
+// ============================================================================
+//  A futuristic dashboard using ONLY raw native_ui ABI calls.
+//  NO widget system. Zero widget imports. Pure ABI + framebuffer pixel art.
+//
+//  Architecture:
+//    Layer 0 (framebuffer): animated bar chart, pixel-art shadows
+//    Layer 1 (ABI nodes): header, info cards, accent borders
+//    Layer 2 (ABI text): labels, values, clock
+//
+//  Features:
+//    - Cyan/teal/magenta holographic theme on deep navy background
+//    - 4 stat cards with colored left accent borders (NOT 100x30 buttons)
+//    - Animated 24-bar chart drawn pixel-by-pixel via framebuffer
+//    - Real-time clock, frame counter, animated meter bars in cards
+//    - Custom card dimensions: 522x140 px
+//    - All via raw ABI — no create(), begin_frame(ctx), end_frame(ctx)
+//
+//  Usage: kain run blades/ui_demos/holo_dashboard.kn --target llvm
+// ============================================================================
+
+use std::ui
+use std::math
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const WIN_W: Int = 1100
+const WIN_H: Int = 720
+const BAR_COUNT: Int = 24
+const NUM_CARDS: Int = 4
+
+// ── Color palette (0xAABBGGRR — read right-to-left: RR,GG,BB,AA) ─────
+// Pure red   = 0xFFFF0000    (R=255, G=0,   B=0)
+// Pure green = 0xFF00FF00    (R=0,   G=255, B=0)
+// Pure blue  = 0xFF0000FF    (R=0,   G=0,   B=255)
+
+const C_BG:     Int = 0xFF140C08    // deep navy  (R=8,  G=12, B=20)
+const C_CARD:   Int = 0xFF281810    // card surf  (R=16, G=24, B=40)
+const C_HDR:    Int = 0xFF0E0704    // header     (R=4,  G=7,  B=14)
+const C_CYAN:   Int = 0xFFFFFF00    // cyan       (R=0,  G=255, B=255)
+const C_TEAL:   Int = 0xFFC8C800    // teal       (R=0,  G=200, B=200)
+const C_MAG:    Int = 0xFFC832FF    // magenta    (R=255,G=50,  B=200)
+const C_GREEN:  Int = 0xFF64FF32    // green      (R=50, G=255, B=100)
+const C_WHITE:  Int = 0xFFFFFFFF    // white
+const C_DIM:    Int = 0xFFB4AAA0    // dim text   (R=160,G=170, B=180)
+const C_BAR:    Int = 0xFF64FF32    // bar green
+const C_BAR2:   Int = 0xFFC8FF00    // bar cyan   (R=0,  G=255, B=200)
+const C_BAR3:   Int = 0xFFC8C800    // bar teal
+const C_SEP:    Int = 0xFF321E0A    // separator  (R=10, G=30, B=50)
+const C_CARD1:  Int = 0xFFFFFF00    // card 1 accent — cyan
+const C_CARD2:  Int = 0xFFC8FF00    // card 2 accent — teal-cyan
+const C_CARD3:  Int = 0xFFC832FF    // card 3 accent — magenta
+const C_CARD4:  Int = 0xFF64FF32    // card 4 accent — green
+
+// ── Layout constants ──────────────────────────────────────────────────
+const HEADER_H:  Int = 48
+const STRIPE_H:  Int = 2
+const CARD_GAP:  Int = 12
+const CARD_X:    Int = 22
+const CARD_Y:    Int = 66
+const CARD_W:    Int = (WIN_W - CARD_X * 2 - CARD_GAP) / 2
+const CARD_H:    Int = 145
+const BAR_X:     Int = 22
+const BAR_Y:     Int = CARD_Y + CARD_H * 2 + CARD_GAP * 2 + 8
+const BAR_W:     Int = WIN_W - 44
+const BAR_H:     Int = 160
+const STATUS_Y:  Int = WIN_H - 30
+
+// ============================================================================
+//  STATE
+// ============================================================================
+
+struct HoloState:
+    frame: Int
+    bars: [Float]
+    stats: [Float]
+    clock_h: Int
+    clock_m: Int
+    clock_s: Int
+    tick_acc: Int
+
+fn init_state() -> HoloState:
+    var bars: [Float] = []
+    var i = 0
+    while i < BAR_COUNT:
+        push(bars, 0.3 + to_float(i % 7) * 0.06)
+        i = i + 1
+    var stats: [Float] = []
+    i = 0
+    while i < NUM_CARDS:
+        push(stats, 0.5)
+        i = i + 1
+    return HoloState {
+        frame: 0, bars: bars, stats: stats,
+        clock_h: 0, clock_m: 0, clock_s: 0, tick_acc: 0,
+    }
+
+// ============================================================================
+//  FRAMEBUFFER HELPERS (with Unsafe — pixel-level operations)
+// ============================================================================
+
+fn fb_px(fb: ptr<Int>, s: Int, x: Int, y: Int, w: Int, h: Int, c: Int) with Unsafe:
+    if x < 0 or x >= w: return
+    if y < 0 or y >= h: return
+    mem_store(ptr_offset(fb, y * s + x, "Int"), c, "Int")
+
+fn fb_clear(fb: ptr<Int>, s: Int, w: Int, h: Int, c: Int) with Unsafe:
+    var y = 0
+    while y < h:
+        var x = 0
+        while x < w:
+            mem_store(ptr_offset(fb, y * s + x, "Int"), c, "Int")
+            x = x + 1
+        y = y + 1
+
+fn fb_vline(fb: ptr<Int>, s: Int, x: Int, y0: Int, y1: Int, w: Int, h: Int, c: Int) with Unsafe:
+    var y = y0
+    while y <= y1:
+        fb_px(fb, s, x, y, w, h, c)
+        y = y + 1
+
+fn fb_hline(fb: ptr<Int>, s: Int, x0: Int, x1: Int, y: Int, w: Int, h: Int, c: Int) with Unsafe:
+    var x = x0
+    while x <= x1:
+        fb_px(fb, s, x, y, w, h, c)
+        x = x + 1
+
+fn fb_fill(fb: ptr<Int>, s: Int, rx: Int, ry: Int, fw: Int, fh: Int, W: Int, H: Int, c: Int) with Unsafe:
+    if fw <= 0 or fh <= 0: return
+    var row = ry
+    while row < ry + fh and row < H:
+        if row >= 0:
+            var col = rx
+            while col < rx + fw and col < W:
+                if col >= 0: fb_px(fb, s, col, row, W, H, c)
+                col = col + 1
+        row = row + 1
+
+fn fb_rect(fb: ptr<Int>, s: Int, rx: Int, ry: Int, fw: Int, fh: Int, W: Int, H: Int, c: Int) with Unsafe:
+    if fw <= 0 or fh <= 0: return
+    fb_hline(fb, s, rx, rx + fw - 1, ry, W, H, c)
+    fb_hline(fb, s, rx, rx + fw - 1, ry + fh - 1, W, H, c)
+    fb_vline(fb, s, rx, ry, ry + fh - 1, W, H, c)
+    fb_vline(fb, s, rx + fw - 1, ry, ry + fh - 1, W, H, c)
+
+// ============================================================================
+//  PIXEL RENDERERS (called from main, with Unsafe)
+// ============================================================================
+
+fn render_fb_background(fb: ptr<Int>, s: Int, w: Int, h: Int) with Unsafe:
+    // Quick solid fill — dark navy base
+    fb_clear(fb, s, w, h, C_BG)
+    // Subtle horizontal scanlines for holographic feel
+    var y = 0
+    while y < h:
+        if y % 4 == 0:
+            var x = 0
+            while x < w:
+                mem_store(ptr_offset(fb, y * s + x, "Int"), 0xFF100804, "Int")
+                x = x + 1
+        y = y + 1
+
+fn render_fb_bars(fb: ptr<Int>, s: Int, w: Int, h: Int, bars: [Float], frame: Int) with Unsafe:
+    let bx = BAR_X
+    let by = BAR_Y
+    let bw = BAR_W
+    let bh = BAR_H
+    let barcount = len(bars)
+    if barcount == 0: return
+
+    // Card background for bar chart area
+    fb_fill(fb, s, bx - 4, by - 4, bw + 8, bh + 8, w, h, C_CARD)
+    // Top accent line
+    fb_hline(fb, s, bx, bx + bw, by - 4, w, h, C_CYAN)
+    fb_hline(fb, s, bx, bx + bw, by - 3, w, h, (C_CYAN & 0x00FFFFFF) | (0x30 << 24))
+
+    // Vertical grid lines (subtle)
+    var gi = 0
+    while gi < 8:
+        let gx = bx + (bw * gi) / 7
+        fb_vline(fb, s, gx, by, by + bh - 2, w, h, (C_DIM & 0x00FFFFFF) | (0x10 << 24))
+        gi = gi + 1
+
+    // Horizontal zero line
+    fb_hline(fb, s, bx, bx + bw, by + bh - 2, w, h, (C_DIM & 0x00FFFFFF) | (0x30 << 24))
+
+    // Bars
+    let bar_w = (bw - (barcount + 1) * 3) / barcount
+    if bar_w < 2: bar_w = 2
+
+    var i = 0
+    while i < barcount:
+        let bv = bars[i]
+        let bar_h = to_int(bv * to_float(bh - 16))
+        if bar_h < 2: bar_h = 2
+        let barx = bx + 3 + i * (bar_w + 3)
+        let bary = by + bh - 12 - bar_h
+
+        // Glow behind bar
+        if bar_h > 6:
+            fb_fill(fb, s, barx - 1, bary - 1, bar_w + 2, bar_h + 2, w, h,
+                    (C_BAR2 & 0x00FFFFFF) | (0x14 << 24))
+
+        // Bar body
+        let color = if i % 3 == 0: C_BAR else if i % 3 == 1: C_BAR2 else: C_BAR3
+        fb_fill(fb, s, barx, bary, bar_w, bar_h, w, h, color)
+
+        // Bright top pixel
+        fb_hline(fb, s, barx, barx + bar_w - 1, bary, w, h, (color & 0x00FFFFFF) | 0xFF000000)
+        i = i + 1
+
+// ============================================================================
+//  ANIMATE
+// ============================================================================
+
+fn animate_state(st: HoloState) -> HoloState:
+    st.frame = st.frame + 1
+
+    // Animate 24 bars with sine waves
+    var i = 0
+    while i < len(st.bars):
+        let phase = to_float(st.frame) * 0.025 + to_float(i) * 0.45
+        let raw = sin(phase)
+        st.bars[i] = 0.15 + (raw * 0.5 + 0.5) * 0.7
+        i = i + 1
+
+    // Animate 4 stat values
+    i = 0
+    while i < len(st.stats):
+        let phase = to_float(st.frame) * 0.018 + to_float(i) * 1.3
+        st.stats[i] = 0.25 + (sin(phase) * 0.5 + 0.5) * 0.55
+        i = i + 1
+
+    // Clock: 1 tick per frame, 60 ticks = 1 second
+    st.tick_acc = st.tick_acc + 1
+    if st.tick_acc >= 60:
+        st.tick_acc = 0
+        st.clock_s = st.clock_s + 1
+        if st.clock_s >= 60:
+            st.clock_s = 0
+            st.clock_m = st.clock_m + 1
+            if st.clock_m >= 60:
+                st.clock_m = 0
+                st.clock_h = st.clock_h + 1
+                if st.clock_h >= 24:
+                    st.clock_h = 0
+
+    return st
+
+// ============================================================================
+//  HELPERS
+// ============================================================================
+
+fn pad2(v: Int) -> String:
+    if v < 10: return "0" + str(v)
+    return str(v)
+
+fn pct_bar(val: Float, w: Int) -> String:
+    let filled = to_int(val * to_float(w))
+    var result: String = ""
+    var i = 0
+    while i < w:
+        if i < filled: result = result + "#" else: result = result + "-"
+        i = i + 1
+    return result
+
+fn render_all_fb(raw_ptr: Int, fs: Int, fw: Int, fh: Int, st: HoloState) with Unsafe:
+    if raw_ptr == 0: return
+    let fb: ptr<Int> = int_to_ptr(raw_ptr, "Int")
+    render_fb_background(fb, fs, fw, fh)
+    render_fb_bars(fb, fs, fw, fh, st.bars, st.frame)
+
+// ============================================================================
+//  CARD RENDERER (pure ABI nodes, no widget)
+// ============================================================================
+
+fn draw_card(session: Int, font_title: Int, font_body: Int,
+             x: Float, y: Float, w: Float, h: Float,
+             accent_color: Int,
+             title: String,
+             line1: String, line2: String, line3: String, line4: String, line5: String):
+    // Card background
+    let card = native_ui_node_create(session, "card")
+    native_ui_node_set_rect(session, card, x, y, w, h)
+    native_ui_node_set_style_i64(session, card, "fill-color", C_CARD)
+    let _cb = native_ui_draw_rect(session, card, x, y, w, h, "fill")
+
+    // Left accent border
+    let acc = native_ui_node_create(session, "acc")
+    native_ui_node_set_rect(session, acc, x, y, 4.0, h)
+    native_ui_node_set_style_i64(session, acc, "fill-color", accent_color)
+    let _ca = native_ui_draw_rect(session, acc, x, y, 4.0, h, "fill")
+
+    // Title text
+    let _t = native_ui_draw_text(session, card, font_title, x + 14.0, y + 10.0, title, "ct")
+
+    // Body text lines
+    let _l1 = native_ui_draw_text(session, card, font_body, x + 14.0, y + 34.0, line1, "c1")
+    let _l2 = native_ui_draw_text(session, card, font_body, x + 14.0, y + 54.0, line2, "c2")
+    let _l3 = native_ui_draw_text(session, card, font_body, x + 14.0, y + 74.0, line3, "c3")
+    let _l4 = native_ui_draw_text(session, card, font_body, x + 14.0, y + 94.0, line4, "c4")
+    let _l5 = native_ui_draw_text(session, card, font_body, x + 14.0, y + 114.0, line5, "c5")
+
+// ============================================================================
+//  MAIN — No widget system, no Unsafe
+// ============================================================================
+
+pub fn main() -> Int with Unsafe:
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("HoloDash", WIN_W, WIN_H)
+    if session <= 0: return 1
+
+    let _win = native_ui_window_open(session, "HOLO DASH  --  Holographic System Dashboard", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    // Font resources (may use system fallback if TTF not loaded)
+    let f_title = native_ui_font_create(session, "title", "Segoe UI", 17.0)
+    let f_body  = native_ui_font_create(session, "body", "Segoe UI", 12.0)
+    let f_mono  = native_ui_font_create(session, "mono", "Consolas", 11.0)
+
+    var st = init_state()
+
+    while native_ui_host_should_close(session) == 0:
+        let _pump = native_ui_host_pump(session)
+
+        // ── FRAMEBUFFER PASS ────────────────────────────────────────
+        let fbp = native_ui_framebuffer_ptr(session)
+        let fw  = native_ui_framebuffer_width(session)
+        let fh  = native_ui_framebuffer_height(session)
+        let fs  = native_ui_framebuffer_stride(session) / 4
+        render_all_fb(fbp, fs, fw, fh, st)
+
+        // ── ABI NODE PASS ───────────────────────────────────────────
+        let _bf = native_ui_begin_frame(session, 16.0)
+
+        // Header bar
+        let hdr = native_ui_node_create(session, "hdr")
+        native_ui_node_set_rect(session, hdr, 0.0, 0.0, to_float(WIN_W), to_float(HEADER_H))
+        native_ui_node_set_style_i64(session, hdr, "fill-color", C_HDR)
+        let _hr = native_ui_draw_rect(session, hdr, 0.0, 0.0, to_float(WIN_W), to_float(HEADER_H), "fill")
+
+        // Cyan accent stripe below header
+        let strp = native_ui_node_create(session, "strp")
+        native_ui_node_set_rect(session, strp, 0.0, to_float(HEADER_H - STRIPE_H), to_float(WIN_W), to_float(STRIPE_H))
+        native_ui_node_set_style_i64(session, strp, "fill-color", C_CYAN)
+        let _sr = native_ui_draw_rect(session, strp, 0.0, to_float(HEADER_H - STRIPE_H), to_float(WIN_W), to_float(STRIPE_H), "fill")
+
+        // Header text
+        let time_str = "HOLO DASH  |  " + pad2(st.clock_h) + ":" + pad2(st.clock_m) + ":" + pad2(st.clock_s)
+        let _ht = native_ui_draw_text(session, hdr, f_title, 16.0, 12.0, time_str, "ht")
+        let _hs = native_ui_draw_text(session, hdr, f_body, to_float(WIN_W - 180), 16.0, "Frame: " + str(st.frame), "hs")
+
+        // ── 4 STAT CARDS ────────────────────────────────────────────
+        let cf = to_float(CARD_X)
+        let cgf = to_float(CARD_GAP)
+        let cwf = to_float(CARD_W)
+        let chf = to_float(CARD_H)
+        let cyf = to_float(CARD_Y)
+        let c2x = cf + cwf + cgf
+        let c3y = cyf + chf + cgf
+
+        // Card 1: SYSTEM
+        let cpu_pct = to_int(st.stats[0] * 100.0)
+        let mem_gb  = to_int(st.stats[1] * 16.0)
+        draw_card(session, f_title, f_body,
+                  cf, cyf, cwf, chf, C_CARD1,
+                  "SYSTEM",
+                  "CPU:     " + str(cpu_pct) + "%  " + pct_bar(st.stats[0], 15),
+                  "Memory:  " + str(mem_gb) + " / 16 GB",
+                  "Uptime:  " + pad2(st.clock_h) + ":" + pad2(st.clock_m) + ":" + pad2(st.clock_s),
+                  "Cores:   8  |  Threads: 16",
+                  "Freq:    3.2 GHz  |  Temp: 58 C")
+
+        // Card 2: NETWORK
+        let net_dl = to_int(st.stats[2] * 900.0 + 100.0)
+        let net_ul = to_int(st.stats[3] * 200.0 + 20.0)
+        draw_card(session, f_title, f_body,
+                  c2x, cyf, cwf, chf, C_CARD2,
+                  "NETWORK",
+                  "Download: " + str(net_dl) + ".0 Mbps",
+                  "Upload:   " + str(net_ul) + ".0 Mbps",
+                  "Ping:     " + str(to_int(st.stats[0] * 30.0 + 5.0)) + " ms",
+                  "Packets:  " + str(to_int(st.stats[1] * 12.0 + 2.0)) + ".3K/s",
+                  "Status:   ONLINE  |  IP: 10.0." + str(st.clock_h) + "." + str(st.clock_m))
+
+        // Card 3: MEMORY
+        let mem_used = to_int(st.stats[0] * 16.0)
+        let mem_free = 16 - mem_used
+        draw_card(session, f_title, f_body,
+                  cf, c3y, cwf, chf, C_CARD3,
+                  "MEMORY",
+                  "Used:  " + str(mem_used) + " GB  " + pct_bar(st.stats[0], 15),
+                  "Free:  " + str(mem_free) + " GB",
+                  "Total: 16.0 GB DDR5",
+                  "Swap:  2." + str(to_int(st.stats[1] * 9.0)) + " GB",
+                  "Cache: " + str(to_int(st.stats[2] * 8.0 + 1.0)) + "." + str(st.clock_m % 10) + " GB")
+
+        // Card 4: STORAGE
+        let disk_used = to_int(st.stats[3] * 300.0 + 200.0)
+        draw_card(session, f_title, f_body,
+                  c2x, c3y, cwf, chf, C_CARD4,
+                  "STORAGE",
+                  "C:\\:  " + str(disk_used) + " / 512 GB  " + pct_bar(st.stats[3] * 0.6 + 0.2, 12),
+                  "D:\\:  " + str(to_int(st.stats[0] * 800.0 + 400.0)) + " / 2 TB",
+                  "Read:  3." + str(to_int(st.stats[1] * 9.0)) + " GB/s",
+                  "Write: 2." + str(to_int(st.stats[2] * 8.0)) + " GB/s",
+                  "Health: " + str(to_int(st.stats[3] * 10.0 + 88.0)) + "%  |  SMART: OK")
+
+        // ── ANIMATE ─────────────────────────────────────────────────
+        st = animate_state(st)
+
+        // ── END FRAME ───────────────────────────────────────────────
+        let _fe = native_ui_end_frame(session)
+        let _pr = native_ui_invalidate_window(session)
+
+    let _ds = native_ui_session_destroy(session)
+    return 0

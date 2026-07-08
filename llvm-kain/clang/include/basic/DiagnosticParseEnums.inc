@@ -1,0 +1,1 @@
+// Stub: DiagnosticParseEnums.inc

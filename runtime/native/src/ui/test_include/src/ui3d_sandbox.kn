@@ -1,0 +1,29 @@
+// ============================================================================
+//  ui3d_sandbox.kn — 3D UI Sandbox via Kain natural C include
+// ============================================================================
+//  include native/sandbox_bridge.h as sand  →  exposes sand_init, sand_frame, etc.
+// ============================================================================
+
+include native/sandbox_bridge.h as sand
+
+use std::runtime
+
+fn main() -> Int with Unsafe:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let demo = sand_init(1280, 720)
+    if demo == 0:
+        let shutdown = runtime_shutdown()
+        return 1
+
+    while sand_running(demo) != 0:
+        let status = sand_frame(demo)
+        if status < 0:
+            break
+
+    sand_destroy(demo)
+
+    let shutdown = runtime_shutdown()
+    return if shutdown != 0: 200 + shutdown else: 0

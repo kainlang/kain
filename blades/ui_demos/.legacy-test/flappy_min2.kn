@@ -1,0 +1,42 @@
+// Minimal test: widget_showcase pattern + one colored rect
+use std::ui
+use std::ui::widget
+use std::ui::style
+
+const WIN_W: Int = 400
+const WIN_H: Int = 600
+
+pub fn main() -> Int:
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("FlappyMin2", WIN_W, WIN_H)
+    if session <= 0:
+        return 1
+
+    let _win = native_ui_window_open(session, "Flappy Bird Test", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    let ctx = create(session)
+
+    var frame = 0
+
+    while native_ui_host_should_close(session) == 0:
+        let _pump = native_ui_host_pump(session)
+        let _bf = native_ui_begin_frame(session, 16.0)
+        begin_frame(ctx)
+
+        // Create a colored node each frame
+        let node = native_ui_node_create(session, "test-rect")
+        native_ui_node_set_rect(session, node, 50.0, 50.0, 300.0, 200.0)
+        native_ui_node_set_style_i64(session, node, "fill-color", 0xFFFF0000)
+
+        frame = frame + 1
+        if frame > 300:
+            break
+
+        end_frame(ctx)
+        let _fe = native_ui_end_frame(session)
+        let _pr = native_ui_invalidate_window(session)
+
+    destroy(ctx)
+    let _ds = native_ui_session_destroy(session)
+    return 0

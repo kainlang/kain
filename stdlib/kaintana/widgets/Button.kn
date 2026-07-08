@@ -1,0 +1,99 @@
+// ============================================================================
+//  widgets/Button.kn — Interactive button with 4 variants
+//  P1-008: primary, secondary, ghost, destructive variants with hover/press
+//          visual states, click callback via frame-query pattern.
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+// ============================================================================
+
+pub type KtSession   = Int
+pub type KtElementId = Int
+
+// ── @extern bindings (from core.kn) ──────────────────────────────────────
+@extern fn kt_row(s: KtSession, parent: KtElementId, kind: String, key: String) -> KtElementId
+@extern fn kt_end_row(s: KtSession) -> Void
+@extern fn kt_text(s: KtSession, elem: KtElementId, text: String) -> Void
+@extern fn kt_hovered(s: KtSession, elem: KtElementId) -> Int
+@extern fn kt_clicked(s: KtSession, elem: KtElementId) -> Int
+@extern fn kt_active(s: KtSession, elem: KtElementId) -> Int
+@extern fn kt_fill(s: KtSession, elem: KtElementId, color: String) -> Void
+@extern fn kt_width(s: KtSession, elem: KtElementId, w: Float) -> Void
+@extern fn kt_height(s: KtSession, elem: KtElementId, h: Float) -> Void
+@extern fn kt_radius(s: KtSession, elem: KtElementId, r: Float) -> Void
+@extern fn kt_opacity(s: KtSession, elem: KtElementId, a: Float) -> Void
+@extern fn kt_stroke(s: KtSession, elem: KtElementId, color: String, w: Float) -> Void
+
+// ── Widget trait (from Widget.kn) ────────────────────────────────────────
+pub trait Widget:
+    fn stable_key(_self: Self_) -> String:
+        return ""
+    fn kind(_self: Self_) -> String:
+        return "widget"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return
+
+// ============================================================================
+//  Component: Button
+// ============================================================================
+
+/// Interactive push button with 4 visual variants.
+component Button(
+    label:    String,
+    theme:    String = "",
+    variant:  String = "primary",
+    disabled: Bool = false,
+    on_click = none,
+    width:    Float = 0.0,
+    height:   Float = 32.0,
+    key:      String = "",
+):
+    state _hovered:  Bool = false
+    state _pressed:  Bool = false
+    state _elem_id:  Int = -1
+
+    fn button_fill(_self: Self_) -> String:
+        if _self.disabled:
+            return "#1A1A28"
+        if _self._pressed:
+            return "#4A4A66"
+        if _self._hovered:
+            return "#3A3A58"
+        match _self.variant:
+            "primary"      => return "#21D4A1"
+            "secondary"    => return "#7C3AED"
+            "ghost"        => return "#1A1A24"
+            "destructive"  => return "#EF4444"
+            _              => return "#2A2A40"
+
+    fn process_interaction(_self: Self_, s: KtSession):
+        if _self.disabled:
+            return
+        if _self._elem_id < 0:
+            return
+        let hov = kt_hovered(s, _self._elem_id)
+        let clk = kt_clicked(s, _self._elem_id)
+        let act = kt_active(s, _self._elem_id)
+        _self._hovered = hov != 0
+        _self._pressed = act != 0
+        if clk != 0:
+            if _self.on_click != none:
+                _self.on_click()
+
+    render <box kind="button" key={key}>
+        <text value={label} />
+    </box>
+
+// ============================================================================
+//  Widget trait implementation for Button
+// ============================================================================
+
+impl Widget for Button:
+    fn stable_key(_self: Self_) -> String:
+        return _self.key
+    fn kind(_self: Self_) -> String:
+        return "button"
+    fn element_id(_self: Self_) -> Int:
+        return _self._elem_id
+    fn tick_interaction(_self: Self_):
+        return

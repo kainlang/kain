@@ -1,0 +1,1 @@
+// Stub: DiagnosticSemaInterface.inc

@@ -1,0 +1,134 @@
+// ============================================================================
+//  spec_parser.kn — Kaintana TSV Test Spec Parser
+//
+//  Parses tab-delimited test spec files into typed TestSpec structs.
+//  Skips comment lines (#) and header rows. Returns an array of
+//  test specs ready for the test runner to execute.
+//
+//  Format:
+//    # name=<name>    width=<w>    height=<h>    golden=<sha256>
+//    # (comment lines and header rows are skipped)
+//    name<TAB>width<TAB>height<TAB>layout<TAB>expected_cmds<TAB>golden
+//    hello_box<TAB>320<TAB>240<TAB>...<TAB>>=1<TAB>golden/hello_box.bin
+//
+//  Ladder: Layer 0 — plain Pure Kain, no effects, no C interop.
+//  Pure string parsing — no world, no actor, no IO.
+// ============================================================================
+
+use std::text
+use std::fs
+
+// ============================================================================
+//  TEST SPEC — typed result of parsing one TSV row
+// ============================================================================
+
+pub struct TestSpec:
+    name:           String     // Unique test case identifier
+    width:          Int        // Framebuffer width in pixels
+    height:         Int        // Framebuffer height in pixels
+    layout:         String     // Colon-delimited layout commands
+    expected_cmds:  String     // Expected draw command count (e.g. ">=1", "==0")
+    golden_file:    String     // Path to golden .bin reference ("" = skip pixel check)
+
+// ============================================================================
+//  PARSE SPECS — read a TSV file and return all test cases
+// ============================================================================
+//
+//  Reads the file, splits into non-empty lines, skips comments and
+//  header rows, and parses each data row into a TestSpec.
+//
+//  Returns an empty array on parse error (caller checks length).
+
+pub fn parse_specs(filepath: String) -> Array<TestSpec>:
+    let raw_text = fs_read_text(filepath)
+    let lines = fs_nonempty_lines(raw_text)
+    var tests: Array<TestSpec> = []
+    var i: Int = 0
+    while i < len(lines):
+        let line_text = lines[i]
+        // Skip comment lines
+        if text_starts_with_string(line_text, "#"):
+            i = i + 1
+            continue
+
+        // Skip header row if it starts with "name" or "frame"
+        if text_starts_with_string(line_text, "name") or text_starts_with_string(line_text, "frame"):
+            i = i + 1
+            continue
+
+        // Parse tab-delimited fields
+        let fields = text_split_string(line_text, "\t")
+        if len(fields) >= 5:
+            let spec = TestSpec {
+                name: fields[0],
+                width: fs_parse_int_or_zero(fields[1]),
+                height: fs_parse_int_or_zero(fields[2]),
+                layout: fields[3],
+                expected_cmds: fields[4],
+                golden_file: if len(fields) >= 6: fields[5] else: "",
+            }
+            push(tests, spec)
+
+        i = i + 1
+
+    return tests
+
+// ============================================================================
+//  VALIDATE SPEC — returns error string or empty string on success
+// ============================================================================
+
+pub fn validate_spec(spec: TestSpec) -> String:
+    if spec.name == "":
+        return "test spec has empty name"
+    if spec.width <= 0:
+        return spec.name + ": width must be positive, got " + str(spec.width)
+    if spec.height <= 0:
+        return spec.name + ": height must be positive, got " + str(spec.height)
+    if spec.expected_cmds == "":
+        return spec.name + ": expected_cmds is required"
+    return ""
+
+// ============================================================================
+//  PARSE EXPECTED CMD COUNT — parse ">=1", "==0", ">0" into (min, max)
+//  Returns (min, max) where -1 means unbounded.
+// ============================================================================
+
+pub fn parse_expected_cmds(expected: String) -> (Int, Int):
+    if text_starts_with_string(expected, ">="):
+        let rest = text_substring_string(expected, 2, len(expected) - 2)
+        let val = fs_parse_int_or_zero(rest)
+        return (val, -1)
+    if text_starts_with_string(expected, ">"):
+        let rest = text_substring_string(expected, 1, len(expected) - 1)
+        let val = fs_parse_int_or_zero(rest)
+        return (val + 1, -1)
+    if text_starts_with_string(expected, "=="):
+        let rest = text_substring_string(expected, 2, len(expected) - 2)
+        let val = fs_parse_int_or_zero(rest)
+        return (val, val)
+    return (0, -1)
+
+// ============================================================================
+//  CHECK CMD COUNT — returns true if cmd_count satisfies expected range
+// ============================================================================
+
+pub fn check_cmd_count(cmd_count: Int, expected: String) -> Bool:
+    let (min_val, max_val) = parse_expected_cmds(expected)
+    if cmd_count < min_val:
+        return false
+    if max_val >= 0 and cmd_count > max_val:
+        return false
+    return true
+
+// ============================================================================
+//  ENCODE LAYOUT TO TSV LINE — reverse operation for record mode
+// ============================================================================
+
+pub fn spec_to_tsv_line(spec: TestSpec) -> String:
+    var out_line = spec.name
+    out_line = out_line + "\t" + str(spec.width)
+    out_line = out_line + "\t" + str(spec.height)
+    out_line = out_line + "\t" + spec.layout
+    out_line = out_line + "\t" + spec.expected_cmds
+    out_line = out_line + "\t" + spec.golden_file
+    return out_line

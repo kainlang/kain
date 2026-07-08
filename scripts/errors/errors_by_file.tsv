@@ -1,0 +1,209 @@
+category	file	line	pattern	message
+LLVM Codegen	codegen_llvm	819	DiagnosticReport	DiagnosticReport::new(
+LLVM Codegen	codegen_llvm	821	DiagnosticCode::	CodegenGeneric
+Parser	parser.rs	287	parser_error_var	message
+Parser	parser.rs	353	DiagnosticCode::	ParseGeneric
+Parser	parser.rs	364	DiagnosticReport	DiagnosticReport::new(ErrorKind::Parse, code, message)
+Parser	parser.rs	384	DiagnosticReport	DiagnosticReport::new(ErrorKind::Parse, code, message)
+Parser	parser.rs	477	DiagnosticCode::	ParseReservedIdentifier
+Parser	parser.rs	795	parser_error_var	format
+Parser	parser.rs	1033	parser_error_var	format
+Parser	parser.rs	1178	parser_error_var	format
+Parser	parser.rs	1274	parser_error_var	format
+Parser	parser.rs	1308	parser_error_var	format
+Parser	parser.rs	1392	parser_error	Expected C include target such as `nuklear`, `native/nuklear`, `\
+Parser	parser.rs	1402	parser_error	bare include form does not accept a version; use angle brackets: `include <foo.h> 1.0 as bar`
+Parser	parser.rs	1533	parser_error	expected version after include target
+Parser	parser.rs	1623	parser_error	Expected a system header path inside `include <...>`
+Parser	parser.rs	1735	parser_error	Unknown macro param kind
+Parser	parser.rs	1970	parser_error	axiom blocks may only declare one fallback
+Parser	parser.rs	1978	parser_error	axiom blocks expect 'when', 'guarantee', or 'fallback'
+Parser	parser.rs	2008	parser_error_var	format
+Parser	parser.rs	2059	parser_error	pulse duration expects an integer like 16ms, 250us, or 1s
+Parser	parser.rs	2099	parser_error_var	format
+Parser	parser.rs	2107	parser_error_var	format
+Parser	parser.rs	2118	parser_error_var	format
+Parser	parser.rs	2216	parser_error	converge blocks may only declare one spec lane
+Parser	parser.rs	2230	parser_error	Expected 'spec', 'fast', or 'verify' inside converge block
+Parser	parser.rs	2242	parser_error	converge blocks require exactly one spec lane
+Parser	parser.rs	2248	parser_error	converge blocks require at least one fast lane
+Parser	parser.rs	2291	parser_error	Expected 'state' or 'surface' inside world block
+Parser	parser.rs	2349	parser_error	Expected converge selector 'target(\
+Parser	parser.rs	2366	parser_error	verify random(...) expects a non-negative integer sample count
+Parser	parser.rs	2420	DiagnosticCode::	ParseInvalidWorldSurfaceKind
+Parser	parser.rs	2456	parser_error	Expected entangle policy 'single_writer'
+Parser	parser.rs	2480	parser_error	Entangle endpoint must be a stable dotted lvalue path like World.state
+Parser	parser.rs	2499	parser_error	Resonate target must be a stable dotted lvalue path like World.state
+Parser	parser.rs	2534	parser_error_var	format
+Parser	parser.rs	2713	parser_error_var	format
+Parser	parser.rs	2755	parser_error_var	format
+Parser	parser.rs	2767	parser_error_var	format
+Parser	parser.rs	2783	parser_error	Component must have a render body (JSX element)
+Parser	parser.rs	2880	parser_error_var	format
+Parser	parser.rs	2903	parser_error_var	format
+Parser	parser.rs	2918	parser_error	Component must have a render body
+Parser	parser.rs	2959	parser_error_var	self
+Parser	parser.rs	2962	parser_error_var	self
+Parser	parser.rs	3007	parser_error_var	format
+Parser	parser.rs	3055	parser_error_var	format
+Parser	parser.rs	3073	parser_error_var	format
+Parser	parser.rs	3433	parser_error_var	format
+Parser	parser.rs	3442	parser_error_var	format
+Parser	parser.rs	3525	parser_error_var	format
+Parser	parser.rs	3535	parser_error_var	format
+Parser	parser.rs	3602	parser_error_var	format
+Parser	parser.rs	3624	parser_error_var	format
+Parser	parser.rs	3657	parser_error	Expected 'fn' keyword after @material_function
+Parser	parser.rs	3731	parser_error	Expected 'let' or 'return' in material function body
+Parser	parser.rs	3749	parser_error	Material function must have a 'return' statement
+Parser	parser.rs	3771	parser_error_var	format
+Parser	parser.rs	3781	parser_error_var	format
+Parser	parser.rs	3818	parser_error_var	format
+Parser	parser.rs	3849	parser_error	Expected 'node' keyword after @node_type
+Parser	parser.rs	3856	parser_error	Expected 'node' keyword after @node_type
+Parser	parser.rs	3915	parser_error	Expected 'inputs', 'outputs', or 'properties'
+Parser	parser.rs	4053	parser_error	Expected 'schema' keyword after @schema
+Parser	parser.rs	4274	parser_error	Function header may only contain one where clause
+Parser	parser.rs	4300	parser_error	workgroup(...) is only legal on shader compute, mesh, or task headers
+Parser	parser.rs	4323	parser_error_var	format
+Parser	parser.rs	4335	parser_error_var	format
+Parser	parser.rs	4420	parser_error	Expected array size integer
+Parser	parser.rs	4657	parser_error_var	format
+Parser	parser.rs	4721	parser_error_var	format
+Parser	parser.rs	4733	parser_error_var	format
+Parser	parser.rs	4763	parser_error_var	format
+Parser	parser.rs	4775	parser_error	Expected orchestrate graph metadata such as after, deps, residency, transfer, guarded by, fallback, requires, or policy
+Parser	parser.rs	4800	parser_error	Expected orchestrate selector 'target(\
+Parser	parser.rs	4868	parser_error	defer expects an expression payload in v1
+Parser	parser.rs	4886	parser_error_var	format
+Parser	parser.rs	4931	parser_error	subgroup size must be greater than 0
+Parser	parser.rs	4974	parser_error_var	format
+Parser	parser.rs	4978	parser_error_var	format
+Parser	parser.rs	5311	parser_error	Send requires named arguments
+Parser	parser.rs	5335	parser_error	Send requires named arguments
+Parser	parser.rs	5345	parser_error	Expected method call after send (e.g., actor.message())
+Parser	parser.rs	5351	parser_error	Expected message call after send
+Parser	parser.rs	5407	parser_error	Unknown scoped ownership keyword
+Parser	parser.rs	5471	parser_error_var	format
+Parser	parser.rs	5634	parser_error	Macro invocation only allowed on identifiers
+Parser	parser.rs	5710	parser_error	Unclosed '{' in f-string
+Parser	parser.rs	5796	parser_error_var	format
+Parser	parser.rs	5970	parser_error	Spawn requires named arguments
+Parser	parser.rs	6102	parser_error_var	format
+Parser	parser.rs	6138	parser_error	Struct update syntax only supports one '..base' expression
+Parser	parser.rs	6147	parser_error	Struct update syntax requires an expression after '..'
+Parser	parser.rs	7020	parser_error	Expected if expression after else
+Parser	parser.rs	7151	parser_error_var	format
+Parser	parser.rs	7209	parser_error	Expected attribute value
+Parser	parser.rs	7372	parser_error_var	format
+Parser	parser.rs	7408	parser_error_var	format
+Parser	parser.rs	7433	parser_error_var	format
+Parser	parser.rs	7470	parser_error_var	format
+Parser	parser.rs	7695	DiagnosticCode::	ParseReservedIdentifier
+Parser	parser.rs	7703	DiagnosticCode::	ParseExpectedToken
+Parser	parser.rs	7768	parser_error	Increment/decrement target must be assignable (identifier, field, index, or dereference)
+Parser	parser.rs	8053	DiagnosticCode::	ParseMissingDelimiterBeforeNewline
+Parser	parser.rs	8083	DiagnosticCode::	ParseExpectedToken
+Parser	parser.rs	8105	DiagnosticCode::	ParseExpectedContextualKeyword
+Parser	parser.rs	8158	parser_error_var	format
+Parser	parser.rs	8336	parser_error_var	format
+Parser	parser.rs	8460	parser_error	Expected fn, delegate, or field in instance
+Parser	parser.rs	8489	parser_error	Expected 'delegate' keyword
+Parser	parser.rs	8621	parser_error	Expected @state in state machine definition
+Parser	parser.rs	8726	parser_error	Unexpected method in state definition. Use @transition for transitions.
+Parser	parser.rs	8741	parser_error	Expected string literal for animation property
+Parser	parser.rs	8819	parser_error	Expected 'to' parameter in @transition attribute
+Parser	parser.rs	8860	parser_error	Expected identifier
+Parser	parser.rs	8863	parser_error	Unexpected end of input
+Parser	parser.rs	8935	parser_error	Expected @menu_entry, @toolbar_button, @toolbar_widget, or fn in editor module
+Parser	parser.rs	8968	parser_error	Expected @menu_entry attribute
+Parser	parser.rs	8996	parser_error	@menu_entry requires 'path' parameter
+Parser	parser.rs	8999	parser_error	@menu_entry requires 'label' parameter
+Parser	parser.rs	9019	parser_error	Expected function after @menu_entry
+Parser	parser.rs	9032	parser_error	Expected @toolbar_button attribute
+Parser	parser.rs	9060	parser_error	@toolbar_button requires 'section' parameter
+Parser	parser.rs	9066	parser_error	@toolbar_button requires 'icon' parameter
+Parser	parser.rs	9086	parser_error	Expected function after @toolbar_button
+Parser	parser.rs	9102	parser_error	Expected @toolbar_widget attribute
+Parser	parser.rs	9144	parser_error	@toolbar_widget requires 'section' parameter
+Parser	parser.rs	9151	parser_error	@toolbar_widget requires 'widget_type' parameter
+Parser	parser.rs	9186	parser_error	Expected 'namespace' keyword after @gameplay_tags
+Parser	parser.rs	9193	parser_error	Expected 'namespace' keyword after @gameplay_tags
+Parser	parser.rs	9332	parser_error_var	format
+Parser	parser.rs	9426	parser_error	Expected string value for instancing policy
+Parser	parser.rs	9432	parser_error	Expected 'policy' parameter in @instancing
+Parser	parser.rs	9438	parser_error	Expected 'policy' parameter in @instancing
+Parser	parser.rs	9459	parser_error	Expected string value for replication policy
+Parser	parser.rs	9465	parser_error	Expected 'policy' parameter in @replication
+Parser	parser.rs	9471	parser_error	Expected 'policy' parameter in @replication
+Parser	parser.rs	9492	parser_error	Expected string value for net_execution policy
+Parser	parser.rs	9498	parser_error	Expected 'policy' parameter in @net_execution
+Parser	parser.rs	9504	parser_error	Expected 'policy' parameter in @net_execution
+Parser	parser.rs	9523	parser_error	Expected 'tags' field after @ability_tags
+Parser	parser.rs	9529	parser_error	Expected 'tags' field after @ability_tags
+Parser	parser.rs	9544	parser_error	Expected 'required' field after @activation_required_tags
+Parser	parser.rs	9550	parser_error	Expected 'required' field after @activation_required_tags
+Parser	parser.rs	9565	parser_error	Expected 'blocked' field after @activation_blocked_tags
+Parser	parser.rs	9571	parser_error	Expected 'blocked' field after @activation_blocked_tags
+Parser	parser.rs	9586	parser_error	Expected 'owned' field after @activation_owned_tags
+Parser	parser.rs	9592	parser_error	Expected 'owned' field after @activation_owned_tags
+Parser	parser.rs	9607	parser_error	Expected 'cancel' field after @cancel_abilities_with_tag
+Parser	parser.rs	9613	parser_error	Expected 'cancel' field after @cancel_abilities_with_tag
+Parser	parser.rs	9628	parser_error	Expected 'block' field after @block_abilities_with_tag
+Parser	parser.rs	9634	parser_error	Expected 'block' field after @block_abilities_with_tag
+Parser	parser.rs	9653	parser_error	Expected 'effect' field after @cost
+Parser	parser.rs	9659	parser_error	Expected 'effect' field after @cost
+Parser	parser.rs	9678	parser_error	Expected 'effect' field after @cooldown
+Parser	parser.rs	9684	parser_error	Expected 'effect' field after @cooldown
+Parser	parser.rs	9702	parser_error_var	format
+Parser	parser.rs	9714	parser_error	Expected attribute (@instancing, @ability_tags, etc.) or method (fn) in ability body
+Parser	parser.rs	9757	parser_error	Expected string in array
+Parser	parser.rs	9862	parser_error	Expected string value for duration type
+Parser	parser.rs	9868	parser_error	Expected 'type' parameter in @duration
+Parser	parser.rs	9891	parser_error	Expected numeric value for duration
+Parser	parser.rs	9918	parser_error	Expected numeric value for period
+Parser	parser.rs	9941	parser_error	Expected boolean value for execute_on_application
+Parser	parser.rs	9967	parser_error	Expected string value for attribute
+Parser	parser.rs	9987	parser_error	Expected string value for operation
+Parser	parser.rs	10018	parser_error	Expected numeric value after minus
+Parser	parser.rs	10024	parser_error	Expected numeric value for magnitude
+Parser	parser.rs	10055	parser_error	Expected string value for stacking type
+Parser	parser.rs	10072	parser_error	Expected integer value for stacking limit
+Parser	parser.rs	10089	parser_error	Expected 'tags' field after @owned_tags
+Parser	parser.rs	10095	parser_error	Expected 'tags' field after @owned_tags
+Parser	parser.rs	10110	parser_error	Expected 'tags' field after @granted_tags
+Parser	parser.rs	10116	parser_error	Expected 'tags' field after @granted_tags
+Parser	parser.rs	10312	parser_error	Expected field name
+Parser	parser.rs	10325	parser_error	Expected string for tag
+Parser	parser.rs	10336	parser_error_var	format
+Parser	parser.rs	10348	parser_error	Expected string for type
+Parser	parser.rs	10362	parser_error	Expected true or false
+Parser	parser.rs	10441	parser_error_var	format
+Parser	parser.rs	10455	parser_error	Gameplay cue must have 'tag' field
+Parser	parser.rs	10659	parser_error_var	format
+Parser	parser.rs	10744	parser_error_var	format
+Parser	parser.rs	10751	parser_error	Expected string for trace_type
+Parser	parser.rs	10766	parser_error	Expected number for max_range
+Parser	parser.rs	10778	parser_error	Expected string for trace_channel
+Parser	parser.rs	10790	parser_error	Expected string for reticle_class
+Parser	parser.rs	10839	parser_error_var	format
+Parser	parser.rs	10925	parser_error_var	format
+Parser	parser.rs	10995	parser_error	Expected field name or fn
+Typechecker	types.rs	1358	DiagnosticCode::	TypeDuplicateSymbol
+Typechecker	types.rs	1359	DiagnosticCode::	TypeShadowedBuiltin
+Typechecker	types.rs	1375	DiagnosticCode::	TypeDuplicateSymbol
+Typechecker	types.rs	1376	DiagnosticCode::	TypeShadowedBuiltin
+Typechecker	types.rs	1411	DiagnosticCode::	TypeDuplicateSymbol
+Typechecker	types.rs	1412	DiagnosticCode::	TypeShadowedBuiltin
+Typechecker	types.rs	1438	DiagnosticCode::	TypeDuplicateSymbol
+Typechecker	types.rs	1453	DiagnosticCode::	TypeShadowedBuiltin
+Typechecker	types.rs	1703	DiagnosticCode::	TypeGeneric
+Typechecker	types.rs	1825	DiagnosticReport	DiagnosticReport::new(ErrorKind::Type, code, message)
+Typechecker	types.rs	6419	DiagnosticCode::	PulseBudgetAlloc
+Typechecker	types.rs	6440	DiagnosticCode::	PulseBudgetLock
+Typechecker	types.rs	6461	DiagnosticCode::	PulseBudgetIO
+Typechecker	types.rs	6505	DiagnosticCode::	PulseBudgetLock
+Typechecker	types.rs	8431	DiagnosticCode::	ShaderSubgroupNested
+Typechecker	types.rs	8439	DiagnosticCode::	ShaderSubgroupDivergentEscape
+Typechecker	types.rs	8448	DiagnosticCode::	ShaderSubgroupDivergentEscape
+Typechecker	types.rs	8737	DiagnosticCode::	TypeUnknownIdentifier

@@ -1,0 +1,6 @@
+# Local machine override: use clang-cl instead of MSVC for C/C++ compilation.
+# clang-cl accepts MSVC-compatible flags (/W3, /std:c11, /Gy) while providing
+# better diagnostics, faster compiles, and LLVM toolchain integration.
+# The Kain runtime already has the windows_and_clang_cl config_setting and
+# CLANG_CL_WINDOWS_COPTS wired in runtime/BUILD.bazel / native_runtime_rules.bzl.
+build --compiler=clang-cl

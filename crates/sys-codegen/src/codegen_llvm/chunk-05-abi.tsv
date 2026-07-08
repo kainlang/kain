@@ -1,0 +1,50 @@
+function_name	kain_concept	llvm_ir_pattern	llvm_c_api	status	lines
+compile_native_option_or_result_variant	Option/Result tagged value	`None`→null; `Some/Ok/Err`→compile_expr → compile_tagged_value/borrowed_pointer_handle	LLVMBuildCall2, LLVMBuildIntToPtr	mapped	868-913
+compile_native_variant_function_call	Some/Ok/Err variants	`Some(val)`: extract literal → borrowed pointer handle, else compile_expr→tagged; `Ok/Err(val)`: same with Result tags	LLVMBuildCall2, LLVMBuildIntToPtr	mapped	915-973
+compile_async_block	async/await Future	`call i8* @abi_future_ready_from_value(i8* %payload_ptr, i64 %size)`	LLVMBuildCall2	mapped	975-985
+extract_immediate_ready_future_payload_expr	async future inlining	Pattern-match Expr::AsyncBlock/Return/Paren to extract inner payload	none (Rust pattern match)	mapped	987-996
+extract_zero_arg_immediate_ready_future_payload	async future zero-arg	fn returns Future; single return/expr body → extract payload for inlining	none (Rust analysis)	mapped	998-1025
+compile_immediate_ready_future_for_target_type	async future inlining for type	Inline AsyncBlock/Paren/Call payload into target type	LLVMBuildCall2 (via compile_expr_for_target_type)	mapped	1027-1052
+compile_await_for_target_type	await expression	Tries immediate inlining; else `compile_tagged_payload_copy(future, target, "abi_future_await_payload_copy")`	LLVMBuildCall2, LLVMBuildAlloca, LLVMBuildLoad2	mapped	1054-1080
+compile_try_for_target_type	try operator (`?`)	Test is_success tag; br payload/residual; residual → ret boxed_value; payload → compile_tagged_value_payload_copy	LLVMBuildICmp, LLVMBuildPhi, LLVMBuildCall2	mapped	1082-1127
+coerce_to_i64_storage	value→i64 coercion	sext i32→i64, zext i1→i64, sext i8→i64, fptosi.sat f64→i64, ptrtoint ptr→i64, KAIN_alloc+store %T+ptrtoint for struct values	LLVMBuildSExt, LLVMBuildZExt, LLVMBuildCall2, LLVMBuildPtrToInt	mapped	1129-1193
+coerce_runtime_array_storage_from_compiled	runtime array storage	bitcast double→i64 for array storage; fallback coerce_to_i64_storage	LLVMBuildBitCast	mapped	1195-1205
+expr_returns_json_handle	JSON handle detection	Delegates to expr_carries_json_value	none (Rust helper)	mapped	1207-1209
+encode_json_any_i64_payload	JSON Any i64 encoding	`shl i64 %value, 3` → `or i64 %shifted, %tag`	LLVMBuildShl, LLVMBuildOr	mapped	1211-1217
+compile_json_any_argument	JSON Any argument	No-match/null → tag; i64→shl3+or; i32/i8→widen+encode; i1→widen+bool tag; double→@json_box_float; i8*→ptrtoint+string tag; ptr→coerce_to_i64	LLVMBuildShl, LLVMBuildOr, LLVMBuildCall2, LLVMBuildPtrToInt	mapped	1219-1298
+compile_runtime_any_argument	runtime Any argument	Array/Tuple→@json_array_new+push+release; runtime_array→@json_box_runtime_array; JSON/runtime Any passthrough; fallback compile_json_any_argument	LLVMBuildCall2	mapped	1300-1378
+compile_python_bridge_vararg_call	Python bridge vararg call	Compile 2-4 args + runtime_any; dispatch to py_call_raw_args/py_call_raw_attr/py_call_args/py_call_attr_args; `call i64 @helper(i64 args...)` + release	LLVMBuildCall2	mapped	1380-1477
+compile_json_builtin_call	JSON builtin operations	`json_object_set(i64, i8*, i64)`; `json_array_push(i64, i64)`; `json_string(i64)→i8*`	LLVMBuildCall2	mapped	1479-1536
+cast_numeric_value	numeric type cast	ptrtoint→i64; sitofp/trunc/sext/zext/fptosi.sat/fcmp une between i64/i32/i8/i1/double/ptr identity combinations	LLVMBuildPtrToInt, LLVMBuildSIToFP, LLVMBuildTrunc, LLVMBuildSExt, LLVMBuildZExt, LLVMBuildCall2, LLVMBuildFCmp	mapped	1538-1632
+emit_saturating_fptosi	saturating float→int	`call %ty @llvm.fptosi.sat.<ty>.f64(double %val)`	LLVMBuildCall2 (intrinsic)	mapped	1635-1653
+coerce_condition_value_to_i1	condition→i1 coercion	i1 passthrough; i64/i32/i8/double/ptr → cast_numeric_value to i1	LLVMBuildICmp, LLVMBuildFCmp, LLVMBuildTrunc	mapped	1655-1670
+compile_condition_expr	condition expression wrapper	compile_expr → coerce_condition_value_to_i1	LLVMBuildICmp, LLVMBuildFCmp	mapped	1672-1675
+coerce_binary_operands	binary operand coercion	Match both to highest type: double→both double, i64→both i64, else pass through	LLVMBuildSIToFP, LLVMBuildSExt, LLVMBuildZExt	mapped	1677-1709
+compile_value_eq	equality comparison	Coerce operands, then `call @deep_eq` for i8*, `fcmp oeq` for double, `icmp eq` for int/ptr types	LLVMBuildICmp, LLVMBuildFCmp, LLVMBuildCall2	mapped	1711-1755
+compile_range_check	range check (law/converge)	Compile lower bound → `icmp sge`/`fcmp oge`; compile upper → `icmp sle/slt`/`fcmp ole/olt`; chain with `and`	LLVMBuildICmp, LLVMBuildFCmp, LLVMBuildAnd	mapped	1757-1824
+compile_pattern_condition	match pattern condition	Wildcard/Binding→true; Literal→eq; Range→range_check; Or→or chain; Variant→tag match via native tagged is_tag or GEP+load tag	LLVMBuildICmp, LLVMBuildAnd, LLVMBuildOr, LLVMBuildGEP2, LLVMBuildLoad2	mapped	1826-1912
+bind_local_pattern_value	match pattern binding	Binding→alloca+store; Tuple→GEP each field+load+bind; Struct→GEP+load each named field+bind	LLVMBuildAlloca, LLVMBuildStore, LLVMBuildGEP2, LLVMBuildLoad2	mapped	1914-2049
+bind_variant_pattern_fields	enum variant field binding	Payload struct GEP from enum slot 1; load i8*; bitcast to payload struct*; GEP each tuple/struct field; bind	LLVMBuildGEP2, LLVMBuildLoad2, LLVMBuildBitCast	mapped	2051-2154
+bind_match_pattern	match pattern top-level	Dispatches to bind_local_pattern_value or bind_variant_pattern_fields; handles i8* native tagged variant with payload copy	LLVMBuildGEP2, LLVMBuildLoad2, LLVMBuildBitCast, LLVMBuildAlloca	mapped	2156-2215
+ptr_struct_name	ptr struct name extraction	Strip `%` prefix and `*` suffix from LLVM type string	none (Rust string op)	mapped	2217-2223
+field_index	struct field index lookup	Linear search struct_defs for field name; tuple field alias fallback for `__kain_tuple*`	none (Rust HashMap)	mapped	2225-2238
+native_world_field_path	world field path resolution	Build "WorldName.field" string if world_globals contains struct_name	none (Rust string op)	mapped	2240-2246
+native_entangle_authority_binding	entangle authority binding lookup	Find NativeEntangleBinding where authority==path	none (Rust iteration)	mapped	2248-2253
+native_entangle_mirror_binding	entangle mirror binding lookup	Find NativeEntangleBinding where mirror==path	none (Rust iteration)	mapped	2255-2260
+emit_resonance_after_store	resonate tripwire after field write	`abi_resonate_should_fire_i64/f64(i8* target, i64 dampen, i64 old, i64 new)` → `icmp ne i64, 0` → br fire/done → `call @handler(old_i64, new_i64)` + `call @abi_resonate_exit`	LLVMBuildCall2, LLVMBuildICmp	mapped	2262-2346
+direct_struct_literal_name	shatter struct literal name	Match Expr::Struct on shattered_structs set	none (Rust pattern)	mapped	2348-2354
+shattered_array_expr_struct_name	shattered array struct name	Check all items have same shattered struct type	none (Rust helper)	mapped	2356-2369
+emit_shatter_lane_bases	shatter lane runtime base	`call i8* @kain_machine_shatter_lane_base(i8* handle, i64 lane_index)` per lane	LLVMBuildCall2	mapped	2371-2382
+emit_stack_shatter_lane_bases	shatter stack lane base	Entry alloca [element_count x i64] per lane; bitcast to i8*	LLVMBuildAlloca, LLVMBuildBitCast	mapped	2384-2407
+populate_shattered_array_literal_lanes	shatter array literal population	For each element: getelementptr into lane_base[i64] at element_index*8; bitcast i8*→ty*; store field value	LLVMBuildGEP2, LLVMBuildBitCast, LLVMBuildStore	mapped	2409-2464
+shattered_index_is_proven_in_bounds	shatter bounds check	Check literal index in range OR loop bounds upper_exclusive ≤ element_count	none (Rust analysis with Z3 proof)	mapped	2466-2488
+shattered_literal_byte_offset	shatter byte offset	`index * 8` for literal index, None for negative	none (Rust helper)	mapped	2490-2497
+compile_shattered_field_ptr	shatter field pointer	For Index+Field: compute lane GEP from lane_base or call @kain_machine_shatter_lane_ptr; bitcast to field type	LLVMBuildGEP2, LLVMBuildBitCast, LLVMBuildCall2	mapped	2499-2613
+emit_patch_record_i64	patch journal record	`call i64 @abi_patch_record_i64(i8* patch_name, i8* path, i64 old, i64 new)`	LLVMBuildCall2	mapped	2615-2625
+emit_entangle_i64_propagation	entangle propagation	GEP mirror world struct field + store i64 + `call @abi_entangle_record_i64(i8*, i8*, i64)`	LLVMBuildGEP2, LLVMBuildStore, LLVMBuildCall2	mapped	2627-2661
+compile_temporary_address	temporary address alloca	Entry alloca + store expr value; returns (addr, ty)	LLVMBuildAlloca, LLVMBuildStore	mapped	2663-2670
+compile_index_address_from_compiled	index expression address	GEP on pointer type; inttoptr i64→i64* + GEP for i64 base	LLVMBuildGEP2, LLVMBuildIntToPtr	mapped	2672-2704
+compile_shattered_array_literal	shatter array literal	`call i8* @kain_machine_shatter_alloc(i64 field_count, i64 item_count)` + emit_shatter_lane_bases + populate	LLVMBuildCall2	mapped	2706-2726
+compile_teleport_expr	teleport expression	Pointer: `call i8* @kain_machine_teleport_ptr(i8* ptr, i8* src, i8* dst, i8* chan)`. Scalar: `call void @kain_machine_teleport_note(i8*, i8*, i8*)`	LLVMBuildCall2	mapped	2728-2773
+compile_field_addressable_ptr	field addressable pointer	Shattered field → compile_shattered_field_ptr; local struct → GEP; authored pointer struct → load ptr+inttoptr+GEP; compiled val → alloca+GEP; returns (field_ptr, field_ty, struct_name_hint, is_mmio)	LLVMBuildGEP2, LLVMBuildBitCast, LLVMBuildLoad2	mapped	2775-2907
+compile_addressable_ptr	addressable pointer dispatch	Ident→local/const/python_global lookup; Field→compile_field_addressable_ptr; Index→compile_index_address_from_compiled; other→compile_temporary_address	LLVMBuildGEP2, LLVMBuildLoad2, LLVMBuildIntToPtr	mapped	2909-2952

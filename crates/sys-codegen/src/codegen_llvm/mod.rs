@@ -309,12 +309,41 @@ fn kain_map_codegen_static_key_metadata(key: &str) -> (u64, u64, u64) {
 fn llvm_runtime_declaration_is_preemitted(name: &str) -> bool {
     matches!(
         name,
-        "abi_cpu_feature_mask"
+        // ── Runtime init / shutdown / validation ────────────────────
+        "abi_runtime_init"
+            | "abi_runtime_shutdown"
+            | "abi_runtime_heap_validate"
+            // ── Attrition / certification ───────────────────────────
+            | "abi_attrition_checkpoint"
+            | "abi_attrition_note_progress"
+            | "abi_attrition_result_set"
+            // ── CPU capability ──────────────────────────────────────
+            | "abi_cpu_feature_mask"
+            | "abi_cpu_feature_fingerprint"
             | "abi_cpu_capability_mask_for_key"
+            | "abi_cpu_has_capability"
+            // ── SIMD lanes ──────────────────────────────────────────
+            | "abi_simd_i64_dot_i32_domain_scalar_mod"
+            | "abi_simd_i64_dot_i32_domain_avx2_mod"
+            | "abi_simd_i64_dot_i32_domain_avx512_mod"
+            | "abi_simd_i64_dot_i32_domain_affine_accumulate_scalar_mod"
+            | "abi_simd_i64_dot_i32_domain_affine_accumulate_avx2_mod"
+            | "abi_simd_i64_dot_i32_domain_affine_accumulate_avx512_mod"
+            | "abi_simd_i64_affine_pow2_fill_pair_accumulate_mod"
+            // ── Entangle ────────────────────────────────────────────
             | "abi_entangle_register"
+            // ── Converge dispatch ───────────────────────────────────
             | "abi_converge_select_lane_for_key"
+            | "abi_converge_commit_winner"
             | "abi_converge_record_telemetry"
+            | "abi_converge_telemetry_count"
+            | "abi_converge_cache_probe_count"
+            | "abi_converge_cache_hit_count"
+            // ── Machine stones ──────────────────────────────────────
+            | "kain_machine_teleport_count"
+            | "kain_machine_teleport_last_token"
             | "kain_machine_pulse_total_fire_count"
+            // ── Python bridge ───────────────────────────────────────
             | "py_call"
             | "py_call_raw"
             | "py_call_args"
@@ -440,7 +469,7 @@ pub fn generate_with_target(
     program: &TypedProgram,
     target: &LlvmTargetDescriptor,
 ) -> KainResult<Vec<u8>> {
-    generate_with_options(program, false, None, "", target)
+    generate_with_options(program, false, None, "", target, false)
 }
 
 /// Generate LLVM IR for a specific target triple.
@@ -471,6 +500,7 @@ pub fn generate_with_debug(program: &TypedProgram, source: &str, filename: &str)
         Some(source),
         filename,
         &resolve_host_llvm_target_descriptor(),
+        false,
     )
 }
 
@@ -489,7 +519,35 @@ pub fn generate_with_debug_for_target(
         Some(t) => LlvmTargetDescriptor::for_triple(t),
         None => LlvmTargetDescriptor::host(),
     };
-    generate_with_options(program, true, Some(source), filename, &descriptor)
+    generate_with_options(program, true, Some(source), filename, &descriptor, false)
+}
+
+/// Generate LLVM IR for a shared library (.dll/.so/.dylib).
+///
+/// When building a shared library on Windows x64, `@link_name` functions get
+/// `dso_local dllexport` and `@extern` declarations get `dllimport`.
+pub fn generate_for_shared_library(program: &TypedProgram) -> KainResult<Vec<u8>> {
+    generate_with_options(program, false, None, "", &resolve_host_llvm_target_descriptor(), true)
+}
+
+/// Generate LLVM IR for a shared library with an explicit target triple.
+///
+/// This is useful for tests that need to verify dllexport/dllimport
+/// behavior on a specific target regardless of the host platform.
+pub fn generate_with_target_for_shared_library(
+    program: &TypedProgram,
+    target: &LlvmTargetDescriptor,
+) -> KainResult<Vec<u8>> {
+    generate_with_options(program, false, None, "", target, true)
+}
+
+/// Generate LLVM IR with DWARF debug metadata for a shared library.
+pub fn generate_with_debug_for_shared_library(
+    program: &TypedProgram,
+    source: &str,
+    filename: &str,
+) -> KainResult<Vec<u8>> {
+    generate_with_options(program, true, Some(source), filename, &resolve_host_llvm_target_descriptor(), true)
 }
 
 fn generate_with_options(
@@ -498,6 +556,7 @@ fn generate_with_options(
     source: Option<&str>,
     filename: &str,
     target: &LlvmTargetDescriptor,
+    is_shared_library: bool,
 ) -> KainResult<Vec<u8>> {
     let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Llvm)?;
     validate_typed_program_memory_support(&lowered, CompileTarget::Llvm)?;
@@ -512,7 +571,7 @@ fn generate_with_options(
             starts
         })
         .unwrap_or_default();
-    let mut gen = LlvmGenerator::new(debug_info, filename.to_string(), line_starts, target.clone());
+    let mut gen = LlvmGenerator::new(debug_info, filename.to_string(), line_starts, target.clone(), is_shared_library);
     gen.collect_original_pointer_let_type_hints(program);
     gen.compile_module(&lowered)?;
     Ok(gen.output.into_bytes())
@@ -735,6 +794,10 @@ struct LlvmGenerator {
     /// so lowered callable parameters can recover struct pointee intent after
     /// ptr<T> normalization rewrites the ABI-visible type into Int.
     original_pointer_param_types: HashMap<Span, Type>,
+    /// Whether the output is a shared library (.dll/.so/.dylib).
+    /// When true on Windows x64, `@link_name` functions get `dso_local dllexport`
+    /// and `@extern` declarations get `dllimport`.
+    is_shared_library: bool,
 
     // ── DWARF debug metadata ──────────────────────────────────────────
     debug_info_enabled: bool,
@@ -830,7 +893,7 @@ fn codegen_error(message: String, span: Span) -> KainError {
 }
 
 impl LlvmGenerator {
-    fn new(debug_info_enabled: bool, source_filename: String, line_starts: Vec<usize>, target: LlvmTargetDescriptor) -> Self {
+    fn new(debug_info_enabled: bool, source_filename: String, line_starts: Vec<usize>, target: LlvmTargetDescriptor, is_shared_library: bool) -> Self {
         Self {
             output: String::new(),
             reg_count: 0,
@@ -929,6 +992,7 @@ impl LlvmGenerator {
             entry_hoisted_const_inits: HashSet::new(),
             original_pointer_let_types: HashMap::new(),
             original_pointer_param_types: HashMap::new(),
+            is_shared_library,
 
             // ── DWARF debug metadata ──────────────────────────────────
             orchestrate_barrier_json: None,
@@ -13879,11 +13943,21 @@ impl LlvmGenerator {
             string_literal,
         };
 
+        let dllexport = if self.is_shared_library
+            && link_name.is_some()
+            && self.target_is_windows_x64()
+        {
+            "dso_local dllexport "
+        } else {
+            ""
+        };
+
         if let Some(initializer) = initializer {
             self.emit(&format!(
-                "{} = {}{}{} {} {}{}",
+                "{} = {}{}{}{} {} {}{}",
                 info.global_symbol,
                 if link_name.is_some() { "" } else { "internal " },
+                dllexport,
                 if thread_local { "thread_local " } else { "" },
                 if thread_local { "global" } else { "constant" },
                 llvm_ty,
@@ -13892,9 +13966,10 @@ impl LlvmGenerator {
             ));
         } else {
             self.emit(&format!(
-                "{} = {}{}global {} zeroinitializer{}",
+                "{} = {}{}{}global {} zeroinitializer{}",
                 info.global_symbol,
                 if link_name.is_some() { "" } else { "internal " },
+                dllexport,
                 if thread_local { "thread_local " } else { "" },
                 llvm_ty,
                 section_suffix
@@ -14814,6 +14889,8 @@ impl LlvmGenerator {
         self.emit("declare void @print_bool(i1)");
         self.emit("declare void @print_str(i8*, i64)");
         self.emit("declare void @__kain_crash_handler_init()");
+        self.emit("declare i64 @abi_runtime_init()");
+        self.emit("declare i64 @abi_runtime_shutdown()");
         self.emit("declare i8* @to_string(i64)");
         self.emit("declare i8* @to_string_any(i64)");
         self.emit("declare i8* @str_concat(i8*, i8*)");
@@ -15485,6 +15562,14 @@ impl LlvmGenerator {
         } else {
             " internal"
         };
+        let dllexport = if self.is_shared_library
+            && Self::callable_link_name(attributes).is_some()
+            && self.target_is_windows_x64()
+        {
+            " dso_local dllexport"
+        } else {
+            ""
+        };
         let callconv_prefix = self
             .callable_llvm_calling_convention(attributes, span)?
             .map(|callconv| format!("{callconv} "))
@@ -15517,8 +15602,9 @@ impl LlvmGenerator {
             })
             .unwrap_or_default();
         self.emit(&format!(
-            "define{} {}{} @{}({}){}{} {{",
+            "define{}{} {}{} @{}({}){}{} {{",
             callable_linkage,
+            dllexport,
             callconv_prefix,
             ret_type,
             llvm_name,
@@ -15544,13 +15630,6 @@ impl LlvmGenerator {
         }
         if is_main && self.debug_info_enabled {
             self.emit("  call void @__kain_crash_handler_init()");
-        }
-        if is_main {
-            // Emit calls to world-surface frame loops (Contract 9)
-            let pending: Vec<String> = self.pending_frame_loops.drain(..).collect();
-            for fn_name in &pending {
-                self.emit(&format!("  call void @{}()", fn_name));
-            }
         }
 
         if let Some(patch_name) = self.current_patch_name.clone() {
@@ -15653,6 +15732,14 @@ impl LlvmGenerator {
             }
         };
         self.emit_scope_exit();
+        if is_main {
+            // Emit calls to world-surface frame loops (Contract 9)
+            // AFTER user's main() body so init code runs before infinite frame loop
+            let pending: Vec<String> = self.pending_frame_loops.drain(..).collect();
+            for fn_name in &pending {
+                self.emit(&format!("  call void @{}()", fn_name));
+            }
+        }
 
         let final_result = if let Some((value, value_ty)) = body_result {
             if ret_type == "void" {
@@ -16548,18 +16635,27 @@ impl LlvmGenerator {
                 .insert(func.ast.name.clone(), callconv);
         }
 
-        if llvm_runtime_declaration_is_preemitted(&func.ast.name) {
-            return Ok(());
-        }
-
         let emitted_symbol = self.callable_symbol_for_name(&func.ast.name);
         if !self.emitted_extern_symbols.insert(emitted_symbol.clone()) {
             return Ok(());
         }
         let callconv_prefix = self.callable_callconv_prefix_for_name(&func.ast.name);
+
+        // On Windows, when building a shared library, extern declarations that
+        // reference symbols in other DLLs should use dllimport for direct IAT
+        // access instead of indirect thunks.
+        // Preemitted runtime ABI functions (statically linked) must NOT get
+        // dllimport — they don't come from a DLL.
+        let is_runtime_abi = llvm_runtime_declaration_is_preemitted(&func.ast.name);
+        let dllimport_prefix = if !is_runtime_abi && self.is_shared_library && self.target_is_windows_x64() {
+            "dllimport "
+        } else {
+            ""
+        };
+
         self.emit(&format!(
-            "declare {}{} @{}({})",
-            callconv_prefix, ret_type, emitted_symbol, param_str
+            "declare {}{}{} @{}({})",
+            dllimport_prefix, callconv_prefix, ret_type, emitted_symbol, param_str
         ));
         self.emit("");
         Ok(())

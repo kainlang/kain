@@ -1,0 +1,1 @@
+// Stub: AttrHasAttributeImpl.inc

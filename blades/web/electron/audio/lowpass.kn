@@ -1,0 +1,276 @@
+// ============================================================================
+//  lowpass.kn — Resonant Biquad Lowpass Filter (stdin/stdout WAV Processor)
+// ============================================================================
+//  PROTOCOL:
+//    stdin:  {"command":"process","samples":[0.1,-0.05,...],"sr":44100,"params":{...}}
+//            {"command":"process","wavPath":"C:/file.wav","params":{...}}
+//    stdout: {"status":"ok","samples":[0.1,-0.05,0.2,...],"sr":44100,"count":22050}
+// ============================================================================
+
+use std::runtime
+use std::json
+use std::fs
+use std::ascii
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Hex → integer parsing
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn hex_val(hex: String, pos: Int) -> Int:
+    return ascii_hex_value_byte(text_ord(text_substring_string(hex, pos, 1)))
+
+fn hex_pair(hex: String, pos: Int) -> Int:
+    return (hex_val(hex, pos) << 4) | hex_val(hex, pos + 1)
+
+fn hex_u16(hex: String, byte_off: Int) -> Int:
+    let h = byte_off * 2
+    return hex_pair(hex, h) | (hex_pair(hex, h + 2) << 8)
+
+fn hex_u32(hex: String, byte_off: Int) -> Int:
+    let h = byte_off * 2
+    let b0 = hex_pair(hex, h)
+    let b1 = hex_pair(hex, h + 2)
+    let b2 = hex_pair(hex, h + 4)
+    let b3 = hex_pair(hex, h + 6)
+    return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+
+fn hex_s16(hex: String, byte_off: Int) -> Int:
+    let raw = hex_u16(hex, byte_off)
+    if raw >= 32768: return raw - 65536
+    return raw
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  WAV parsing
+// ═══════════════════════════════════════════════════════════════════════════════
+
+struct WavInfo:
+    sample_rate: Int
+    num_samples: Int
+    data_start: Int
+    channels: Int
+
+fn wav_info(hex: String) -> WavInfo:
+    let fmt_size: Int = hex_u32(hex, 16)
+    let channels: Int = hex_u16(hex, 22)
+    let sample_rate: Int = hex_u32(hex, 24)
+    let bits_per_sample: Int = hex_u16(hex, 34)
+    var data_off: Int = 12 + 8 + fmt_size
+    if data_off % 2 != 0: data_off = data_off + 1
+    let data_size: Int = hex_u32(hex, data_off + 4)
+    data_off = data_off + 8
+    let bytes_per: Int = bits_per_sample / 8
+    let frames: Int = data_size / (bytes_per * channels)
+    return WavInfo {
+        sample_rate: sample_rate,
+        num_samples: frames,
+        data_start: data_off,
+        channels: channels,
+    }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Biquad Lowpass Filter
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn lp_coeffs(freq_hz: Float, q: Float, sample_rate: Int) -> LPCoeffs with Pure:
+    let two_pi: Float = 6.283185307179586
+    let w0: Float = two_pi * freq_hz / Float(sample_rate)
+    let cos_w0: Float = cos(w0)
+    let sin_w0: Float = sin(w0)
+    let alpha: Float = sin_w0 / (2.0 * q)
+    let a0: Float = 1.0 + alpha
+    return LPCoeffs {
+        b0: (1.0 - cos_w0) * 0.5 / a0,
+        b1: (1.0 - cos_w0) / a0,
+        b2: (1.0 - cos_w0) * 0.5 / a0,
+        a1: (-2.0 * cos_w0) / a0,
+        a2: (1.0 - alpha) / a0,
+    }
+
+struct LPCoeffs:
+    b0: Float
+    b1: Float
+    b2: Float
+    a1: Float
+    a2: Float
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  MAIN
+// ═══════════════════════════════════════════════════════════════════════════════
+
+pub fn main() -> Int with IO, Unsafe:
+    let init: Int = runtime_init()
+    if init != 0:
+        let e = json_object()
+        json_object_set_string(e, "status", "error")
+        json_object_set_string(e, "error", "runtime_init failed")
+        println(json_stringify(e))
+        return 100 + init
+
+    let raw: String = read_line()
+    if raw == "":
+        let e = json_object()
+        json_object_set_string(e, "status", "error")
+        json_object_set_string(e, "error", "no input")
+        println(json_stringify(e))
+        runtime_shutdown()
+        return 1
+
+    let cmd: JsonValue = json_parse_text(raw)
+    if json_is_object(cmd) == false:
+        let e = json_object()
+        json_object_set_string(e, "status", "error")
+        json_object_set_string(e, "error", "invalid JSON")
+        println(json_stringify(e))
+        runtime_shutdown()
+        return 1
+
+    let cmd_obj: JsonObject = cmd
+    let cmd_str: String = json_string_or(cmd_obj, "command", "")
+    if cmd_str != "process":
+        let e = json_object()
+        json_object_set_string(e, "status", "error")
+        json_object_set_string(e, "error", "unknown command")
+        println(json_stringify(e))
+        runtime_shutdown()
+        return 1
+
+    // ── Try inline samples first (no file I/O) ───────────────────────────
+    let samples_arr_result: JsonArrayResult = json_array_field(cmd_obj, "samples")
+    if samples_arr_result.ok:
+        let samples_json: JsonArray = samples_arr_result.value
+        let arr_len: Int = json_array_length(samples_json)
+        if arr_len > 0:
+            let in_sr: Int = json_int_or(cmd_obj, "sr", 44100)
+            let in_ch: Int = json_int_or(cmd_obj, "channels", 1)
+            let in_buf: ptr<Float> = alloc_zeroed(arr_len, "Float")
+            defer decay in_buf
+            var fi: Int = 0
+            while fi < arr_len:
+                let val: JsonValue = json_array_value_at(samples_json, fi)
+                let fval: Float = json_any_to_float(val)
+                mem_store(ptr_offset(in_buf, fi, "Float"), fval, "Float")
+                fi = fi + 1
+
+            // ── Parse params ───────────────────────────────────────────
+            let pr: JsonObjectResult = json_object_field(cmd_obj, "params")
+            let params: JsonObject = json_object()
+            if pr.ok: params = pr.value
+            let freq_hz: Float = json_float_or(params, "freq_hz", 1000.0)
+            let q_val: Float = json_float_or(params, "q", 0.707)
+
+            // ── Apply lowpass filter ───────────────────────────────────
+            if arr_len > 0 and freq_hz > 0.0 and freq_hz < Float(in_sr) * 0.5:
+                let coeffs: LPCoeffs = lp_coeffs(freq_hz, q_val, in_sr)
+                var z1: Float = 0.0
+                var z2: Float = 0.0
+                var pi: Int = 0
+                while pi < arr_len:
+                    let input: Float = mem_load(ptr_offset(in_buf, pi, "Float"), "Float")
+                    let y: Float = (coeffs.b0 * input) + z1
+                    let nz1: Float = (coeffs.b1 * input) - (coeffs.a1 * y) + z2
+                    let nz2: Float = (coeffs.b2 * input) - (coeffs.a2 * y)
+                    mem_store(ptr_offset(in_buf, pi, "Float"), y, "Float")
+                    z1 = nz1
+                    z2 = nz2
+                    pi = pi + 1
+
+            // ── Build output JSON ──────────────────────────────────────
+            let out_arr: JsonArray = json_array()
+            var oi: Int = 0
+            while oi < arr_len:
+                let sv: Float = mem_load(ptr_offset(in_buf, oi, "Float"), "Float")
+                json_array_push_float(out_arr, sv)
+                oi = oi + 1
+            let res: JsonObject = json_object()
+            json_object_set_string(res, "status", "ok")
+            json_object_set_array(res, "samples", out_arr)
+            json_object_set_int(res, "sr", in_sr)
+            json_object_set_int(res, "count", arr_len)
+            println(json_stringify(res))
+            runtime_shutdown()
+            return 0
+
+    // ── Fall back to WAV file ───────────────────────────────────────────
+    let wav_path: String = json_string_or(cmd_obj, "wavPath", "")
+    if wav_path == "":
+        let e = json_object()
+        json_object_set_string(e, "status", "error")
+        json_object_set_string(e, "error", "no wavPath or samples")
+        println(json_stringify(e))
+        runtime_shutdown()
+        return 1
+
+    let file_hex: String = fs_read_bytes_hex(wav_path)
+    if file_hex == "":
+        let e = json_object()
+        json_object_set_string(e, "status", "error")
+        json_object_set_string(e, "error", "cannot read: " + wav_path)
+        println(json_stringify(e))
+        runtime_shutdown()
+        return 1
+
+    let info: WavInfo = wav_info(file_hex)
+    if info.sample_rate <= 0 or info.num_samples <= 0:
+        let e = json_object()
+        json_object_set_string(e, "status", "error")
+        json_object_set_string(e, "error", "bad WAV header")
+        println(json_stringify(e))
+        runtime_shutdown()
+        return 1
+
+    // ── Convert WAV hex to Float buffer (inlined) ────────────────────────
+    let buf: ptr<Float> = alloc_zeroed(info.num_samples, "Float")
+    defer decay buf
+    let bps: Int = 2
+    let frame_bytes: Int = bps * info.channels
+    let ch_f: Float = Float(info.channels)
+    var wi: Int = 0
+    while wi < info.num_samples:
+        var sum: Float = 0.0
+        var wc: Int = 0
+        while wc < info.channels:
+            let off: Int = info.data_start + wi * frame_bytes + wc * bps
+            let s: Int = hex_s16(file_hex, off)
+            sum = sum + Float(s) / 32768.0
+            wc = wc + 1
+        mem_store(ptr_offset(buf, wi, "Float"), sum / ch_f, "Float")
+        wi = wi + 1
+
+    // ── Parse params ─────────────────────────────────────────────────────
+    let pr: JsonObjectResult = json_object_field(cmd_obj, "params")
+    let params: JsonObject = json_object()
+    if pr.ok: params = pr.value
+    let freq_hz: Float = json_float_or(params, "freq_hz", 1000.0)
+    let q_val: Float = json_float_or(params, "q", 0.707)
+
+    // ── Apply lowpass filter (inlined) ───────────────────────────────────
+    if info.num_samples > 0 and freq_hz > 0.0 and freq_hz < Float(info.sample_rate) * 0.5:
+        let coeffs: LPCoeffs = lp_coeffs(freq_hz, q_val, info.sample_rate)
+        var z1: Float = 0.0
+        var z2: Float = 0.0
+        var pi: Int = 0
+        while pi < info.num_samples:
+            let input: Float = mem_load(ptr_offset(buf, pi, "Float"), "Float")
+            let y: Float = (coeffs.b0 * input) + z1
+            let nz1: Float = (coeffs.b1 * input) - (coeffs.a1 * y) + z2
+            let nz2: Float = (coeffs.b2 * input) - (coeffs.a2 * y)
+            mem_store(ptr_offset(buf, pi, "Float"), y, "Float")
+            z1 = nz1
+            z2 = nz2
+            pi = pi + 1
+
+    // ── Build output JSON ────────────────────────────────────────────────
+    let arr: JsonArray = json_array()
+    var si: Int = 0
+    while si < info.num_samples:
+        let sv: Float = mem_load(ptr_offset(buf, si, "Float"), "Float")
+        json_array_push_float(arr, sv)
+        si = si + 1
+    let res: JsonObject = json_object()
+    json_object_set_string(res, "status", "ok")
+    json_object_set_array(res, "samples", arr)
+    json_object_set_int(res, "sr", info.sample_rate)
+    json_object_set_int(res, "count", info.num_samples)
+    println(json_stringify(res))
+    runtime_shutdown()
+    return 0

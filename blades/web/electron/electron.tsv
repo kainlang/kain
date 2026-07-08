@@ -1,0 +1,77 @@
+module	function	signature	js_handler_location	description
+electron_bridge	scene_clear	scene_clear()	SceneManager.execute case 'clear' → _clear()	Wipes every object, light, and instanced mesh from the scene
+electron_bridge	camera_look_at	camera_look_at(pos_x: Float, pos_y: Float, pos_z: Float, target_x: Float, target_y: Float, target_z: Float)	SceneManager.execute case 'camera' → _camera()	Set camera position and look-at target
+electron_bridge	create_mesh	create_mesh(id: String, geometry: String, color_hex: String)	SceneManager.execute case 'create' switch 'mesh' → _create()	Single 3D mesh. geometry: box|sphere|cylinder|cone|torus|torusKnot|ring|plane|circle|tube|tetrahedron|octahedron|icosahedron|dodecahedron
+electron_bridge	create_instanced	create_instanced(id: String, geometry: String, count: Int, color_hex: String)	SceneManager.execute case 'create' switch 'instanced' → _create()	Instanced mesh — one draw call for N objects. Use for 10K+
+electron_bridge	create_particles	create_particles(id: String, count: Int, color_hex: String)	SceneManager.execute case 'create' switch 'particles' → _create()	Particle system with N points (THREE.PointsMaterial, default size 0.08)
+electron_bridge	create_lines	create_lines(id: String, color_hex: String)	SceneManager.execute case 'create' switch 'lines' → _create()	Line geometry (THREE.Line with LineBasicMaterial)
+electron_bridge	create_custom_mesh	create_custom_mesh(id: String, verts: JsonArray, indices: JsonArray, color_hex: String)	SceneManager.execute case 'create' switch 'custom_mesh' → _create()	Raw vertex+index buffers. verts: flat [x0,y0,z0, …]. indices: flat [i0,i1,i2, …] — 3 per triangle
+electron_bridge	update_transform	update_transform(id: String, x: Float, y: Float, z: Float, sx: Float, sy: Float, sz: Float)	SceneManager.execute case 'update' → _update(pos+scale)	Single-object position + scale (no rotation)
+electron_bridge	update_transform_r	update_transform_r(id: String, x: Float, y: Float, z: Float, rx: Float, ry: Float, rz: Float, sx: Float, sy: Float, sz: Float)	SceneManager.execute case 'update' → _update(pos+rot+scale)	Single-object position + Euler rotation + scale
+electron_bridge	update_instanced_transforms	update_instanced_transforms(id: String, transforms: JsonArray)	SceneManager.execute case 'update' → _update(matrices)	Bulk transform for instanced meshes. transforms: [{x,y,z,sx,sy,sz,rx,ry,rz}, …]
+electron_bridge	update_particle_positions	update_particle_positions(id: String, positions: JsonArray)	SceneManager.execute case 'update' → _update(positions)	Update particle positions. positions: [{x,y,z}, …]
+electron_bridge	update_line_points	update_line_points(id: String, points: JsonArray)	SceneManager.execute case 'update' → _update(points)	Rebuild line geometry points. points: [{x,y,z}, …]
+electron_bridge	update_color	update_color(id: String, color_hex: String)	SceneManager.execute case 'update' → _update(color)	Change material color of an existing object
+electron_bridge	update_custom_verts	update_custom_verts(id: String, verts: JsonArray)	SceneManager.execute case 'update' type='custom_mesh' → _update(verts)	Modify vertex positions of existing custom mesh. verts must match original count
+electron_bridge	remove	remove(id: String)	SceneManager.execute case 'remove' → _remove()	Delete object by ID (works on meshes, instanced, particles, lines)
+electron_bridge	telemetry	telemetry(key: String, value: Int)	SceneManager.execute case 'telemetry' → _telemetry() → propsData → renderProps()	Emit named integer counter to HUD Props tab
+electron_bridge	telemetry_float	telemetry_float(key: String, value: Float)	SceneManager.execute case 'telemetry' → _telemetry() → propsData → renderProps()	Emit named float value to HUD Props tab
+electron_bridge	telemetry_string	telemetry_string(key: String, value: String)	SceneManager.execute case 'telemetry' → _telemetry() → propsData → renderProps()	Emit named string status to HUD Props tab
+electron_bridge	transform	transform(x: Float, y: Float, z: Float, sx: Float, sy: Float, sz: Float) -> JsonObject	(helper — returns object for update_instanced_transforms)	Build {x,y,z,rx:0,ry:0,rz:0,sx,sy,sz} for bulk instanced updates
+electron_bridge	transform_r	transform_r(x: Float, y: Float, z: Float, rx: Float, ry: Float, rz: Float, sx: Float, sy: Float, sz: Float) -> JsonObject	(helper — returns object for update_instanced_transforms)	Build {x,y,z,rx,ry,rz,sx,sy,sz} with rotation for bulk instanced updates
+electron_bridge	point	point(x: Float, y: Float, z: Float) -> JsonObject	(helper — returns object for update_particle_positions/update_line_points)	Build {x,y,z} for particle/line point updates
+electron_extras	set_background	set_background(color_hex: String)	SceneManager.execute case 'background' → _background()	Change scene background color
+electron_extras	set_fog	set_fog(color_hex: String, near: Float, far: Float)	SceneManager.execute case 'fog' → _fog()	Add exponential fog. near: start distance. far: fully opaque distance
+electron_extras	update_emissive	update_emissive(id: String, color_hex: String, intensity: Float)	SceneManager.execute case 'update' → _update(emissive+emissive_intensity)	Make an object glow from within. intensity 0.0-5.0+
+electron_extras	update_particle_size	update_particle_size(id: String, size: Float)	SceneManager.execute case 'update' → _update(size for particles material)	Change particle size. 0.01 (dust) to 1.0+ (orbs). Default 0.08
+electron_extras	update_rotation	update_rotation(id: String, rx: Float, ry: Float, rz: Float)	SceneManager.execute case 'update' → _update(rot)	Rotation-only update. Leaves position+scale unchanged. Euler angles in radians
+electron_extras	set_auto_rotate	set_auto_rotate(enabled: Bool, speed: Float)	SceneManager.execute case 'auto_rotate' → _autoRotate()	Enable/disable automatic camera orbit. speed 1.0-10.0
+electron_extras	create_light	create_light(id: String, light_type: String, color_hex: String, intensity: Float, x: Float, y: Float, z: Float)	SceneManager.execute case 'light' type='create' → _light()	Add dynamic light. light_type: ambient|directional|point|spot
+electron_extras	update_light	update_light(id: String, color_hex: String, intensity: Float)	SceneManager.execute case 'light' type='update' → _light()	Change existing light color and intensity
+electron_extras	update_light_position	update_light_position(id: String, x: Float, y: Float, z: Float)	SceneManager.execute case 'light' type='update' → _light(pos)	Move an existing light
+electron_extras	remove_light	remove_light(id: String)	SceneManager.execute case 'light' type='remove' → _light()	Delete a light from the scene
+electron_extras	set_ambient	set_ambient(color_hex: String, intensity: Float)	SceneManager.execute case 'ambient' → _ambient()	Replace scene ambient light color and intensity
+electron_extras	create_label	create_label(id: String, text: String, x: Float, y: Float, z: Float, color_hex: String, size: Float)	SceneManager.execute case 'label' → _label()	3D text label via Sprite with canvas-generated texture. size 1.0-5.0
+electron_extras	set_visible	set_visible(id: String, visible: Bool)	SceneManager.execute case 'visible' → _visible()	Show/hide any scene object by id (meshes, instanced, particles, lines, labels, trails)
+electron_extras	create_trail	create_trail(id: String, target_id: String, max_points: Int, color_hex: String, width: Float)	SceneManager.execute case 'trail' → _trail() + animate() update loop	Smooth trail following a target object. max_points 30-200 controls history length
+electron_extras	enable_selection	enable_selection(id: String, enabled: Bool)	SceneManager.execute case 'selection' → _selection() + click handler	Enable click-to-select on object. Applies emissive glow highlight. Sends 'select' bridge-event
+electron_extras	get_selected_id	get_selected_id() -> String	world __Extras.selected_id (updated by 'select' bridge-events)	Returns id of currently selected object, "" if none
+electron_interact
+electron_interact	interact_init	interact_init() -> Int	(pure Kain — calls input_session_create + input_bind_action + input_bind_axis)	Create std::input session and bind default keyboard/pointer actions. Call ONCE at startup. Returns session ID or <0 on failure.
+electron_interact	interact_begin_frame	interact_begin_frame(delta_ms: Float)	(pure Kain — calls input_begin_frame)	Call input_begin_frame to process queued events and compute action states. Call AFTER interact_poll() and BEFORE action queries.
+electron_interact	interact_action_pressed	interact_action_pressed(action: String) -> Int	(pure Kain — wraps input_action_pressed)	Returns 1 if the named action was triggered THIS frame. Actions: up, down, left, right, confirm, cancel, reset, clear, pause, fullscreen, toggle, click.
+electron_interact	interact_action_down	interact_action_down(action: String) -> Int	(pure Kain — wraps input_action_down)	Returns 1 if the named action is currently held down.
+electron_interact	interact_action_released	interact_action_released(action: String) -> Int	(pure Kain — wraps input_action_released)	Returns 1 if the named action was released THIS frame.
+electron_interact	interact_axis	interact_axis(axis: String) -> Float	(pure Kain — wraps input_axis_value)	Get analog axis value. Axes: mouse_x, mouse_y.
+electron_interact	interact_mouse_x	interact_mouse_x() -> Float	(pure Kain — wraps interact_axis)	Convenience: mouse X from axis system.
+electron_interact	interact_mouse_y	interact_mouse_y() -> Float	(pure Kain — wraps interact_axis)	Convenience: mouse Y from axis system.
+electron_interact	interact_clear	interact_clear()	(pure Kain — resets world fields)	Reset per-frame transient state. Clears click queue and just-pressed keys. Call once/frame
+electron_interact	click_count	click_count() -> Int	(pure Kain — reads __Interact.click_count)	Clicks received since last interact_clear(). Max 8 per frame
+electron_interact	click_x	click_x(index: Int) -> Float	(pure Kain — reads __Interact.click_x_<index>)	Screen-space X of click #index (0-based, 0-7)
+electron_interact	click_y	click_y(index: Int) -> Float	(pure Kain — reads __Interact.click_y_<index>)	Screen-space Y of click #index (0-based, 0-7)
+electron_interact	key_pressed	key_pressed(key_name: String) -> Bool	(pure Kain — substring search in __Interact.held_keys)	True if named key is currently held down. key_name matches JS event.key
+electron_interact	key_just_pressed	key_just_pressed(key_name: String) -> Bool	(pure Kain — substring search in __Interact.jpress_keys)	True if key was pressed THIS frame (cleared by interact_clear)
+electron_interact	mouse_x	mouse_x() -> Float	(pure Kain — reads __Interact.mouse_x)	Current mouse X in screen coordinates
+electron_interact	mouse_y	mouse_y() -> Float	(pure Kain — reads __Interact.mouse_y)	Current mouse Y in screen coordinates
+electron_interact	ray_hit	ray_hit() -> Bool	(pure Kain — reads __Interact.ray_hit; populated by renderer.js raycaster on click)	True if last click hit a 3D scene object
+electron_interact	ray_hit_id	ray_hit_id() -> String	(pure Kain — reads __Interact.ray_id)	Kain-side id of the raycast-hit object (e.g. "terrain")
+electron_interact	ray_hit_x	ray_hit_x() -> Float	(pure Kain — reads __Interact.ray_x)	World-space X of ray intersection point
+electron_interact	ray_hit_y	ray_hit_y() -> Float	(pure Kain — reads __Interact.ray_y)	World-space Y of ray intersection point
+electron_interact	ray_hit_z	ray_hit_z() -> Float	(pure Kain — reads __Interact.ray_z)	World-space Z of ray intersection point
+electron_interact	ray_hit_nx	ray_hit_nx() -> Float	(pure Kain — reads __Interact.ray_nx)	Surface normal X at intersection point
+electron_interact	ray_hit_ny	ray_hit_ny() -> Float	(pure Kain — reads __Interact.ray_ny)	Surface normal Y at intersection point
+electron_interact	ray_hit_nz	ray_hit_nz() -> Float	(pure Kain — reads __Interact.ray_nz)	Surface normal Z at intersection point
+electron_interact	ray_distance	ray_distance() -> Float	(pure Kain — reads __Interact.ray_distance)	Distance from camera to ray hit point
+
+electron_rig	load_glb	load_glb(id: String, url: String)	SceneManager._rig case 'load_glb' → GLTFLoader.load()	Load a GLB/GLTF model, parse skeleton + animations. id: unique model identifier. url: path to .glb file (relative to electron dir)
+electron_rig	unload_glb	unload_glb(id: String)	SceneManager._rig case 'unload' → _rigRemove()	Remove model + all bones + animations from scene
+electron_rig	create_skeleton	create_skeleton(id: String, bones: JsonArray)	SceneManager._rig case 'create_skeleton' → _rigCreateSkeleton()	Create a procedural bone hierarchy from Kain. bones: JsonArray of {name, parent, x, y, z, rx, ry, rz}
+electron_rig	play_animation	play_animation(id: String, name: String, loop: Bool, crossfade_sec: Float)	SceneManager._rig case 'play_anim' → _rigPlayAnim()	Play a named animation clip. crossfade_sec > 0 smoothly transitions from current anim
+electron_rig	stop_animation	stop_animation(id: String)	SceneManager._rig case 'stop_anim' → _rigStopAnim()	Stop all animations, return to bind pose
+electron_rig	pause_animation	pause_animation(id: String, paused: Bool)	SceneManager._rig case 'pause_anim' → _rigPauseAnim()	Pause/resume the animation mixer
+electron_rig	set_anim_speed	set_anim_speed(id: String, speed: Float)	SceneManager._rig case 'anim_speed' → _rigAnimSpeed()	Set global playback speed. 1.0=normal, 2.0=double, 0.5=slo-mo
+electron_rig	set_anim_weight	set_anim_weight(id: String, name: String, weight: Float)	SceneManager._rig case 'anim_weight' → _rigAnimWeight()	Set blend weight for a specific animation. 0.0-1.0 for layering
+electron_rig	set_bone_pose	set_bone_pose(id: String, rx: JsonArray, ry: JsonArray, rz: JsonArray, tx: JsonArray, ty: JsonArray, tz: JsonArray)	SceneManager._rig case 'set_pose' → _rigSetBonePose()	HOT PATH: set ALL bone transforms via SoA flat Float arrays. One array per transform component (rx[], ry[], rz[], tx[], ty[], tz[]). Call ONCE per frame.
+electron_rig	set_bone_transform	set_bone_transform(id: String, bone_idx: Int, rx: Float, ry: Float, rz: Float, tx: Float, ty: Float, tz: Float)	SceneManager._rig case 'set_bone' → _rigSetBoneTransform()	Single-bone FK update. For per-bone overrides. Restructure as set_bone_pose for N bones/frame
+electron_rig	look_at_bone	look_at_bone(id: String, bone: String, tx: Float, ty: Float, tz: Float, up: Float)	SceneManager._rig case 'look_at' → _rigLookAt()	Orient a bone's +Z toward a world-space target. up=1.0 for Y-up
+electron_rig	two_bone_ik	two_bone_ik(id: String, root: String, mid: String, tip: String, tx: Float, ty: Float, tz: Float, px: Float, py: Float, pz: Float)	SceneManager._rig case 'two_bone_ik' → _rigTwoBoneIK()	Solve analytical 2-bone IK. root→mid→tip chain toward (tx,ty,tz). Pole vector (px,py,pz) controls bend direction

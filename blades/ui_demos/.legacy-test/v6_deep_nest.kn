@@ -1,0 +1,26 @@
+// v6_deep_nest.kn — deeply nested elements, test tree walker limits
+
+use std::runtime
+
+world DeepWorld:
+    surface native_ui => DeepRoot
+
+component DeepRoot():
+    render <panel title="DEEP" background="#0F172A">
+        <stack direction="vertical" padding={8} spacing={4}>
+            <panel title="A" background="#1A1A2E">
+                <panel title="B" background="#252540">
+                    <panel title="C" background="#303060">
+                        <text value="deep nest" color="#21D4A1" font_size={14} />
+                    </panel>
+                </panel>
+            </panel>
+        </stack>
+    </panel>
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    return 0

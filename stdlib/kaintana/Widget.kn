@@ -1,0 +1,49 @@
+// ============================================================================
+//  Widget.kn — The base trait that all Kaintana widgets satisfy
+//  P0-002: Infrastructure trait for widget participation in the rendering pipeline.
+//
+//  Rules:
+//  - Widget is infrastructure, NOT the primary authoring surface.
+//    Primary authoring surface is `component` keyword.
+//  - Four method slots with sensible defaults.
+//  - element_id returns -1 by default (not rendered in the current frame).
+//  - Developers rarely implement Widget directly — built-in widgets
+//    implement it internally. External developers use `component`.
+// ============================================================================
+
+use std::kaintana::core as core
+
+/// Base trait for all Kaintana widgets.
+///
+/// Provides the minimal contract for a widget to participate in the
+/// rendering pipeline: stable key for reconciliation, kind string for
+/// element creation, element ID for interaction queries, and an
+/// interaction tick hook for per-frame state management.
+///
+/// Default implementations:
+/// - stable_key: "" (unkeyed — C substrate uses node index)
+/// - kind: "widget" (generic fallback — override per widget type)
+/// - element_id: -1 (not rendered until kt_row is called)
+/// - tick_interaction: no-op (override for hover/click/active queries)
+pub trait Widget:
+    /// Return the stable key of the root element this widget owns.
+    /// Used for tree reconciliation across frames.
+    /// Default: empty string (unkeyed element).
+    fn stable_key(_self: Self_) -> String:
+        return ""
+
+    /// Return the kind string passed to kt_row.
+    /// Examples: "button", "slider", "textinput", "toggle", "widget".
+    fn kind(_self: Self_) -> String:
+        return "widget"
+
+    /// Return the element ID after kt_row has been called.
+    /// -1 means the widget has not been rendered in the current frame.
+    fn element_id(_self: Self_) -> Int:
+        return -1
+
+    /// Process interaction state. Called after render, before paint.
+    /// Override to call kt_hovered/kt_clicked/kt_active and update
+    /// component state fields.
+    fn tick_interaction(_self: Self_):
+        return

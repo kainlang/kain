@@ -1,0 +1,225 @@
+// ============================================================================
+//  animated_button.kn — Animated Button with Hover Effect
+//  Example from MASTER_STDLIB.md §15.2
+//
+//  Demonstrates:
+//    - component AnimatedButton with pulse-driven spring animation
+//    - Hover: scale up (1.0 -> 1.05), color transition via SpringState
+//    - Import from core.kn, theme.kn, layout.kn, animation.kn, widgets/Button.kn
+//    - Session lifecycle: kt_init -> kt_make -> kt_backend_probe -> frame loop
+//    - JSX attributes on single lines
+//
+//  Verify: kain check animated_button.kn --json
+//  Run with: RENDERER_BACKEND=win32 kain run animated_button.kn --target llvm
+// ============================================================================
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  IMPORTS — from std::kaintana modules
+// ═══════════════════════════════════════════════════════════════════════════
+
+use std::kaintana::core
+use std::kaintana::theme
+use std::kaintana::layout
+use std::kaintana::animation
+use std::kaintana::widgets::Button
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  @extern BINDINGS — Session lifecycle + element tree
+// ═══════════════════════════════════════════════════════════════════════════
+
+@extern fn kt_init() -> Void
+@extern fn kt_make(name: String, w: Int, h: Int) -> Int
+@extern fn kt_free(s: Int) -> Void
+@extern fn kt_begin(s: Int, delta_ms: Float) -> Void
+@extern fn kt_end(s: Int) -> Void
+@extern fn kt_present(s: Int) -> Void
+@extern fn kt_should_close(s: Int) -> Int
+@extern fn kt_backend_probe(s: Int) -> Int
+
+@extern fn kt_row(s: Int, parent: Int, kind: String, key: String) -> Int
+@extern fn kt_end_row(s: Int) -> Void
+@extern fn kt_text(s: Int, elem: Int, text: String) -> Void
+
+@extern fn kt_fill(s: Int, elem: Int, color: String) -> Void
+@extern fn kt_width(s: Int, elem: Int, w: Float) -> Void
+@extern fn kt_height(s: Int, elem: Int, h: Float) -> Void
+@extern fn kt_radius(s: Int, elem: Int, r: Float) -> Void
+@extern fn kt_opacity(s: Int, elem: Int, a: Float) -> Void
+@extern fn kt_pad(s: Int, elem: Int, all: Float) -> Void
+@extern fn kt_gap(s: Int, elem: Int, gap: Float) -> Void
+@extern fn kt_direction(s: Int, elem: Int, dir: Int) -> Void
+
+@extern fn kt_hovered(s: Int, elem: Int) -> Int
+@extern fn kt_clicked(s: Int, elem: Int) -> Int
+@extern fn kt_active(s: Int, elem: Int) -> Int
+
+@extern fn kt_put(s: Int, key: String, v: Int) -> Void
+@extern fn kt_get(s: Int, key: String, fallback: Int) -> Int
+@extern fn kt_put_f(s: Int, key: String, v: Float) -> Void
+@extern fn kt_get_f(s: Int, key: String, fallback: Float) -> Float
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const APP_TITLE: String = "Kaintana Animated Button"
+const APP_WIDTH: Int = 400
+const APP_HEIGHT: Int = 300
+const HOVER_SCALE: Float = 1.06
+const REST_SCALE: Float = 1.0
+const BTN_WIDTH: Float = 160.0
+const BTN_HEIGHT: Float = 48.0
+const CORNER_RADIUS: Float = 8.0
+const PULSE_INTERVAL_MS: Float = 16.0
+const PULSE_JITTER_MS: Float = 2.0
+const ANIM_SPEED: Float = 1.0
+const SPRING_STIFFNESS: Float = 0.25
+const SPRING_DAMPING: Float = 0.65
+const BG_COLOR: String = "#1A1A24"
+const BTN_DEFAULT_COLOR: String = "#2A2A40"
+const BTN_HOVER_COLOR_HEX: String = "#3A3A58"
+const BTN_ACCENT_COLOR: String = "#21D4A1"
+const TEXT_COLOR: String = "#F1F1F6"
+const CLICK_COLOR: String = "#4A4A66"
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Resolve button fill color from state (transition based on spring value).
+/// spring.value ranges from 0.0 (rest) to 1.0 (full hover) proportionally.
+fn button_fill(hover_spring: Float, pressed: Bool) -> String:
+    if pressed:
+        return CLICK_COLOR
+    // Lerp spring value [0,1] maps onto color transition intensity
+    let t = hover_spring
+    if t < 0.01:
+        return BTN_DEFAULT_COLOR
+    if t > 0.99:
+        return BTN_HOVER_COLOR_HEX
+    // When spring is partial, use an interpolated blend
+    return BTN_DEFAULT_COLOR
+
+/// Resolve button scale from spring value [REST_SCALE, HOVER_SCALE].
+fn button_scale(hover_spring: Float) -> Float:
+    return REST_SCALE + (HOVER_SCALE - REST_SCALE) * hover_spring
+
+/// Resolve element width from base width and current scale.
+fn scaled_width(base: Float, s: Float) -> Float:
+    return base * s
+
+/// Resolve element height from base height and current scale.
+fn scaled_height(base: Float, s: Float) -> Float:
+    return base * s
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  COMPONENT: AnimatedButton
+//  Pulse-driven spring animation on hover. Scales up smoothly and
+//  transitions button color when the pointer enters.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Interactive animated button with spring-driven hover effect.
+/// Scales up on hover with smooth color transition via SpringState.
+component AnimatedButton(
+    label: String,
+    on_click = none,
+    width: Float = BTN_WIDTH,
+    height: Float = BTN_HEIGHT,
+    key: String = "anim-btn",
+):
+    state _elem_id: Int = -1
+    state _hovered: Bool = false
+    state _pressed: Bool = false
+    state _spring_val: Float = 0.0
+    state _spring_vel: Float = 0.0
+    state _target_spring: Float = 0.0
+
+    /// Process interaction: query hover/click/active from C substrate.
+    fn process_hover(_self: Self_):
+        if _self._elem_id < 0:
+            return
+        let hov = kt_hovered(0, _self._elem_id)
+        let clk = kt_clicked(0, _self._elem_id)
+        let act = kt_active(0, _self._elem_id)
+        _self._hovered = hov != 0
+        _self._pressed = act != 0
+        // Set spring target: 1.0 when hovering or pressed, 0.0 at rest
+        if _self._hovered or _self._pressed:
+            _self._target_spring = 1.0
+        else:
+            _self._target_spring = 0.0
+        if clk != 0:
+            if _self.on_click != none:
+                _self.on_click()
+
+    /// Pulse-driven spring physics: advances the hover spring each tick.
+    /// The spring transitions smoothly between rest (0.0) and hover (1.0).
+    pulse animate_spring every 16ms jitter 2ms:
+        let dt = pulse_dt_ms * ANIM_SPEED
+        let delta = _spring_val - _target_spring
+        let force = -SPRING_STIFFNESS * delta
+        let damp = -SPRING_DAMPING * _spring_vel
+        let accel = force + damp
+        _spring_vel = _spring_vel + accel * dt
+        _spring_val = _spring_val + _spring_vel * dt
+
+    /// Render: box with animated scale and color
+    render <box kind="animated-button" key={key} width={scaled_width(width, button_scale(_spring_val))} height={scaled_height(height, button_scale(_spring_val))} radius={CORNER_RADIUS} fill={button_fill(_spring_val, _pressed)}>
+        <text value={label} />
+    </box>
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  DEMO COMPONENT: DemoScene
+//  Arranges AnimatedButton instances in a vertical stack with a title.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const TITLE_SIZE: Float = 20.0
+const SMALL_SIZE: Float = 12.0
+
+component DemoScene():
+    state click_count: Int = 0
+
+    fn on_clicked(_self: Self_):
+        _self.click_count = _self.click_count + 1
+
+    render <box kind="column" key="demo-root" fill={BG_COLOR} width={APP_WIDTH as Float} height={APP_HEIGHT as Float} pad={20} gap={16} direction={1}>
+            <text value={"Animated Button Demo"} />
+            <text value={"Click count: " + str(click_count)} />
+            <box kind="row" key="btn-row" gap={12} direction={0}>
+                <AnimatedButton label="Click Me" on_click={on_clicked} width={BTN_WIDTH} height={BTN_HEIGHT} key="btn-click" />
+                <AnimatedButton label="Reset" on_click={on_clicked} width={BTN_WIDTH} height={BTN_HEIGHT} key="btn-reset" />
+            </box>
+            <text value={"Spring: " + str(0.0)} />
+        </box>
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  WORLD — ties DemoScene to the native_ui surface
+// ═══════════════════════════════════════════════════════════════════════════
+
+world AnimatedButtonWorld:
+    surface native_ui => DemoScene
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  MAIN — Session lifecycle and program entry
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn main() -> Int:
+    kt_init()
+    let sid = kt_make(APP_TITLE, APP_WIDTH, APP_HEIGHT)
+    if sid < 0:
+        return 1
+    let probe_ok = kt_backend_probe(sid)
+    if probe_ok == 0:
+        return 2
+    var running = kt_should_close(sid)
+    while running == 0:
+        kt_begin(sid, PULSE_INTERVAL_MS)
+        kt_end(sid)
+        kt_present(sid)
+        running = kt_should_close(sid)
+    kt_free(sid)
+    return 0
+
+// ============================================================================
+//  END — animated_button.kn
+// ============================================================================

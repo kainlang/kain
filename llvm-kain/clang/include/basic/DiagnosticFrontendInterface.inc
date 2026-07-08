@@ -1,0 +1,1 @@
+// Stub: DiagnosticFrontendInterface.inc

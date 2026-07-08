@@ -1,0 +1,20 @@
+// v9_component_with_props.kn — component receiving typed props
+
+use std::runtime
+
+world PropWorld:
+    surface native_ui => PropRoot
+
+component PropRoot():
+    render <panel title="PROPS" background="#0F172A">
+        <stack direction="vertical" padding={16} spacing={8}>
+            <text value="component with render" color="#21D4A1" font_size={16} />
+        </stack>
+    </panel>
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    return 0

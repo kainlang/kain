@@ -1,0 +1,384 @@
+// ============================================================================
+//  bridge.kn — ENTANGLE VISUAL v3: Two Worlds Entangled
+// ============================================================================
+//  WHAT:        Live entangle propagation visualization for Electron/Three.js.
+//               TWO WORLDS ENTANGLED — source sphere (red/orange emissive glow)
+//               pulsates left, mirror sphere (blue/purple emissive glow) follows
+//               right with phase lag. A beam of particles flows between them.
+//               Dynamic point lights pulse with the emissive. Deep space
+//               atmosphere with fog and auto-rotating camera.
+//
+//               Keyboard: P = trigger manual propagation FLASH, C = clear reset.
+//
+//  COMPILE:     kain build bridge.kn --target llvm
+//  RUN:         bridge.exe → JSON lines to stdout for Electron/Three.js
+//
+//  ELECTRON:    const child = spawn('bridge.exe');
+//               child.stdout.on('data', (line) => {
+//                 const cmd = JSON.parse(line);
+//                 sceneManager.execute(cmd);
+//               });
+//
+//  SEMANTIC LAYER USAGE:
+//    L1 — world (compiler-owned state authority)
+//    L1 — entangle (bidirectional state coupling with single_writer)
+//    L5 — pulse (timed recurrence at ~60fps with jitter tolerance)
+//    L0 — fn, let, var, while (plain code glue)
+//    electron_bridge    — typed JSON bridge to Electron renderer
+//    electron_extras   — visual effects (emissive, fog, lights, rotation)
+//    electron_interact — keyboard/mouse input (P=flash, C=clear)
+//
+//  NEW IN v3:  All electron_extras features (emissive glow, point lights,
+//              fog, background, ambient, particle sizing, sphere rotation,
+//              auto-rotate camera). All electron_interact features (keyboard
+//              triggered flash propagation with P, scene reset with C,
+//              mouse/click tracking in telemetry).
+// ============================================================================
+
+use std::runtime
+use std::intent
+use std::math
+use std::time
+use electron_bridge
+use electron_extras
+use electron_interact
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const SOURCE_ORBIT_N: Int = 120
+const MIRROR_ORBIT_N: Int = 120
+const BEAM_FLOW_N:   Int = 80
+const TWO_PI:        Float = 6.283185307
+const FLASH_FRAMES:  Int = 12                // frames the flash effect lasts
+
+// ============================================================================
+//  LAYER 1: STATE AUTHORITY — worlds + entangle
+// ============================================================================
+//  SourceWorld is the authority: pulse writes here, entangle propagates out.
+//  MirrorWorld receives propagated copies. Nothing writes MirrorWorld directly.
+//  SceneGate gates the pulse so it never fires before scene setup completes.
+//  flash counter tracks the P-key manual propagation effect.
+
+world SourceWorld:
+    state value: Int = 0
+    state epoch: Int = 0
+    state flash: Int = 0
+
+world MirrorWorld:
+    state mirrored: Int = 0
+
+world SceneGate:
+    state ready: Int = 0
+
+// Entangle: compiler-owned bidirectional state coupling.
+// single_writer policy: only SourceWorld writes; MirrorWorld reads.
+// The runtime tracks every propagation (entangle_propagation_count()).
+entangle SourceWorld.value <-> MirrorWorld.mirrored with single_writer
+
+// ============================================================================
+//  LAYER 5: TEMPORAL — pulse drives live animation at ~60fps
+// ============================================================================
+//  pulse_tick:     monotonic counter, incremented each fire
+//  pulse_dt_ms:    actual milliseconds since last fire (with jitter)
+//  pulse_missed:   count of missed beats (if a fire took too long)
+//
+//  The pulse body:
+//    1. Checks the scene-ready gate
+//    2. Polls keyboard/mouse interaction (blocks briefly on stdin read_line)
+//    3. Handles P=flash, C=clear
+//    4. Mutates SourceWorld.value (triggers entangle propagation)
+//    5. Animates source sphere (position, scale, emissive glow, rotation)
+//    6. Animates mirror sphere (follows with visible lag, emissive, rotation)
+//    7. Pulses point lights near each sphere (color, intensity, position)
+//    8. Updates beam line points connecting the spheres
+//    9. Builds orbiting particle positions (source + mirror rings)
+//   10. Builds beam-flow particle positions (drifting source→mirror)
+//   11. Updates particle sizes (pulsing with the emissive)
+//   12. Emits telemetry (state, propagation count, interaction state)
+//   13. Clears per-frame interaction state
+
+pulse entangle_visual every 16 ms jitter 1 ms:
+    // ── WORLD GATE: don't fire until scene setup is complete ──────────
+    if SceneGate.ready == 0:
+        return
+
+    // ── INTERACTION: poll keyboard/mouse from Electron pipe ───────────
+    // read_line() blocks until a line arrives. In practice, Electron
+    // sends mousemove events frequently, keeping the pipe fed.
+    interact_poll()
+
+    // ── KEYBOARD: P = flash propagation, C = clear reset ──────────────
+    if key_just_pressed("p") or key_just_pressed("P"):
+        SourceWorld.flash = FLASH_FRAMES
+
+    if key_just_pressed("c") or key_just_pressed("C"):
+        SourceWorld.value = 0
+        SourceWorld.epoch = 0
+        SourceWorld.flash = 0
+
+    // ── INTERACTION TELEMETRY: snapshot before clear ──────────────────
+    let clicks_this_frame: Int = click_count()
+    let mouse_x_pos: Float = mouse_x()
+    let mouse_y_pos: Float = mouse_y()
+    let any_key_held: Bool = key_pressed("p") or key_pressed("P") or key_pressed("c") or key_pressed("C")
+
+    // Clear per-frame interaction state
+    interact_clear()
+
+    // ── STATE MUTATION: increment source each frame ──────────────────
+    // This write triggers entangle propagation to MirrorWorld.mirrored.
+    SourceWorld.value = SourceWorld.value + 1
+    SourceWorld.epoch = SourceWorld.epoch + 1
+
+    let t:      Float = pulse_tick * 0.06           // time in seconds (~60fps)
+    let src:    Int   = SourceWorld.value
+    let mir:    Int   = MirrorWorld.mirrored
+    let prop:   Int   = entangle_propagation_count()
+
+    // ── FLASH EFFECT: triggered by P key ─────────────────────────────
+    let flash_active: Bool = SourceWorld.flash > 0
+    let flash_boost: Float = 0.0
+    if flash_active:
+        // Decaying boost: strongest at frame 1, fades linearly
+        flash_boost = (SourceWorld.flash * 1.0) / FLASH_FRAMES * 3.0
+        SourceWorld.flash = SourceWorld.flash - 1
+        if SourceWorld.flash < 0:
+            SourceWorld.flash = 0
+
+    // ══════════════════════════════════════════════════════════════════
+    //  SOURCE SPHERE — left side, red/orange emissive glow
+    // ══════════════════════════════════════════════════════════════════
+
+    let source_pulse: Float = 1.0 + sin(t * 2.5) * 0.3 + sin(t * 7.1) * 0.08
+    let source_scale: Float = source_pulse + flash_boost * 0.5
+
+    // Position + scale (electron_bridge)
+    update_transform("source_sphere", -4.0, 0.0, 0.0,
+        source_scale, source_scale, source_scale)
+
+    // Emissive glow (electron_extras) — pulses with scale
+    let source_emissive: Float = 1.8 + sin(t * 2.5) * 0.7 + sin(t * 7.1) * 0.3 + flash_boost * 2.5
+    update_emissive("source_sphere", "#ff5500", source_emissive)
+
+    // Gentle rotation (electron_extras)
+    update_rotation("source_sphere", t * 0.12, t * 0.3, t * 0.17)
+
+    // ── SOURCE LIGHT — point light pulsing with emissive ─────────────
+    let src_light_intensity: Float = 2.5 + sin(t * 2.5) * 1.2 + flash_boost * 4.0
+    let src_light_y: Float = sin(t * 1.7) * 0.6
+    let src_light_z: Float = cos(t * 1.3) * 0.6
+    update_light("source_light", "#ff6622", src_light_intensity)
+    update_light_position("source_light", -4.0, src_light_y, src_light_z)
+
+    // ══════════════════════════════════════════════════════════════════
+    //  MIRROR SPHERE — right side, blue/purple emissive glow
+    //  Follows source with 0.35 rad phase lag (entangle propagation)
+    // ══════════════════════════════════════════════════════════════════
+
+    let mirror_lag:   Float = sin(t * 2.5 - 0.35) * 0.3 + sin(t * 7.1 - 0.35) * 0.08
+    let mirror_scale: Float = 1.0 + mirror_lag + flash_boost * 0.3
+
+    update_transform("mirror_sphere", 4.0, 0.0, 0.0,
+        mirror_scale, mirror_scale, mirror_scale)
+
+    // Emissive glow (electron_extras) — phase-lagged from source
+    let mirror_emissive: Float = 1.8 + sin(t * 2.5 - 0.35) * 0.7 + sin(t * 7.1 - 0.35) * 0.3 + flash_boost * 1.5
+    update_emissive("mirror_sphere", "#6644ff", mirror_emissive)
+
+    // Gentle rotation (electron_extras) — opposite direction for contrast
+    update_rotation("mirror_sphere", t * 0.1, t * 0.28 + 0.35, t * 0.15)
+
+    // ── MIRROR LIGHT — point light pulsing with phase lag ────────────
+    let mir_light_intensity: Float = 2.5 + sin(t * 2.5 - 0.35) * 1.2 + flash_boost * 2.5
+    let mir_light_y: Float = sin(t * 1.7 + 0.35) * 0.6
+    let mir_light_z: Float = cos(t * 1.3 + 0.35) * 0.6
+    update_light("mirror_light", "#6644ff", mir_light_intensity)
+    update_light_position("mirror_light", 4.0, mir_light_y, mir_light_z)
+
+    // ══════════════════════════════════════════════════════════════════
+    //  BEAM — line and particles bridging the two spheres
+    // ══════════════════════════════════════════════════════════════════
+
+    // Line connecting source to mirror
+    var beam_json: String = "{\"cmd\":\"update\",\"id\":\"beam\",\"points\":["
+    beam_json = beam_json + "{\"x\":-4.0,\"y\":0.0,\"z\":0.0}"
+    beam_json = beam_json + ","
+    beam_json = beam_json + "{\"x\":4.0,\"y\":0.0,\"z\":0.0}"
+    beam_json = beam_json + "]}"
+    println(beam_json)
+
+    // ══════════════════════════════════════════════════════════════════
+    //  SOURCE ORBIT PARTICLES — ring around source sphere
+    // ══════════════════════════════════════════════════════════════════
+
+    var src_orbit: String = "{\"cmd\":\"update\",\"id\":\"source_orbit\",\"flat\":["
+    var i: Int = 0
+    while i < SOURCE_ORBIT_N:
+        if i > 0:
+            src_orbit = src_orbit + ","
+        let angle: Float = (i * TWO_PI) / SOURCE_ORBIT_N + t * 1.3
+        let radius: Float = 2.2 + sin(i * 0.5 + t * 2.0) * 0.4
+        src_orbit = src_orbit + str(-4.0)                  // x (fixed at source)
+        src_orbit = src_orbit + ","
+        src_orbit = src_orbit + str(cos(angle) * radius)    // y
+        src_orbit = src_orbit + ","
+        src_orbit = src_orbit + str(sin(angle) * radius)    // z
+        i = i + 1
+    src_orbit = src_orbit + "]}"
+    println(src_orbit)
+
+    // Particle size pulse for source orbit (electron_extras)
+    let src_part_size: Float = 0.08 + sin(t * 2.5) * 0.03 + flash_boost * 0.12
+    update_particle_size("source_orbit", src_part_size)
+
+    // ══════════════════════════════════════════════════════════════════
+    //  MIRROR ORBIT PARTICLES — ring around mirror sphere
+    // ══════════════════════════════════════════════════════════════════
+
+    var mir_orbit: String = "{\"cmd\":\"update\",\"id\":\"mirror_orbit\",\"flat\":["
+    var j: Int = 0
+    while j < MIRROR_ORBIT_N:
+        if j > 0:
+            mir_orbit = mir_orbit + ","
+        let angle: Float = (j * TWO_PI) / MIRROR_ORBIT_N + t * 1.1
+        let radius: Float = 2.2 + cos(j * 0.5 + t * 2.0) * 0.4
+        mir_orbit = mir_orbit + str(4.0)                   // x (fixed at mirror)
+        mir_orbit = mir_orbit + ","
+        mir_orbit = mir_orbit + str(cos(angle) * radius)    // y
+        mir_orbit = mir_orbit + ","
+        mir_orbit = mir_orbit + str(sin(angle) * radius)    // z
+        j = j + 1
+    mir_orbit = mir_orbit + "]}"
+    println(mir_orbit)
+
+    let mir_part_size: Float = 0.08 + sin(t * 2.5 - 0.35) * 0.03 + flash_boost * 0.08
+    update_particle_size("mirror_orbit", mir_part_size)
+
+    // ══════════════════════════════════════════════════════════════════
+    //  BEAM FLOW PARTICLES — drifting from source → mirror
+    //  Particles flow rightward, looping when they pass the mirror.
+    //  Each particle has a unique phase offset for spread.
+    // ══════════════════════════════════════════════════════════════════
+
+    var beam_flow: String = "{\"cmd\":\"update\",\"id\":\"beam_flow\",\"flat\":["
+    var k: Int = 0
+    while k < BEAM_FLOW_N:
+        if k > 0:
+            beam_flow = beam_flow + ","
+        let phase:   Float = (k * 1.0) / BEAM_FLOW_N
+        let drift:   Float = (t * 0.8 + phase * 8.0) % 8.0
+        let x:       Float = -4.0 + drift
+        let wobble_y: Float = sin(t * 3.0 + phase * 12.0) * 0.35
+        let wobble_z: Float = cos(t * 2.7 + phase * 10.0) * 0.35
+        beam_flow = beam_flow + str(x)
+        beam_flow = beam_flow + ","
+        beam_flow = beam_flow + str(wobble_y)
+        beam_flow = beam_flow + ","
+        beam_flow = beam_flow + str(wobble_z)
+        k = k + 1
+    beam_flow = beam_flow + "]}"
+    println(beam_flow)
+
+    // Beam particle size — pulses between 0.07 and 0.15, boosted on flash
+    let beam_part_size: Float = 0.1 + sin(t * 3.5) * 0.04 + flash_boost * 0.18
+    update_particle_size("beam_flow", beam_part_size)
+
+    // ══════════════════════════════════════════════════════════════════
+    //  TELEMETRY — show state + interaction in the HUD
+    // ══════════════════════════════════════════════════════════════════
+
+    telemetry("tick",         pulse_tick)
+    telemetry("source",       src)
+    telemetry("mirror",       mir)
+    telemetry("propagations", prop)
+    telemetry_float("source_scale", source_scale)
+    telemetry_float("mirror_scale", mirror_scale)
+    telemetry_float("src_emissive", source_emissive)
+    telemetry_float("mir_emissive", mirror_emissive)
+
+    // Interaction telemetry
+    if clicks_this_frame > 0:
+        telemetry("clicks", clicks_this_frame)
+        let cx0: Float = click_x(0)
+        let cy0: Float = click_y(0)
+        telemetry_float("click_x", cx0)
+        telemetry_float("click_y", cy0)
+    telemetry_float("mouse_x", mouse_x_pos)
+    telemetry_float("mouse_y", mouse_y_pos)
+    if any_key_held:
+        telemetry_string("key_state", "held")
+    if flash_active:
+        telemetry_string("flash", "ACTIVE")
+        telemetry("flash_remaining", SourceWorld.flash)
+
+// ============================================================================
+//  LAYER 0: PLAIN CODE — scene setup + keep-alive loop
+// ============================================================================
+
+fn main() -> Int with IO:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // ── ATMOSPHERE — deep space environment ──────────────────────────
+    // electron_extras: set_background, set_fog, set_ambient
+    set_background("#050518")        // deep space: very dark blue-black
+    set_fog("#0a0a2e", 12.0, 55.0)  // exponential fog: atmosphere depth
+    set_ambient("#223344", 0.35)     // dim ambient so lights pop
+
+    // ── CAMERA — positioned to see both spheres with the beam ───────
+    camera_look_at(0.0, 3.0, 16.0, 0.0, 0.0, 0.0)
+
+    // ── AUTO-ROTATE — gentle camera orbit around the scene ───────────
+
+    // ── SOURCE SPHERE: left, red-orange, glowing ─────────────────────
+    create_mesh("source_sphere", "sphere", "#ff4422")
+    update_transform("source_sphere", -4.0, 0.0, 0.0, 1.5, 1.5, 1.5)
+    // electron_extras: initial emissive glow
+    update_emissive("source_sphere", "#ff5500", 2.0)
+
+    // ── MIRROR SPHERE: right, blue-purple, glowing ───────────────────
+    create_mesh("mirror_sphere", "sphere", "#4466ff")
+    update_transform("mirror_sphere", 4.0, 0.0, 0.0, 1.5, 1.5, 1.5)
+    update_emissive("mirror_sphere", "#6644ff", 2.0)
+
+    // ── POINT LIGHTS — dynamic lights at each sphere ─────────────────
+    // electron_extras: create_light
+    create_light("source_light", "point", "#ff6622", 2.5, -4.0, 0.0, 0.0)
+    create_light("mirror_light", "point", "#6644ff", 2.5,  4.0, 0.0, 0.0)
+
+    // ── BEAM: line + particles bridging the two spheres ──────────────
+    create_lines("beam", "#ff9944")
+
+    // ── ORBIT PARTICLES: rings around each sphere ────────────────────
+    create_particles("source_orbit", SOURCE_ORBIT_N, "#ff6688")
+    create_particles("mirror_orbit", MIRROR_ORBIT_N, "#6688ff")
+
+    // ── BEAM FLOW PARTICLES: traveling from source → mirror ──────────
+    create_particles("beam_flow", BEAM_FLOW_N, "#ffcc44")
+
+    // ── TELEMETRY HEADER: label the demo in the HUD ──────────────────
+    telemetry_string("status", "ENTANGLE VISUAL v3: Two Worlds Entangled")
+    telemetry_string("controls", "[P]=flash propagation  [C]=clear reset")
+    telemetry_string("atmosphere", "fog + background + auto-rotate + lights")
+    telemetry("source_orbit_n", SOURCE_ORBIT_N)
+    telemetry("mirror_orbit_n", MIRROR_ORBIT_N)
+    telemetry("beam_flow_n",   BEAM_FLOW_N)
+
+    // ── UNLOCK: allow pulse to start firing ──────────────────────────
+    // Before this point, the pulse body returns immediately (gate check).
+    // After this, the pulse animates the scene at 60fps.
+    SceneGate.ready = 1
+
+    // ── KEEP-ALIVE: sleep in 1-second chunks; pulse does the work ────
+    var tick: Int = 0
+    while tick < 999999:
+        let _ = sleep_millis(1000)
+        tick = tick + 1
+
+    let sd = runtime_shutdown()
+    if sd != 0:
+        return 200 + sd
+    return 0

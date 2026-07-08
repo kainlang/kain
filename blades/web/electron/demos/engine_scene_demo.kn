@@ -1,0 +1,187 @@
+// ============================================================================
+//  engine_scene_demo.kn — Scene Composition Module Demo
+// ============================================================================
+//
+//  WHAT:      Demonstrates electron_scene.kn by building a complete landscape:
+//             sky + mountains + ground + forest + tower + water + lighting.
+//             Calls scene_* functions then enters a keep-alive pulse for
+//             interactivity (camera orbit, toggles).
+//
+//  CONTROLS:  F = toggle fog      R = toggle auto-rotate
+//             1/2/3 = lighting presets     Space = reset camera
+//
+//  COMPILE:   cd X:/blades/web/electron
+//             kain build demos/engine_scene_demo.kn --target llvm
+//
+//  SEMANTIC LAYER: L0 (fn, let, while) + L1 (world) + L5 (pulse)
+//  DEPENDS:        electron_scene, electron_bridge, electron_extras,
+//                  electron_interact
+// ============================================================================
+
+use std::runtime
+use std::math
+use std::time
+use electron_bridge
+use electron_extras
+use electron_interact
+use electron_scene
+
+// ============================================================================
+//  LAYER 1: DEMO STATE — toggles
+// ============================================================================
+
+world DemoState:
+    state ready:     Int = 0
+    state fog_on:    Int = 1
+    state rotate_on: Int = 1
+    state light_mode: Int = 0       // 0=day, 1=sunset, 2=night
+
+// ============================================================================
+//  LAYER 5: TEMPORAL — 16ms frame loop for interaction
+// ============================================================================
+
+pulse demo_clock every 16 ms:
+    if DemoState.ready == 0:
+        return
+
+    interact_poll()
+
+    let t: Float = pulse_tick * 0.02
+
+    // ── KEYBOARD TOGGLES ───────────────────────────────────────────────
+    if key_just_pressed("f"):
+        if DemoState.fog_on == 1:
+            DemoState.fog_on = 0
+            set_fog("#000000", 9999.0, 10000.0)
+        else:
+            DemoState.fog_on = 1
+            if DemoState.light_mode == 0:
+                set_fog("#8899cc", 30.0, 120.0)
+            elif DemoState.light_mode == 1:
+                set_fog("#332211", 8.0, 60.0)
+            else:
+                set_fog("#050515", 20.0, 100.0)
+
+    if key_just_pressed("r"):
+        if DemoState.rotate_on == 1:
+            DemoState.rotate_on = 0
+            set_auto_rotate(false, 0.0)
+        else:
+            DemoState.rotate_on = 1
+            set_auto_rotate(true, 0.5)
+
+    // Lighting presets: 1 = day sky, 2 = sunset, 3 = night
+    if key_just_pressed("1"):
+        DemoState.light_mode = 0
+    if key_just_pressed("2"):
+        DemoState.light_mode = 1
+    if key_just_pressed("3"):
+        DemoState.light_mode = 2
+
+    // Reset camera
+    if key_just_pressed(" "):
+        camera_look_at(0.0, 8.0, 25.0, 0.0, 2.0, 0.0)
+
+    // ── TELEMETRY ──────────────────────────────────────────────────────
+    telemetry("tick", pulse_tick)
+    let scene_objects: Int = SceneState.next_id
+    telemetry("scene_objects", scene_objects)
+    let mode_label: String = if DemoState.light_mode == 0:
+        "day"
+    elif DemoState.light_mode == 1:
+        "sunset"
+    else:
+        "night"
+    telemetry_string("light_mode", mode_label)
+
+    interact_clear()
+
+// ============================================================================
+//  MAIN — Build the scene, then keep-alive
+// ============================================================================
+
+fn main() -> Int with IO:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // ════════════════════════════════════════════════════════════════════
+    //  ATMOSPHERE — daytime sky
+    // ════════════════════════════════════════════════════════════════════
+    scene_sky()
+
+    // ════════════════════════════════════════════════════════════════════
+    //  LANDSCAPE — green ground + distant mountain backdrop
+    // ════════════════════════════════════════════════════════════════════
+    scene_ground(20.0, 20.0, "#448844")
+
+    // Distant mountains along the far horizon
+    scene_mountains_backdrop(12)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  WATER — reflective lake, slightly below ground
+    // ════════════════════════════════════════════════════════════════════
+    scene_water(-0.15)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  VEGETATION — forest in a ring around the scene + scattered bushes
+    // ════════════════════════════════════════════════════════════════════
+    // Dense forest ring
+    scene_forest(0.0, 0.0, 8.0, 30)
+
+    // Scattered bushes near the tower
+    var bi: Int = 0
+    while bi < 15:
+        let ba: Float = (bi as Float) * 0.42
+        let br: Float = 3.5
+        scene_bush(sin(ba) * br, 0.0, cos(ba) * br)
+        bi = bi + 1
+
+    // ════════════════════════════════════════════════════════════════════
+    //  STRUCTURES — central tower + boundary walls
+    // ════════════════════════════════════════════════════════════════════
+    scene_tower(0.0, 0.0, 6.0)
+
+    // Low walls around the tower
+    scene_wall(-3.5, -3.5, 3.5, -3.5, 1.2)
+    scene_wall(3.5, -3.5, 3.5, 3.5, 1.2)
+    scene_wall(3.5, 3.5, -3.5, 3.5, 1.2)
+    scene_wall(-3.5, 3.5, -3.5, -3.5, 1.2)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  LIGHTING — sun + fill
+    // ════════════════════════════════════════════════════════════════════
+    scene_sunlight()
+    scene_fill_light()
+
+    // ════════════════════════════════════════════════════════════════════
+    //  CAMERA — pulled back to see the whole scene
+    // ════════════════════════════════════════════════════════════════════
+    camera_look_at(0.0, 8.0, 25.0, 0.0, 2.0, 0.0)
+    // Static landscape — no auto-rotate. User orbits manually.
+
+    // ════════════════════════════════════════════════════════════════════
+    //  HUD
+    // ════════════════════════════════════════════════════════════════════
+    telemetry_string("status", "SCENE COMPOSITION DEMO")
+    telemetry_string("controls", "F=fog R=rotate 1/2/3=light SPACE=reset_cam")
+
+    // ════════════════════════════════════════════════════════════════════
+    //  READY — pulse is now allowed to fire
+    // ════════════════════════════════════════════════════════════════════
+    DemoState.ready = 1
+
+    // Keep-alive
+    var tick: Int = 0
+    while tick < 999999:
+        let _ = sleep_millis(1000)
+        tick = tick + 1
+
+    let sd = runtime_shutdown()
+    if sd != 0:
+        return 200 + sd
+    return 0
+
+// ============================================================================
+//  END engine_scene_demo.kn
+// ============================================================================

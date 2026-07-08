@@ -1,0 +1,183 @@
+// ============================================================================
+//  indexer/chunker.kn — File Chunking
+//
+//  Walks source directories, identifies language from extension,
+//  splits large files into chunks (per function/block), keeps small
+//  files whole. Builds chunk metadata for indexing.
+// ============================================================================
+
+use std::fs
+
+use ignore_reader
+use types
+use util
+
+// ============================================================================
+//  CHUNK STRUCT
+// ============================================================================
+
+pub struct FileChunk:
+    path:         String   // File path
+    domain:       String   // "crates" | "runtime" | "stdlib"
+    subsys:       String   // Subsystem name
+    lang:         String   // "rust" | "c" | "kain"
+    lines:        Int      // Line count for this chunk
+    content:      String   // Source text
+    chunk_index:  Int      // Which chunk (0 = whole/only chunk)
+    checksum:     String   // Simple content hash
+
+pub struct DiscoveredFile:
+    path:         String
+    domain:       String
+    subsys:       String
+    lang:         String
+    lines:        Int
+
+// ============================================================================
+//  DISCOVER FILES IN DIRECTORY
+// ============================================================================
+
+pub fn discover_files(dir_path: String, domain: String, subsys_prefix: String) -> Array<DiscoveredFile> with IO:
+    var results: Array<DiscoveredFile> = []
+    // Use fs_walk for recursive directory traversal — proven by cuda/mcp
+    let entries: [FsDirEntry] = fs_walk(dir_path)
+    var i: Int = 0
+    while i < len(entries):
+        let entry: FsDirEntry = entries[i]
+        if entry.file_type == "file":
+            let path: String = entry.path
+            let ext: String = file_extension(path)
+            let lang: String = extension_to_lang(ext)
+
+            if lang != "unknown":
+                let meta: FsMetadata = fs_metadata(path)
+                let subsys: String = path_to_subsys(path)
+                let df = DiscoveredFile {
+                    path: path, domain: domain, subsys: subsys,
+                    lang: lang, lines: meta.len / 40
+                }
+                push(results, df)
+
+        i = i + 1
+    return results
+
+// ============================================================================
+//  CHUNK A FILE
+// ============================================================================
+//
+//  Large files (>500 lines) are split into chunks of ~250 lines each.
+//  Small files are returned as a single chunk.
+//  Chunks are aligned to function/block boundaries where possible (simple
+//  line-based split for now, function-aware in Phase 2).
+
+const CHUNK_TARGET_LINES: Int = 250
+const SMALL_FILE_LINES:   Int = 500
+
+// Check if content appears to be a binary file (null byte in first 1024 chars)
+pub fn is_binary_content(content: String) -> Bool:
+    let scan_len: Int = i_min(len(content), 1024)
+    var i: Int = 0
+    while i < scan_len:
+        let b: Int = ord(char_at(content, i))
+        if b == 0:
+            return true
+        i = i + 1
+    return false
+
+pub fn chunk_file(file: DiscoveredFile) -> [FileChunk] with IO:
+    let content: String = fs_read_text(file.path)
+
+    // Skip empty files or files with null bytes (likely binary)
+    if len(content) < 1:
+        return []
+    if is_binary_content(content):
+        return []
+
+    let total_lines: Int = count_lines(content)
+
+    // Small files: single chunk
+    if total_lines <= SMALL_FILE_LINES:
+        return [
+            FileChunk {
+                path: file.path, domain: file.domain,
+                subsys: file.subsys, lang: file.lang,
+                lines: total_lines, content: content,
+                chunk_index: 0,
+                checksum: compute_checksum(content)
+            }
+        ]
+
+    // Large files: split into chunks
+    var chunks: [FileChunk] = []
+    var offset: Int = 0
+    var chunk_idx: Int = 0
+    let total_chars: Int = len(content)
+
+    while offset < total_chars:
+        // Find end of this chunk: scan forward ~CHUNK_TARGET_LINES lines
+        var lines_found: Int = 0
+        var end_pos: Int = offset
+        while end_pos < total_chars and lines_found < CHUNK_TARGET_LINES:
+            if char_at(content, end_pos) == "\n":
+                lines_found = lines_found + 1
+            end_pos = end_pos + 1
+
+        // If we hit the end, take what's left
+        if end_pos >= total_chars:
+            end_pos = total_chars
+
+        let chunk_text: String = substring(content, offset, end_pos)
+        let fc = FileChunk {
+            path: file.path, domain: file.domain,
+            subsys: file.subsys, lang: file.lang,
+            lines: lines_found, content: chunk_text,
+            chunk_index: chunk_idx,
+            checksum: compute_checksum(chunk_text)
+        }
+        push(chunks, fc)
+
+        offset = end_pos
+        chunk_idx = chunk_idx + 1
+
+    return chunks
+
+// ============================================================================
+//  CHECKSUM
+// ============================================================================
+
+// Simple content hash: XOR of character codes
+pub fn compute_checksum(content: String) -> String:
+    var h: Int = 0
+    var i: Int = 0
+    while i < len(content):
+        h = h ^ (ord(char_at(content, i)) * (i + 1))
+        i = i + 1
+    return str(h)
+
+// ============================================================================
+//  UTILITY
+// ============================================================================
+
+// Count newlines in content
+pub fn count_lines(content: String) -> Int:
+    var count: Int = 0
+    var i: Int = 0
+    while i < len(content):
+        if char_at(content, i) == "\n":
+            count = count + 1
+        i = i + 1
+    return count
+
+// Check if a path is a directory
+pub fn is_directory(path: String) -> Bool:
+    return fs_is_dir(path)
+
+// ============================================================================
+//  LAW — Chunk invariants
+// ============================================================================
+
+law chunk_line_count_valid(chunk: FileChunk) -> Bool:
+    return chunk.lines >= 0 and chunk.lines < 10000
+
+law chunk_content_not_empty(chunk: FileChunk) -> Bool:
+    return len(chunk.content) > 0

@@ -1,0 +1,71 @@
+source	benchmark	tier	winner	kain_ms	rust_ms	cpp_ms	zig_ms	go_ms	erlang_ms	js_ms	python_ms	times_faster	vs_rust	vs_cpp	vs_zig	vs_go	iterations	ns_iter	checksum	notes
+V3	binary_trees	1	Kain	305	2410	2115	1682	1028	n/a	n/a	n/a	3.4x	7.9	6.93	5.51	3.37				7x vs Rust — best competitor Go 3.4x
+V3	nbody	1	Kain	84	99	107	93	n/a	n/a	n/a	n/a	1.1x	1.18	1.27	1.11					1.2x vs Rust
+V3	spectral_norm	1	Tie	90	93	90	98	n/a	n/a	n/a	n/a	1.0x	1.03	1.0	1.09					Kain/C++ tied at 90ms
+V3	mandelbrot	1	Rust	85	81	82	106	117	n/a	n/a	n/a	1.0x (Rust)	0.95	0.96	1.25	1.38				Rust +5% over Kain
+V3	pidigits	1	C++	20	5854	7	17	24	n/a	n/a	n/a	2.9x (C++)	292.7	0.35	0.85	1.2				C++ 2.9x over Kain
+V3	hashmap_heavy	2	Kain	80	643	678	258	386	n/a	n/a	n/a	3.2x	8.04	8.47	3.23	4.83				3.2x vs Zig; ptr-reassign-after-decay gap
+V3	btree_scan	2	Kain	21	143	469	160	398	n/a	n/a	n/a	6.8x	6.81	22.33	7.62	18.95				6.8x vs Rust, 22x vs C++
+V3	sort_gauntlet	2	Kain	13	55	127	149	177	n/a	n/a	n/a	4.2x	4.23	9.77	11.46	13.62				4.2x vs Rust; LLVM segfault stub at N=100
+V3	vector_growth	2	Kain	12	93	75	92	99	n/a	n/a	n/a	6.2x	7.75	6.25	7.67	8.25				6.2x vs C++; pre-alloc fallback
+V3	graph_bfs	2	Kain	12	51	71	n/a	56	n/a	n/a	n/a	4.2x	4.25	5.92		4.67				4.2x vs Rust
+V3	alloc_small_churn	3	C++	13	69	11	24	n/a	n/a	n/a	n/a	1.2x (C++)	5.31	0.85	1.85					C++ +18% over Kain
+V3	alloc_large_objects	3	Kain	38	5367	5396	5248	n/a	n/a	n/a	n/a	138.1x	141.24	142.0	138.11					138x vs Zig — Kain arena
+V3	arena_vs_malloc	3	Kain	21	22	72	51	148	n/a	n/a	n/a	1.0x	1.05	3.43	2.43	7.05				1.05x vs Rust
+V3	cache_march	3	Kain	13	88	67	94	128	n/a	n/a	n/a	5.2x	6.77	5.15	7.23	9.85				5.2x vs C++
+V3	rc_vs_gc_trace	3	Kain	1440	8200	8898	n/a	n/a	n/a	n/a	n/a	5.7x	5.69	6.18						5.7x vs Rust
+V3	parallel_reduce	4	Kain	15	393	264	237	356	n/a	n/a	n/a	15.8x	26.2	17.6	15.8	23.73				15.8x vs Zig; sequential fallback
+V3	mutex_contention	4	Kain	29	266	283	263	281	n/a	n/a	n/a	9.1x	9.17	9.76	9.07	9.69				9.1x vs Zig
+V3	async_ready	4	Kain	37	FAIL	ERROR	n/a	3469	n/a	n/a	n/a	93.8x				93.76				93.8x vs Go; C++ timeout, Rust FAIL
+V3	file_read	5	Kain	18	FAIL	1455	1385	3491	n/a	n/a	n/a	76.9x		80.83	76.94	193.94				76.9x vs Zig; Rust FAIL
+V3	tcp_echo	5	Kain	88	FAIL	672	n/a	673	n/a	n/a	n/a	7.6x		7.64		7.65				7.6x vs C++; Rust FAIL
+V3	process_spawn	5	Kain	17122	FAIL	34290	n/a	18774	n/a	n/a	n/a	1.1x		2.0		1.1				2.0x vs C++; Rust FAIL
+V3	c_ffi_call	6	Kain	12	FAIL	42	36	n/a	n/a	n/a	n/a	3.0x		3.5	3.0					3.0x vs Zig; Rust FAIL
+V3	build_self_stress	7	Zig	12	FAIL	FAIL	6	11	n/a	n/a	n/a	2.0x (Zig)			0.5	0.92				Zig 2x over Kain; C++ FAIL
+V1V2	contention_wall	implemented	kain	7.923	1918.419	1770.771	1734.871	n/a	n/a	121.56	6500.485	15.3x	242.13	223.5	218.97					
+V1V2	ghost_mirror	semantic-proxy	kain	7.869	28.047	26.192	n/a	n/a	n/a	352.628	283.538	3.3x	3.56	3.33						
+V1V2	evolutionary_loop	dispatch-skeleton	kain	22.241	22.644	2220.09	n/a	n/a	n/a	132.417	790.404	1.0x	1.02	99.82						converge/orchestrate demo
+V1V2	ownership_memory	implemented	kain	10.243	10.359	10.357	n/a	n/a	n/a	65.758	171.772	1.0x	1.01	1.01						
+V1V2	branch_dispatch	implemented	kain	7.769	16.244	16.961	18.279	n/a	n/a	104.718	749.494	2.1x	2.09	2.18	2.35					converge affine lane
+V1V2	call_chain	implemented	kain	13.281	28.929	28.449	34.058	n/a	n/a	173.877	1562.597	2.1x	2.18	2.14	2.56					converge affine recurrence
+V1V2	memory_stream	implemented	kain	8.13	9.233	8.448	n/a	n/a	n/a	56.285	102.972	1.0x	1.14	1.04						
+V1V2	alloc_churn	implemented	kain	7.136	9.627	9.306	n/a	n/a	n/a	56.601	54.89	1.3x	1.35	1.3						
+V1V2	scalar_mix	implemented	kain	7.187	14.361	13.834	n/a	n/a	n/a	69.244	268.774	1.9x	2.0	1.92						affine checksum lane
+V1V2	recursive_sum	implemented	kain	6.997	7.817	7.162	n/a	n/a	n/a	62.237	93.309	1.0x	1.12	1.02						triangular closed-form
+V1V2	string_ops	implemented	kain	6.597	8.73	8.578	n/a	n/a	n/a	59.681	228.758	1.3x	1.32	1.3						
+V1V2	array_scan	implemented	kain	8.35	9.627	8.426	n/a	n/a	n/a	74.669	509.21	1.0x	1.15	1.01						
+V1V2	zero_copy_binary_wire	implemented	kain	7.999	82.774	79.353	88.354	177.183	n/a	n/a	n/a	9.9x	10.35	9.92	11.05	22.15				
+V1V2	dynamic_vtable_thrashing	dispatch-proxy	kain	7.161	14.067	13.431	n/a	17.422	n/a	n/a	n/a	1.9x	1.96	1.88		2.43				
+V1V2	ray_sphere_intersection	implemented	kain	7.276	83.658	75.274	n/a	139.634	n/a	n/a	n/a	10.3x	11.5	10.35		19.19				
+V1V2	struct_method	implemented	kain	6.961	12.408	10.829	n/a	n/a	n/a	64.812	453.304	1.6x	1.78	1.56						
+V1V2	option_result	implemented	cpp	10.014	11.438	9.311	n/a	n/a	n/a	66.583	164.672	1.1x (vs cpp)	1.14	0.93						C++ +7%
+V1V2	async_ready_chain	implemented	kain	7.771	8.645	n/a	n/a	n/a	n/a	n/a	n/a	1.1x	1.11							
+V1V2	tcp_loopback_tokio	implemented	kain	115.591	2754.702	n/a	n/a	n/a	n/a	n/a	n/a	23.8x	23.83							23.8x vs Rust
+V1V2	rayon_parallel_reduce	implemented	kain	11.117	12.646	n/a	n/a	n/a	n/a	n/a	n/a	1.1x	1.14							1.14x vs Rust
+V1V2	simd_lane_mix	implemented	kain	7.173	75.401	46.285	n/a	n/a	n/a	n/a	n/a	6.5x	10.51	6.45						6.5x vs C++
+V1V2	native_map_lookup	implemented	kain	15.884	31.374	35.086	18.451	n/a	n/a	n/a	n/a	1.2x	1.98	2.21	1.16					1.2x vs Zig
+V1V2	json_manual_roundtrip	implemented	kain	7.971	120.747	101.11	n/a	n/a	n/a	n/a	n/a	12.7x	15.15	12.68						12.7x vs C++
+V1V2	filesystem_stream	implemented	kain	34.936	57.513	49.478	n/a	n/a	n/a	n/a	n/a	1.4x	1.65	1.42						1.4x vs C++
+V1V2	process_stdio_loop	implemented	kain	4324.31	4495.342	10201.661	n/a	n/a	n/a	n/a	n/a	1.0x	1.04	2.36						2.4x vs C++
+V1V2	http_server_concurrency	semantic-proxy	rust	56.176	33.941	n/a	n/a	n/a	n/a	n/a	n/a	1.7x (vs rust)	0.6							Rust 1.7x
+V1V2	http_server_frameworks	semantic-proxy	kain	120.576	159.526	n/a	n/a	174.348	n/a	n/a	n/a	1.3x	1.32			1.45				1.3x vs Rust
+V1V2	actor_mailbox_erlang	implemented	kain	135.286	n/a	n/a	n/a	n/a	405.73	n/a	n/a	3.0x								3.0x vs Erlang
+V1V2	unicode_string_heavy	implemented	kain	7.677	8.466	7.732	n/a	n/a	n/a	n/a	n/a	1.0x	1.1	1.01						1.01x vs C++
+V1V2	allocator_large_object_churn	implemented	kain	9.409	10.243	9.584	n/a	n/a	n/a	n/a	n/a	1.0x	1.09	1.02						1.02x vs C++
+V1V2	gpu_graphics_submit	implemented	kain	30.201	n/a	n/a	n/a	n/a	n/a	n/a	n/a									Kain-only GPU benchmark
+V1V2	python_call_hotloop_pyo3_scoped	implemented	rust	71.368	59.457	n/a	n/a	n/a	n/a	n/a	n/a	1.2x (vs rust)	0.83							Rust 1.2x
+V1V2	python_call_hotloop_pyo3_per_boundary	implemented	kain	72.305	78.182	n/a	n/a	n/a	n/a	n/a	n/a	1.1x	1.08							1.08x vs Rust
+V1V2	python_buffer_view_pyo3_scoped	implemented	rust	143.631	136.225	n/a	n/a	n/a	n/a	n/a	n/a	1.1x (vs rust)	0.95							Rust 1.05x
+V1V2	python_buffer_view_pyo3_per_boundary	implemented	kain	143.794	147.726	n/a	n/a	n/a	n/a	n/a	n/a	1.0x	1.03							1.03x vs Rust
+V1V2	python_buffer_view_pyo3_region	implemented	rust	153.367	152.244	n/a	n/a	n/a	n/a	n/a	n/a	1.0x (vs rust)	0.99							Rust 1.01x
+V1V2	python_buffer_view_pyo3_region_fused	implemented	kain	137.935	1349.447	n/a	n/a	n/a	n/a	n/a	n/a	9.8x	9.78							9.8x vs Rust
+V1V2	python_zero_copy_buffer_pyo3_scoped	implemented	rust	791.468	135.207	n/a	n/a	n/a	n/a	n/a	n/a	5.9x (vs rust)	0.17							Rust 5.9x
+V1V2	python_zero_copy_buffer_pyo3_per_boundary	implemented	rust	790.822	137.464	n/a	n/a	n/a	n/a	n/a	n/a	5.8x (vs rust)	0.17							Rust 5.8x
+V1V2	ffi_shared_call_stress	implemented	cpp	55.139	50.724	50.58	n/a	n/a	n/a	n/a	n/a	1.1x (vs cpp)	0.92	0.92						C++ +9%
+blades	bench_actor_spam	n/a	Kain	20	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a					256	78125	186472393	Actor hot path: spawn 4 actors, 20 rounds ask/reply
+blades	bench_json_parse	n/a	Kain	26	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a					4096	6347	9637	JSON parse hot path
+blades	bench_memory_atomics	n/a	Kain	23	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a					4096	5615	320012	Memory hot path: atomic load/store/fence + pointer chains
+blades	bench_ownership	n/a	Kain	219	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a					8192	26733	390689129	Ownership hot path: 200 alloc/collapse/observe/decay cycles
+blades	levenshtein	n/a	Kain	61	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a					32	1906250	3	Levenshtein distance
+blades	scalar_template	n/a	Kain	15499	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a					65536	236495	522933064	Scalar hot loop template
+blades	shatter_ecs	n/a	Kain	873	n/a	n/a	n/a	n/a	n/a	n/a	n/a	n/a					8	109125000	0	Shatter ECS: SoA layout benchmark

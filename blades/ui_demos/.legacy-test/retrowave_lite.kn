@@ -1,0 +1,402 @@
+// ============================================================================
+//  retrowave_lite.kn — RETRO WAVE 2084 Synthwave UI Demo (Kain Port)
+//  ============================================================================
+//  A synthwave/cyberpunk UI demo for Kain's Native UI runtime:
+//    - Animated perspective grid (road-runner style scrolling toward viewer)
+//    - 150 twinkling stars with parallax depth
+//    - Glowing neon panels with synthwave border accents
+//    - Equalizer bars (12 bars, music visualizer style)
+//    - Rotating 3D wireframe cube (projected via framebuffer)
+//    - Sine wave signal display
+//    - Interactive controls: slider for speed, color cycler, grid toggle
+//    - 3 color schemes: retrowave, matrix green, ocean blue
+//
+//  NOTE: All imports bring symbols directly into scope — no prefix.
+//  Layer: L0 + L7 (framebuffer ops use Unsafe)
+//  ============================================================================
+
+use std::ui
+use std::ui::widget
+use std::ui::style
+use std::math
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const WIN_W: Int = 1280
+const WIN_H: Int = 720
+const GRID_VX: Int = 640
+const GRID_VY: Int = 380
+const EQ_BARS: Int = 12
+const WAVE_LEN: Int = 80
+const NUM_STARS: Int = 150
+
+const CS_RETRO: Int = 0
+const CS_MATRIX: Int = 1
+const CS_OCEAN: Int = 2
+
+// ============================================================================
+//  STATE
+// ============================================================================
+
+struct RwState:
+    grid_offset: Float
+    grid_speed: Float
+    grid_enabled: Int
+    color_idx: Int
+    time: Float
+    frame_count: Int
+    eq_phases: [Float]
+    eq_heights: [Float]
+    wave_y: [Float]
+    wave_head: Int
+    cube_rot: Float
+    star_x: [Float]
+    star_y: [Float]
+    star_z: [Float]
+    star_phase: [Float]
+    slider_val: Float
+    exit_sig: Int
+
+fn init_state() -> RwState:
+    var eq_ph: [Float] = []
+    var eq_ht: [Float] = []
+    var i = 0
+    while i < EQ_BARS:
+        push(eq_ph, to_float(i) * 0.5)
+        push(eq_ht, 0.5)
+        i = i + 1
+    var wy: [Float] = []
+    i = 0
+    while i < WAVE_LEN:
+        push(wy, 0.0)
+        i = i + 1
+    var sx: [Float] = []
+    var sy: [Float] = []
+    var sz: [Float] = []
+    var sp: [Float] = []
+    i = 0
+    while i < NUM_STARS:
+        push(sx, to_float(i * 7 % WIN_W))
+        push(sy, to_float(i * 13 % (WIN_H / 2)))
+        push(sz, 1.0 + to_float(i % 3) * 0.8)
+        push(sp, to_float(i) * 0.7)
+        i = i + 1
+    return RwState {
+        grid_offset: 0.0, grid_speed: 2.0, grid_enabled: 1,
+        color_idx: CS_RETRO, time: 0.0, frame_count: 0,
+        eq_phases: eq_ph, eq_heights: eq_ht,
+        wave_y: wy, wave_head: 0, cube_rot: 0.0,
+        star_x: sx, star_y: sy, star_z: sz, star_phase: sp,
+        slider_val: 0.35, exit_sig: 0,
+    }
+
+fn sch_bg(i: Int) -> Int:
+    if i == CS_RETRO: return 0xFF0A0A1A
+    if i == CS_MATRIX: return 0xFF0A0A0A
+    return 0xFF0A0A20
+
+fn sch_g1(i: Int) -> Int:
+    if i == CS_RETRO: return 0xFFFF00AA
+    if i == CS_MATRIX: return 0xFF00FF41
+    return 0xFF00AAFF
+
+fn sch_g2(i: Int) -> Int:
+    if i == CS_RETRO: return 0xFF00FFFF
+    if i == CS_MATRIX: return 0xFF00AA2E
+    return 0xFF0055AA
+
+fn sch_accent(i: Int) -> Int:
+    if i == CS_RETRO: return 0xFFFF00AA
+    if i == CS_MATRIX: return 0xFF00FF41
+    return 0xFF00AAFF
+
+fn iabs(v: Int) -> Int:
+    if v < 0: return -v
+    return v
+
+fn iabsf(v: Float) -> Float:
+    if v < 0.0: return -v
+    return v
+
+fn fmod(v: Float, m: Float) -> Float:
+    let r = v - to_float(to_int(v / m)) * m
+    if r < 0.0: return r + m
+    return r
+
+fn pad(v: Int) -> String:
+    if v < 10: return "0" + str(v)
+    return str(v)
+
+// ============================================================================
+//  FB HELPERS
+// ============================================================================
+
+fn fb_px(fb: ptr<Int>, s: Int, x: Int, y: Int, w: Int, h: Int, c: Int) with Unsafe:
+    if x < 0 or x >= w or y < 0 or y >= h: return
+    mem_store(ptr_offset(fb, y * s + x, "Int"), c, "Int")
+
+fn fb_line(fb: ptr<Int>, s: Int, x1: Int, y1: Int, x2: Int, y2: Int, w: Int, h: Int, c: Int) with Unsafe:
+    var x = x1
+    var y = y1
+    let dx = iabs(x2 - x1)
+    let sx = if x1 < x2: 1 else: -1
+    let dy = -iabs(y2 - y1)
+    let sy = if y1 < y2: 1 else: -1
+    var err = dx + dy
+    loop:
+        fb_px(fb, s, x, y, w, h, c)
+        if x == x2 and y == y2: break
+        let e2 = 2 * err
+        if e2 >= dy:
+            err = err + dy
+            x = x + sx
+        if e2 <= dx:
+            err = err + dx
+            y = y + sy
+
+fn fb_fill(fb: ptr<Int>, s: Int, x: Int, y: Int, fw: Int, fh: Int, W: Int, H: Int, c: Int) with Unsafe:
+    if fw <= 0 or fh <= 0: return
+    var r = y
+    while r < y + fh and r < H:
+        if r >= 0:
+            var c2 = x
+            while c2 < x + fw and c2 < W:
+                if c2 >= 0: fb_px(fb, s, c2, r, W, H, c)
+                c2 = c2 + 1
+        r = r + 1
+
+fn fb_clear(fb: ptr<Int>, s: Int, w: Int, h: Int, c: Int) with Unsafe:
+    var y = 0
+    while y < h:
+        var x = 0
+        while x < w:
+            mem_store(ptr_offset(fb, y * s + x, "Int"), c, "Int")
+            x = x + 1
+        y = y + 1
+
+fn fb_valid(fb_raw: Int) -> Bool:
+    return fb_raw != 0
+
+// ============================================================================
+//  GRID
+// ============================================================================
+
+fn draw_grid(fb: ptr<Int>, s: Int, w: Int, h: Int, off: Float, ci: Int) with Unsafe:
+    let g1 = sch_g1(ci)
+    let g2 = sch_g2(ci)
+    var i = 1
+    while i < 40:
+        let t = to_float(i) / 40.0
+        let z = t * t
+        var yy = to_float(GRID_VY) + to_float(h - GRID_VY) * z
+        yy = yy + fmod(off * (1.0 - z * 0.7), to_float(h - GRID_VY) * 0.08)
+        let iy = to_int(yy)
+        if iy >= GRID_VY and iy < h:
+            let dist = to_float(iy - GRID_VY) / to_float(h - GRID_VY)
+            let alpha = to_int(80.0 + 175.0 * dist)
+            let gc = if i % 2 == 0: g1 else: g2
+            let hw = to_int(to_float(w) * 0.5 * (1.0 + 2.0 * z))
+            let lx1 = GRID_VX - hw
+            let lx2 = GRID_VX + hw
+            var pxv = lx1
+            while pxv <= lx2:
+                if pxv >= 0 and pxv < w:
+                    let edl = if pxv < GRID_VX: to_float(pxv - lx1) / to_float(GRID_VX - lx1) else: to_float(lx2 - pxv) / to_float(lx2 - GRID_VX)
+                    var ea = to_float(alpha) * (edl * 2.0)
+                    if ea > 255.0: ea = 255.0
+                    if ea < 0.0: ea = 0.0
+                    fb_px(fb, s, pxv, iy, w, h, (gc & 0x00FFFFFF) | (to_int(ea) << 24))
+                pxv = pxv + 1
+        i = i + 1
+
+    var vi = 0
+    while vi < 30:
+        let ang = -1.2 + to_float(vi) / 29.0 * 2.4
+        let dxv = to_int(sin(ang) * 800.0)
+        let dyv = to_int(cos(ang) * 800.0)
+        let ep = 80.0 + (1.0 - iabsf(ang) / 1.2) * 120.0
+        let vc = if vi % 3 == 0: g1 else if vi % 3 == 1: g2 else: 0xFF5500FF
+        let ca = (vc & 0x00FFFFFF) | (to_int(ep) << 24)
+        fb_line(fb, s, GRID_VX, GRID_VY, GRID_VX + dxv, GRID_VY + dyv, w, h, ca)
+        fb_line(fb, s, GRID_VX, GRID_VY, GRID_VX - dxv, GRID_VY + dyv, w, h, ca)
+        vi = vi + 1
+
+// ============================================================================
+//  NEON PANEL, EQ, CUBE
+// ============================================================================
+
+fn neon_panel(fb: ptr<Int>, s: Int, x: Int, y: Int, fw: Int, fh: Int, w: Int, h: Int, bc: Int) with Unsafe:
+    var g = 6
+    while g > 0:
+        fb_fill(fb, s, x - g, y - g, fw + g * 2, fh + g * 2, w, h, (bc & 0x00FFFFFF) | (0x18 << 24))
+        g = g - 2
+    fb_fill(fb, s, x, y, fw, fh, w, h, 0x66080814)
+    fb_line(fb, s, x, y, x + fw, y, w, h, bc)
+    fb_line(fb, s, x, y + fh - 1, x + fw, y + fh - 1, w, h, bc)
+    fb_line(fb, s, x, y, x, y + fh, w, h, bc)
+    fb_line(fb, s, x + fw - 1, y, x + fw - 1, y + fh, w, h, bc)
+
+fn draw_eq(fb: ptr<Int>, s: Int, px: Int, py: Int, pw: Int, ph: Int, w: Int, h: Int, ht: [Float], ci: Int) with Unsafe:
+    let bw = if pw / (EQ_BARS * 2 + 1) < 3: 3 else: pw / (EQ_BARS * 2 + 1)
+    let gap = bw
+    let ah = ph - 20
+    let g2 = sch_g2(ci)
+    var i = 0
+    while i < EQ_BARS and i < len(ht):
+        let bx = px + gap + i * (bw + gap)
+        let raw_bh = to_int(ht[i] * to_float(ah))
+        let bh = if raw_bh < 2: 2 else: raw_bh
+        let by = py + 20 + ah - bh
+        fb_fill(fb, s, bx - 1, by - 1, bw + 2, bh + 2, w, h, (g2 & 0x00FFFFFF) | (0x14 << 24))
+        fb_fill(fb, s, bx, by, bw, bh, w, h, g2)
+        if bh > 4: fb_fill(fb, s, bx, by, bw, 3, w, h, g2 | 0xFF000000)
+        i = i + 1
+
+fn draw_cube(fb: ptr<Int>, s: Int, cx: Int, cy: Int, sz: Int, rot: Float, w: Int, h: Int, ci: Int) with Unsafe:
+    let g1 = sch_g1(ci)
+    let g2 = sch_g2(ci)
+    let xv: [Float] = [-1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0]
+    let yv: [Float] = [-1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0]
+    let zv: [Float] = [-1.0, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0]
+    var rx: [Int] = []
+    var ry: [Int] = []
+    let cr = cos(rot)
+    let sr = sin(rot)
+    var i = 0
+    while i < 8:
+        let x = xv[i]
+        let y = yv[i]
+        let z = zv[i]
+        let xr = x * cr + z * sr
+        let zr = -x * sr + z * cr
+        let yr = y * cr - zr * sr
+        let zr2 = y * sr + zr * cr
+        let iz = 1.0 / (zr2 + 3.0)
+        push(rx, cx + to_int(xr * iz * to_float(sz)))
+        push(ry, cy + to_int(yr * iz * to_float(sz)))
+        i = i + 1
+    let edges: [Int] = [0, 1, 1, 3, 3, 2, 2, 0, 4, 5, 5, 7, 7, 6, 6, 4, 0, 4, 1, 5, 3, 7, 2, 6]
+    var ei = 0
+    while ei < 24:
+        let a = edges[ei]
+        let b = edges[ei + 1]
+        fb_line(fb, s, rx[a], ry[a], rx[b], ry[b], w, h, if ei < 16: g1 else: g2)
+        ei = ei + 2
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+pub fn main() -> Int with Unsafe:
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("RetroWaveLite", WIN_W, WIN_H)
+    if session <= 0: return 1
+    let _win = native_ui_window_open(session, "RETRO WAVE 2084 -- Kain Synthwave Demo", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    let ctx = create(session)
+    if ctx <= 0: return 2
+
+    var st = init_state()
+
+    var fb_valid_ptr: Bool = false
+
+    while native_ui_host_should_close(session) == 0:
+        let _pump = native_ui_host_pump(session)
+
+        let fbp = native_ui_framebuffer_ptr(session)
+        let fw = native_ui_framebuffer_width(session)
+        let fh = native_ui_framebuffer_height(session)
+        let fs = native_ui_framebuffer_stride(session) / 4
+        fb_valid_ptr = fbp != 0
+
+        let fb: ptr<Int> = int_to_ptr(fbp, "Int")
+        let ci = st.color_idx
+
+        if fb_valid_ptr:
+            fb_clear(fb, fs, fw, fh, sch_bg(ci))
+
+        if fb_valid_ptr:
+            var si = 0
+            while si < NUM_STARS:
+                let tw = sin(st.time * 2.0 + st.star_phase[si])
+                let bv = 0.4 + 0.6 * (tw * 0.5 + 0.5)
+                let alp = to_int(bv * 200.0)
+                let sc = (alp << 24) | 0x00DDFFFF
+                let sxv = to_int(st.star_x[si])
+                let syv = to_int(st.star_y[si])
+                if sxv >= 0 and sxv < fw and syv >= 0 and syv < fh:
+                    fb_px(fb, fs, sxv, syv, fw, fh, sc)
+                si = si + 1
+
+        if st.grid_enabled != 0 and fb_valid_ptr:
+            draw_grid(fb, fs, fw, fh, st.grid_offset, ci)
+
+        if fb_valid_ptr:
+            fb_fill(fb, fs, 0, fh - 38, fw, 38, fw, fh, 0xCC0A0A1A)
+            fb_fill(fb, fs, 0, fh - 38, fw, 2, fw, fh, sch_accent(ci))
+
+        let _bf = native_ui_begin_frame(session, 16.0)
+        begin_frame(ctx)
+
+        // Panel: EQ
+        if fb_valid_ptr: neon_panel(fb, fs, 20, 60, 280, 200, fw, fh, sch_g1(ci))
+        label(ctx, "== SYS.LINK ==")
+        var eq_i = 0
+        while eq_i < EQ_BARS:
+            st.eq_phases[eq_i] = st.eq_phases[eq_i] + 0.08
+            let sv = sin(st.eq_phases[eq_i])
+            let sv2 = sin(st.eq_phases[eq_i] * 1.7 + 1.0)
+            let v = sv * 0.5 + sv2 * 0.3
+            st.eq_heights[eq_i] = 0.3 + (v + 1.0) * 0.35
+            eq_i = eq_i + 1
+        if fb_valid_ptr: draw_eq(fb, fs, 20, 60, 280, 200, fw, fh, st.eq_heights, ci)
+
+        // Panel: Cube
+        if fb_valid_ptr:
+            neon_panel(fb, fs, 320, 60, 300, 200, fw, fh, 0xFFAA00FF)
+            draw_cube(fb, fs, 470, 160, 55, st.cube_rot, fw, fh, ci)
+        label(ctx, "== DATA.CORE ==")
+
+        // Panel: Wave
+        if fb_valid_ptr: neon_panel(fb, fs, 640, 60, 300, 200, fw, fh, sch_g2(ci))
+        label(ctx, "== SIGNAL ==")
+        let ns = sin(st.time * 2.0) * 0.5 + sin(st.time * 3.7 + 1.0) * 0.25
+        st.wave_head = (st.wave_head + 1) % WAVE_LEN
+        st.wave_y[st.wave_head] = ns
+
+        // Panel: Clock
+        if fb_valid_ptr: neon_panel(fb, fs, 20, 280, 460, 140, fw, fh, 0xFFFF00AA)
+        label(ctx, "== CLOCK ==")
+        let tm = st.time
+        label(ctx, "  " + pad(to_int(tm / 3600.0) % 24) + ":" + pad(to_int(tm / 60.0) % 60) + ":" + pad(to_int(tm) % 60))
+
+        // Controls panel
+        let _cp = panel_begin(ctx, "CONTROLS", 500.0, 280.0, 340.0, 180.0)
+        label(ctx, "Scroll Speed")
+        let sl = slider(ctx, st.slider_val, 0.0, 1.0)
+        if sl.changed:
+            st.slider_val = sl.value
+            st.grid_speed = st.slider_val * 4.0 + 0.5
+        if button(ctx, "CYCLE COLOR"): st.color_idx = (st.color_idx + 1) % 3
+        if button(ctx, "TOGGLE GRID"): st.grid_enabled = if st.grid_enabled != 0: 0 else: 1
+        if button(ctx, "EXIT"): st.exit_sig = 1
+        panel_end(ctx)
+
+        label(ctx, "RETRO WAVE 2084 | FPS: 60 | SESSION ACTIVE")
+
+        st.time = st.time + 0.016
+        st.grid_offset = st.grid_offset + st.grid_speed * 0.5
+        st.cube_rot = st.cube_rot + 0.04
+        st.frame_count = st.frame_count + 1
+
+        end_frame(ctx)
+        let _fe = native_ui_end_frame(session)
+        let _pr = native_ui_invalidate_window(session)
+        if st.exit_sig != 0: break
+
+    destroy(ctx)
+    let _ds = native_ui_session_destroy(session)
+    return 0

@@ -1,0 +1,105 @@
+use std::fs
+use std::text
+use std::process
+
+use config::DEFAULT_CRATES_DIR
+use config::DEFAULT_RUNTIME_DIR
+use config::DEFAULT_STDLIB_DIR
+
+// ============================================================================
+//  config_reader.kn — Parse config.md for Target Directory Paths
+//
+//  Reads the blade-root config.md file and extracts the '## targets' section.
+//  Falls back to hardcoded DEFAULT_*_DIR constants if config.md is missing
+//  or the targets section is empty.
+//
+//  The parser handles:
+//    - Trailing whitespace on target lines
+//    - Empty lines within the section
+//    - Comment lines (starting with #) within the section
+//    - Leading/trailing whitespace on section headers
+// ============================================================================
+
+pub fn read_targets() -> [String] with IO, Unsafe:
+    // Determine repo root: check env var, then derive from CWD
+    var repo_root: String = env("KAIN_REPO_ROOT")
+    if repo_root == "":
+        // Try to find repo root by looking for the crates/ directory
+        if fs_exists("../../crates"):
+            repo_root = "../.."
+        elif fs_exists("../../../crates"):
+            repo_root = "../../.."
+        else:
+            repo_root = ""
+
+    // Attempt to read config.md from the blade root
+    let content: String = fs_read_text("config.md")
+    if len(content) == 0:
+        // config.md doesn't exist or is empty — use defaults
+        var fallback: [String] = []
+        if repo_root != "":
+            push(fallback, fs_path_join(repo_root, DEFAULT_CRATES_DIR))
+            push(fallback, fs_path_join(repo_root, DEFAULT_RUNTIME_DIR))
+            push(fallback, fs_path_join(repo_root, DEFAULT_STDLIB_DIR))
+        else:
+            push(fallback, DEFAULT_CRATES_DIR)
+            push(fallback, DEFAULT_RUNTIME_DIR)
+            push(fallback, DEFAULT_STDLIB_DIR)
+        return fallback
+
+    // Split into lines and parse
+    let lines: Array<String> = text_split_lines(content)
+    var in_targets: Bool = false
+    var targets: [String] = []
+
+    var i: Int = 0
+    let n: Int = len(lines)
+    while i < n:
+        let raw: String = lines[i]
+        let line_str: String = text_trim_string(raw)
+
+        // Skip empty lines
+        if len(line_str) == 0:
+            i = i + 1
+            continue
+
+        // Detect section headers: ## name
+        if starts_with(line_str, "## "):
+            let header_start: Int = 3
+            let header: String = text_trim_string(substring(line_str, header_start, len(line_str)))
+            in_targets = (header == "targets")
+            i = i + 1
+            continue
+
+        // If we encounter a top-level heading (#) that is not ##, exit the section
+        if starts_with(line_str, "#") and starts_with(line_str, "## ") == false:
+            in_targets = false
+            i = i + 1
+            continue
+
+        // Collect bullet items when inside the targets section
+        if in_targets:
+            if starts_with(line_str, "- "):
+                let value: String = text_trim_string(substring(line_str, 2, len(line_str)))
+                // Skip empty bullets and comment bullets
+                if len(value) > 0 and starts_with(value, "#") == false:
+                    // Resolve relative path against repo root
+                    var resolved: String = value
+                    if repo_root != "":
+                        resolved = fs_path_join(repo_root, value)
+                    push(targets, resolved)
+
+        i = i + 1
+
+    // If parsing found no targets, fall back to defaults
+    if len(targets) == 0:
+        if repo_root != "":
+            push(targets, fs_path_join(repo_root, DEFAULT_CRATES_DIR))
+            push(targets, fs_path_join(repo_root, DEFAULT_RUNTIME_DIR))
+            push(targets, fs_path_join(repo_root, DEFAULT_STDLIB_DIR))
+        else:
+            push(targets, DEFAULT_CRATES_DIR)
+            push(targets, DEFAULT_RUNTIME_DIR)
+            push(targets, DEFAULT_STDLIB_DIR)
+
+    return targets

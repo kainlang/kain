@@ -1,0 +1,424 @@
+// ============================================================================
+//  actor.kn — DATA CENTER: Server Rack Grid + Network Traffic + Cooling Fans
+// ============================================================================
+//
+//  WHAT:        A living data center visualization. 36 server racks in a 6×6
+//               grid, 6 "active" rack units with blinking activity LEDs in the
+//               center, a cooling fan torus spinning overhead, 80 network packet
+//               particles arcing between racks via fiber optic paths, 60 fine
+//               dust particles drifting in the cold server-room air. Three
+//               traffic modes let you control the data flow intensity.
+//
+//  VISUALS:     rack_grid        — 36 instanced boxes (6×6 grid)
+//               active_rack_0..5 — 6 individual boxes with emissive blinks
+//               cooling_fan      — torus, constantly rotating overhead
+//               network_packets  — 80 bright cyan particles flowing between racks
+//               server_dust      — 60 faint white dust particles floating
+//               fiber_cables     — lines: main fiber trunk + cross connect
+//               overhead_light   — cool cyan point light (fluorescent hum)
+//               accent_light     — warm amber point light (emergency glow)
+//
+//  INTERACTION (via electron_interact):
+//               1/2/3            — Traffic load: Low / Normal / Burst
+//               R                — reset auto-rotate
+//               F                — toggle fog
+//               Click anywhere   — data burst (packets accelerate + flash)
+//
+//  PALETTE:     Cool teals and cyans (#0a1a1a, #1a3a3a, #0066cc, #00ddff)
+//               Accent: warm amber (#ff8844) for emergency/power lights
+//               Background: dark teal-black (#050f0f)
+//
+//  LAYERS:      L5 (pulse 16ms), L1 (world ready-gate),
+//               electron_extras (bg/fog/emissive/lights/rotation/auto-rotate),
+//               electron_interact (keyboard + click input)
+//
+//  BUILD:       cd X:/blades/web/electron
+//               kain build demos/actor.kn --target llvm
+//               cp .kain/out/x86_64-windows/dev/ll/actor/compile/actor.exe demos/
+//               ./demos/actor.exe
+//
+//  COMPLETELY REDESIGNED — June 2026
+//  Previous version: actor message-passing with particles orbiting a sphere.
+//  New version: data center with server racks, network traffic, and cooling.
+// ============================================================================
+
+use std::runtime
+use std::math
+use std::time
+use electron_bridge
+use electron_extras
+use electron_interact
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const RACK_COLS:       Int   = 6
+const RACK_ROWS:       Int   = 6
+const RACK_TOTAL:      Int   = 36
+const RACK_SPACING:    Float = 2.0
+const GRID_OFFSET:     Float = 5.0       // half-extent of grid: spacing * 3 - 1
+
+const ACTIVE_RACKS:    Int   = 6
+
+const PACKET_COUNT:    Int   = 80
+const DUST_COUNT:      Int   = 60
+
+const FAN_SCALE:       Float = 3.5
+
+// ============================================================================
+//  LAYER 1: STATE AUTHORITY — world holds scene state + ready gate
+// ============================================================================
+
+world DataCenterScene:
+    state ready:           Int   = 0
+    state traffic_mode:    Int   = 2     // 1=low, 2=normal, 3=burst
+    state fog_on:          Int   = 1
+
+    state burst_phase:     Int   = 0     // >0 = data burst active
+    state burst_count:     Int   = 0
+
+    state packets_sent:    Int   = 0
+    state packets_delivered: Int = 0
+
+    state fan_angle:       Float = 0.0
+
+// ============================================================================
+//  LAYER 5: TEMPORAL — 16ms pulse drives the data center animation
+// ============================================================================
+//
+//  Every 16ms (~60fps):
+//    1. Poll keyboard + click input
+//    2. Compute traffic parameters from current mode
+//    3. Update 36 instanced rack transforms
+//    4. Animate 6 active rack LEDs (emissive blink patterns)
+//    5. Animate cooling fan (rotation)
+//    6. Update 80 network packet particles (arc paths between racks)
+//    7. Update 60 dust particles (slow floating)
+//    8. Animate overhead + accent lights
+//    9. Emit telemetry
+
+pulse data_center_engine every 16 ms:
+    if DataCenterScene.ready == 0:
+        return
+
+    let tick: Int = pulse_tick
+    let t: Float = tick * 0.04
+
+    // ── KEYBOARD + CLICK INPUT ──────────────────────────────────────────
+    interact_poll()
+
+    // 1 key: low traffic
+    if key_just_pressed("1"):
+        DataCenterScene.traffic_mode = 1
+
+    // 2 key: normal traffic
+    if key_just_pressed("2"):
+        DataCenterScene.traffic_mode = 2
+
+    // 3 key: burst traffic
+    if key_just_pressed("3"):
+        DataCenterScene.traffic_mode = 3
+
+    // R key: reset auto-rotate
+    if key_just_pressed("r"):
+
+    // F key: toggle fog
+    if key_just_pressed("f"):
+        if DataCenterScene.fog_on == 1:
+            DataCenterScene.fog_on = 0
+            set_fog("#050f0f", 999.0, 1000.0)
+        else:
+            DataCenterScene.fog_on = 1
+            set_fog("#050f0f", 10.0, 35.0)
+
+    // Click: data burst
+    var ci: Int = 0
+    while ci < click_count():
+        DataCenterScene.burst_phase = 20
+        DataCenterScene.burst_count = DataCenterScene.burst_count + 1
+        ci = ci + 1
+
+    // ── BURST COUNTDOWN ────────────────────────────────────────────────
+    if DataCenterScene.burst_phase > 0:
+        DataCenterScene.burst_phase = DataCenterScene.burst_phase - 1
+
+    let bursting: Bool = DataCenterScene.burst_phase > 0
+
+    // ── TRAFFIC PARAMETERS ──────────────────────────────────────────────
+    let mode: Int = DataCenterScene.traffic_mode
+    let speed_mult: Float = if mode == 1: 0.15 elif mode == 2: 0.30 else: 0.65
+    let activity_level: Float = if mode == 1: 0.3 elif mode == 2: 0.7 else: 1.5
+    let burst_bonus: Float = if bursting: 0.8 else: 0.0
+
+    let effective_speed: Float = speed_mult + burst_bonus * 0.3
+
+    // ── 36 INSTANCED RACK TRANSFORMS ────────────────────────────────────
+    var rack_transforms: JsonArray = json_array()
+    var ri: Int = 0
+    while ri < RACK_TOTAL:
+        let ix: Int  = ri % RACK_COLS
+        let iz: Int  = ri / RACK_COLS
+        let rx: Float = (ix as Float) * RACK_SPACING - GRID_OFFSET
+        let rz: Float = (iz as Float) * RACK_SPACING - GRID_OFFSET
+
+        // Slight height variation for visual interest
+        let ry: Float = 1.2 + sin(ix * 0.5 + iz * 0.7) * 0.3
+
+        // Active racks have a different color — handled by individual meshes
+        json_array_push(rack_transforms,
+            transform_r(rx, ry * 0.5, rz, 0.0, 0.0, 0.0, 0.9, ry, 0.9))
+
+        ri = ri + 1
+    update_instanced_transforms("rack_grid", rack_transforms)
+
+    // ── 6 ACTIVE RACKS: emissive LED blink patterns ─────────────────────
+    //  Positioned in a 2×3 block at the center of the grid.
+    //  ix=2..3, iz=1..3  →  x=-1,1  z=-3,-1,1
+    var ar: Int = 0
+    while ar < ACTIVE_RACKS:
+        let ar_ix: Int = 2 + ar % 2
+        let ar_iz: Int = 1 + ar / 2
+        let ar_x: Float = (ar_ix as Float) * RACK_SPACING - GRID_OFFSET
+        let ar_z: Float = (ar_iz as Float) * RACK_SPACING - GRID_OFFSET
+
+        let ar_id: String = "active_rack_" + str(ar)
+
+        // Each rack blinks at a different frequency
+        let blink_phase: Float = t * (1.5 + ar * 0.7)
+        let blink_val: Float = sin(blink_phase)
+        let blink_on: Bool = blink_val > 0.3
+
+        let emissive_intensity: Float = if blink_on:
+            (0.5 + blink_val * 0.5) * activity_level * 2.0 + burst_bonus * 0.5
+        else:
+            0.05
+
+        let em_color: String = if mode == 3 and blink_on:
+            "#00ffaa"                     // bright green in burst mode
+        elif blink_on:
+            "#00cc88"                     // normal green
+        else:
+            "#004422"                     // dim
+
+        update_emissive(ar_id, em_color, emissive_intensity)
+
+        ar = ar + 1
+
+    // ── COOLING FAN: torus rotates ──────────────────────────────────────
+    DataCenterScene.fan_angle = DataCenterScene.fan_angle + 0.04 * (0.8 + activity_level * 0.4)
+    let fan_r: Float = DataCenterScene.fan_angle
+    update_rotation("cooling_fan", fan_r * 0.1, fan_r, 0.0)
+
+    // ── NETWORK PACKETS: 80 particles flowing between racks ─────────────
+    //  Each packet travels from a source rack to a destination rack along
+    //  an arc trajectory, simulating fiber-optic data transmission.
+    var packet_json: String = "{\"cmd\":\"update\",\"id\":\"network_packets\",\"flat\":["
+    var pi: Int = 0
+    while pi < PACKET_COUNT:
+        if pi > 0:
+            packet_json = packet_json + ","
+
+        // Pseudo-random source and destination racks
+        let src_idx: Int = (pi * 17 + tick / 50) % RACK_TOTAL
+        let dst_idx: Int = (pi * 31 + 13) % RACK_TOTAL
+
+        // Convert to grid world positions
+        let src_ix: Int = src_idx % RACK_COLS
+        let src_iz: Int = src_idx / RACK_COLS
+        let src_x: Float = (src_ix as Float) * RACK_SPACING - GRID_OFFSET
+        let src_z: Float = (src_iz as Float) * RACK_SPACING - GRID_OFFSET
+
+        let dst_ix: Int = dst_idx % RACK_COLS
+        let dst_iz: Int = dst_idx / RACK_COLS
+        let dst_x: Float = (dst_ix as Float) * RACK_SPACING - GRID_OFFSET
+        let dst_z: Float = (dst_iz as Float) * RACK_SPACING - GRID_OFFSET
+
+        // Progress along the path (0.0 → 1.0, loops)
+        let progress: Float = (t * effective_speed + pi * 0.05) - ((t * effective_speed + pi * 0.05) as Int)
+        if progress < 0.0:
+            let _fix = 0     // keep progress positive
+        let p: Float = if progress < 0.0: progress + 1.0 else: progress
+
+        // Arc height: higher in the middle of the path
+        let arc_height: Float = sin(p * 3.141593) * 1.8
+
+        // Interpolated position
+        let px: Float = src_x + (dst_x - src_x) * p
+        let py: Float = 0.5 + arc_height
+        let pz: Float = src_z + (dst_z - src_z) * p
+
+        packet_json = packet_json + str(px)
+        packet_json = packet_json + ","
+        packet_json = packet_json + str(py)
+        packet_json = packet_json + ","
+        packet_json = packet_json + str(pz)
+
+        // Track approximate deliveries (when p wraps near 1.0)
+        if p > 0.95 and p < 1.0:
+            DataCenterScene.packets_delivered = DataCenterScene.packets_delivered + 1
+
+        pi = pi + 1
+
+    DataCenterScene.packets_sent = DataCenterScene.packets_sent + PACKET_COUNT
+
+    packet_json = packet_json + "]}"
+    println(packet_json)
+
+    // Packet size: larger during burst
+    let packet_size: Float = 0.06 + activity_level * 0.04 + burst_bonus * 0.04
+    update_particle_size("network_packets", packet_size)
+
+    // ── SERVER DUST: 60 fine particles drifting ─────────────────────────
+    var dust_json: String = "{\"cmd\":\"update\",\"id\":\"server_dust\",\"flat\":["
+    var di: Int = 0
+    while di < DUST_COUNT:
+        if di > 0:
+            dust_json = dust_json + ","
+
+        let d_angle: Float = di * 1.3 + t * 0.08
+        let d_radius: Float = 4.0 + sin(di * 0.7 + t * 0.05) * 3.0
+        let d_y: Float = 0.2 + sin(di * 1.1 + t * 0.06) * 2.0 + 1.5
+
+        dust_json = dust_json + str(cos(d_angle) * d_radius)
+        dust_json = dust_json + ","
+        dust_json = dust_json + str(d_y)
+        dust_json = dust_json + ","
+        dust_json = dust_json + str(sin(d_angle) * d_radius)
+
+        di = di + 1
+    dust_json = dust_json + "]}"
+    println(dust_json)
+
+    // ── LIGHTS ───────────────────────────────────────────────────────────
+    // Overhead light: cool cyan, fluoresecent hum with slight flicker
+    let overhead_flicker: Float = 0.95 + sin(t * 23.7) * 0.03 + sin(t * 37.1) * 0.02
+    let overhead_intensity: Float = 1.8 * overhead_flicker + activity_level * 0.3
+    update_light("overhead_light", "#88ccff", overhead_intensity)
+    update_light_position("overhead_light",
+        0.0,
+        7.0,
+        0.0)
+
+    // Accent light: warm amber, glows during bursts
+    let accent_intensity: Float = 0.8 + sin(t * 1.2) * 0.2 + burst_bonus * 1.5
+    let accent_color: String = if bursting: "#ff8844" else: "#ff6622"
+    let accent_angle: Float = t * 0.15
+    update_light("accent_light", accent_color, accent_intensity)
+    update_light_position("accent_light",
+        cos(accent_angle) * 6.0,
+        1.5 + sin(accent_angle * 1.3) * 0.5,
+        sin(accent_angle) * 6.0)
+
+    // ── TELEMETRY ───────────────────────────────────────────────────────
+    telemetry("tick",              tick)
+    telemetry("traffic_mode",      mode)
+    telemetry("packets_sent",      DataCenterScene.packets_sent)
+    telemetry("packets_delivered", DataCenterScene.packets_delivered)
+    telemetry("bursts",            DataCenterScene.burst_count)
+    telemetry_float("activity",    activity_level)
+
+    let mode_label: String = if mode == 1: "LOW traffic" elif mode == 2: "NORMAL traffic" else: "BURST traffic"
+    telemetry_string("status", mode_label)
+
+    // ── CLEAR PER-FRAME INPUT STATE ─────────────────────────────────────
+    interact_clear()
+
+// ============================================================================
+//  LAYER 0: PLAIN CODE — main sets up the scene, then keeps process alive
+// ============================================================================
+
+fn main() -> Int with IO:
+    let init: Int = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // ── SCENE ATMOSPHERE ────────────────────────────────────────────────
+    set_background("#050f0f")               // dark teal-black
+    set_fog("#050f0f", 10.0, 35.0)         // cool server-room depth
+    set_ambient("#0a1a1a", 0.3)            // dim teal ambient
+
+    // ── CAMERA — crane shot overlooking the grid ────────────────────────
+    camera_look_at(0.0, 10.0, 14.0, 0.0, 0.5, 0.0)
+
+    // ── 36 INSTANCED RACK GRID — 6×6 box grid ──────────────────────────
+    create_instanced("rack_grid", "box", RACK_TOTAL, "#1a3a3a")
+
+    // ── 6 ACTIVE RACKS: individual boxes in center with emissive ───────
+    var ar: Int = 0
+    while ar < ACTIVE_RACKS:
+        let ar_ix: Int = 2 + ar % 2
+        let ar_iz: Int = 1 + ar / 2
+        let ar_x: Float = (ar_ix as Float) * RACK_SPACING - GRID_OFFSET
+        let ar_z: Float = (ar_iz as Float) * RACK_SPACING - GRID_OFFSET
+        let ar_id: String = "active_rack_" + str(ar)
+
+        create_mesh(ar_id, "box", "#00cc88")
+        update_emissive(ar_id, "#00cc88", 0.5)
+        update_transform(ar_id, ar_x, 0.6, ar_z, 0.9, 1.2, 0.9)
+
+        ar = ar + 1
+
+    // ── COOLING FAN: torus rotating overhead ────────────────────────────
+    create_mesh("cooling_fan", "torus", "#334455")
+    update_emissive("cooling_fan", "#4488aa", 0.2)
+    update_transform("cooling_fan", 0.0, 3.5, 0.0,
+        FAN_SCALE, FAN_SCALE, FAN_SCALE)
+
+    // ── FIBER CABLES: main backbone + cross connect (static lines) ─────
+    //  Main trunk: runs along X axis at Z=0
+    var trunk_pts = json_array()
+    json_array_push(trunk_pts, point(-6.0, 0.1, 0.0))
+    json_array_push(trunk_pts, point(-3.0, 0.15, 0.0))
+    json_array_push(trunk_pts, point(0.0, 0.2, 0.0))
+    json_array_push(trunk_pts, point(3.0, 0.15, 0.0))
+    json_array_push(trunk_pts, point(6.0, 0.1, 0.0))
+    create_lines("fiber_trunk", "#00ddff")
+    update_line_points("fiber_trunk", trunk_pts)
+
+    //  Cross connect: runs along Z axis at X=0
+    var cross_pts = json_array()
+    json_array_push(cross_pts, point(0.0, 0.1, -6.0))
+    json_array_push(cross_pts, point(0.0, 0.15, -3.0))
+    json_array_push(cross_pts, point(0.0, 0.2, 0.0))
+    json_array_push(cross_pts, point(0.0, 0.15, 3.0))
+    json_array_push(cross_pts, point(0.0, 0.1, 6.0))
+    create_lines("fiber_cross", "#00ddff")
+    update_line_points("fiber_cross", cross_pts)
+
+    // ── NETWORK PACKETS: 80 particles flowing between racks ──────────
+    create_particles("network_packets", PACKET_COUNT, "#00ddff")
+    update_particle_size("network_packets", 0.06)
+
+    // ── SERVER DUST: 60 fine white particles ─────────────────────────
+    create_particles("server_dust", DUST_COUNT, "#88aacc")
+    update_particle_size("server_dust", 0.03)
+
+    // ── LIGHTS ──────────────────────────────────────────────────────────
+    create_light("overhead_light", "point", "#88ccff", 1.8, 0.0, 7.0, 0.0)
+    create_light("accent_light", "point", "#ff6622", 0.8, 6.0, 1.5, 0.0)
+
+    // ── HUD ─────────────────────────────────────────────────────────────
+    telemetry_string("status", "◈ DATA CENTER: 1/2/3=traffic  F=fog  R=reset  click=burst")
+    telemetry("traffic_mode", 2)
+    telemetry("racks", RACK_TOTAL)
+    telemetry("packets", PACKET_COUNT)
+    telemetry("bursts", 0)
+
+    // ── READY — pulse starts firing ────────────────────────────────────
+    DataCenterScene.ready = 1
+
+    // ── KEEP-ALIVE ──────────────────────────────────────────────────────
+    var tick: Int = 0
+    while tick < 999999:
+        let _ = sleep_millis(1000)
+        tick = tick + 1
+
+    let sd: Int = runtime_shutdown()
+    if sd != 0:
+        return 200 + sd
+    return 0
+
+// ============================================================================
+//  END actor.kn — Data Center: Server Racks + Network Traffic
+// ============================================================================

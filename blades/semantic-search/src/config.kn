@@ -1,0 +1,51 @@
+// ============================================================================
+//  config.kn — Index Configuration Constants
+//
+//  BM25 parameters, default directory paths, index file paths, and watch
+//  constants. Target directory paths are now read from config.md at runtime
+//  via config_reader.kn — no more compiler-owned world for static config.
+// ============================================================================
+
+// ============================================================================
+//  BM25 SCORING PARAMETERS
+// ============================================================================
+
+pub const BM25_K1:         Float = 1.2
+pub const BM25_B:          Float = 0.75
+pub const BM25_DELTA_L:    Float = 0.5   // BM25L delta
+pub const BM25_DELTA_PLUS: Float = 1.0   // BM25Plus delta
+
+// ============================================================================
+//  DEFAULT TARGET PATHS
+// ============================================================================
+
+pub const DEFAULT_CRATES_DIR:   String = "crates/"
+pub const DEFAULT_RUNTIME_DIR:  String = "runtime/native/"
+pub const DEFAULT_STDLIB_DIR:   String = "stdlib/"
+
+// ============================================================================
+//  INDEX FILE PATHS
+// ============================================================================
+
+pub const INDEX_DIR:      String = ".kain/semantic-index/"
+pub const INDEX_FILE:     String = ".kain/semantic-index/index.bin"
+pub const FST_FILE:       String = ".kain/semantic-index/fst.bin"
+pub const POSTINGS_FILE:  String = ".kain/semantic-index/postings.bin"
+pub const DOCS_FILE:      String = ".kain/semantic-index/docs.bin"
+pub const CONN_FILE:      String = ".kain/semantic-index/connections.bin"
+pub const META_FILE:      String = ".kain/semantic-index/meta.json"
+
+// ============================================================================
+//  INDEX FORMAT MAGIC & VERSION
+// ============================================================================
+
+pub const INDEX_MAGIC:    Int = 0x4B534E49  // "KSNI" = Kain Semantic Index
+pub const INDEX_VERSION:  Int = 1
+
+// ============================================================================
+//  WATCH / REINDEX
+// ============================================================================
+
+pub const WATCH_INTERVAL_MS: Int = 60000   // 60s between reindex checks
+pub const WATCH_JITTER_MS:   Int = 5000    // 5s jitter
+

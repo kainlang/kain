@@ -1,0 +1,499 @@
+// ============================================================================
+//  terminal_dashboard.kn — Kain System Monitor Dashboard
+// ============================================================================
+//  A terminal-style system dashboard with:
+//    - CPU gauges (4 cores, animated progress bars)
+//    - Memory usage gauge
+//    - Network stats (sent/received counters)
+//    - Disk usage gauge
+//    - Process list (simulated, scrollable)
+//    - Log output area (scrolling messages)
+//    - Command input textbox
+//    - System uptime + frame counter
+//
+//  Layout: GRID (3 columns x 3 rows — NOT columns or stacked!)
+//  Window: 1100 x 750
+//  Theme: Matrix green on black
+//  Font: Consolas monospace throughout
+//
+//  Usage: kain run blades/ui_demos/terminal_dashboard.kn --target llvm
+// ============================================================================
+
+use std::ui
+use std::ui::widget
+use std::ui::style
+use std::math
+use std::os
+use std::time
+
+const WIN_W: Int = 1100
+const WIN_H: Int = 750
+
+// Matrix green theme
+const CLR_BLACK: Int = 0xFF0A0A0A
+const CLR_GREEN_DIM: Int = 0xFF003300
+const CLR_GREEN: Int = 0xFF00FF41
+const CLR_GREEN_BRIGHT: Int = 0xFF39FF14
+const CLR_GREEN_DARK: Int = 0xFF001A00
+const CLR_AMBER: Int = 0xFFFFAA00
+const CLR_RED: Int = 0xFFFF3333
+const CLR_CYAN: Int = 0xFF00CCCC
+const CLR_PANEL: Int = 0xFF0D1A0D
+const CLR_BORDER: Int = 0xFF004400
+
+// ============================================================================
+//  STATE
+// ============================================================================
+
+struct CpuCore:
+    usage: Float
+    phase: Float
+
+struct Process:
+    pid: Int
+    name: String
+    cpu_pct: Float
+    mem_mb: Int
+    status: String
+
+struct LogEntry:
+    timestamp: String
+    level: String
+    message: String
+
+struct DashboardState:
+    cpu_cores: Array<CpuCore>
+    mem_used_gb: Float
+    mem_total_gb: Float
+    net_sent_mb: Float
+    net_recv_mb: Float
+    disk_used_gb: Float
+    disk_total_gb: Float
+    processes: Array<Process>
+    logs: Array<LogEntry>
+    log_scroll: Int
+    cmd_input: String
+    frame_count: Int
+    uptime_sec: Int
+    hostname: String
+    os_name_str: String
+    process_scroll: Int
+
+fn init_dashboard() -> DashboardState:
+    var cores: Array<CpuCore> = []
+    var i = 0
+    while i < 8:
+        push(cores, CpuCore { usage: 0.15, phase: to_float(i) * 0.9 })
+        i = i + 1
+
+    var procs: Array<Process> = []
+    push(procs, Process { pid: 1, name: "kain_runtime", cpu_pct: 12.3, mem_mb: 256, status: "running" })
+    push(procs, Process { pid: 42, name: "system_server", cpu_pct: 3.1, mem_mb: 128, status: "running" })
+    push(procs, Process { pid: 128, name: "window_manager", cpu_pct: 8.7, mem_mb: 64, status: "running" })
+    push(procs, Process { pid: 256, name: "gpu_driver", cpu_pct: 2.4, mem_mb: 512, status: "running" })
+    push(procs, Process { pid: 512, name: "network_daemon", cpu_pct: 0.8, mem_mb: 32, status: "sleeping" })
+    push(procs, Process { pid: 777, name: "file_indexer", cpu_pct: 15.2, mem_mb: 96, status: "running" })
+    push(procs, Process { pid: 1024, name: "audio_engine", cpu_pct: 4.5, mem_mb: 192, status: "running" })
+    push(procs, Process { pid: 2048, name: "security_agent", cpu_pct: 1.2, mem_mb: 48, status: "running" })
+    push(procs, Process { pid: 3000, name: "compiler_worker", cpu_pct: 22.8, mem_mb: 1024, status: "running" })
+    push(procs, Process { pid: 4096, name: "telemetry_svc", cpu_pct: 0.5, mem_mb: 16, status: "sleeping" })
+
+    var log_entries: Array<LogEntry> = []
+    push(log_entries, LogEntry { timestamp: "00:00:01", level: "INFO", message: "System initialized" })
+    push(log_entries, LogEntry { timestamp: "00:00:02", level: "INFO", message: "Runtime core started" })
+    push(log_entries, LogEntry { timestamp: "00:00:03", level: "WARN", message: "GPU driver fallback mode" })
+    push(log_entries, LogEntry { timestamp: "00:00:05", level: "INFO", message: "Network interface up" })
+    push(log_entries, LogEntry { timestamp: "00:00:08", level: "ERROR", message: "Disk I/O timeout on /dev/sda3" })
+    push(log_entries, LogEntry { timestamp: "00:00:10", level: "INFO", message: "File indexer scan complete" })
+    push(log_entries, LogEntry { timestamp: "00:00:12", level: "INFO", message: "All services nominal" })
+
+    let hostname = os_getenv("COMPUTERNAME")
+    let os_str = os_platform_name()
+
+    return DashboardState {
+        cpu_cores: cores,
+        mem_used_gb: 4.2,
+        mem_total_gb: 16.0,
+        net_sent_mb: 12.4,
+        net_recv_mb: 85.7,
+        disk_used_gb: 245.0,
+        disk_total_gb: 512.0,
+        processes: procs,
+        logs: log_entries,
+        log_scroll: 0,
+        cmd_input: "",
+        frame_count: 0,
+        uptime_sec: 0,
+        hostname: if len(hostname) > 0: hostname else: "KAIN-HOST",
+        os_name_str: if len(os_str) > 0: os_str else: "Unknown",
+        process_scroll: 0,
+    }
+
+// ============================================================================
+//  HELPERS
+// ============================================================================
+
+fn pct_bar(value: Float, width: Int) -> String:
+    let filled = to_int(value * to_float(width))
+    var result = "["
+    var i = 0
+    while i < width:
+        if i < filled:
+            result = result + "#"
+        else:
+            result = result + "."
+        i = i + 1
+    result = result + "]"
+    return result
+
+fn pad_left(s: String, width: Int) -> String:
+    var result = ""
+    var padding = width - len(s)
+    while padding > 0:
+        result = result + " "
+        padding = padding - 1
+    return result + s
+
+fn format_uptime(seconds: Int) -> String:
+    let h = seconds / 3600
+    let m = (seconds % 3600) / 60
+    let s = seconds % 60
+    let h_str = if h < 10: "0" + str(h) else: str(h)
+    let m_str = if m < 10: "0" + str(m) else: str(m)
+    let s_str = if s < 10: "0" + str(s) else: str(s)
+    return h_str + ":" + m_str + ":" + s_str
+
+fn pad_right(s: String, width: Int) -> String:
+    var result = s
+    var i = len(s)
+    while i < width:
+        result = result + " "
+        i = i + 1
+    return result
+
+// ============================================================================
+//  RENDER: CPU GAUGES (top-left grid cell)
+// ============================================================================
+
+fn render_cpu(ctx: Int, st: DashboardState) -> DashboardState:
+    let _p = panel_begin(ctx, "CPU", 10.0, 48.0, 350.0, 200.0)
+
+    label(ctx, "  CPU USAGE (" + str(len(st.cpu_cores)) + " cores)")
+    label(ctx, " ")
+
+    // Show first 4 cores (grid row)
+    var i = 0
+    while i < 4 and i < len(st.cpu_cores):
+        let core = st.cpu_cores[i]
+        let pct = to_int(core.usage * 100.0)
+        let bar = pct_bar(core.usage, 20)
+        let core_label = "  Core " + str(i) + ": " + bar + " " + pad_left(str(pct), 3) + "%"
+        let _pg = progress(ctx, "Core " + str(i), core.usage * 100.0, 100.0)
+        i = i + 1
+
+    label(ctx, " ")
+
+    // Overall CPU
+    var total = 0.0
+    i = 0
+    while i < len(st.cpu_cores):
+        total = total + st.cpu_cores[i].usage
+        i = i + 1
+    let avg = total / to_float(len(st.cpu_cores))
+    let avg_pct = to_int(avg * 100.0)
+    label(ctx, "  Average: " + pct_bar(avg, 24) + " " + str(avg_pct) + "%")
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  RENDER: MEMORY (top-center grid cell)
+// ============================================================================
+
+fn render_memory(ctx: Int, st: DashboardState) -> DashboardState:
+    let _p = panel_begin(ctx, "MEMORY", 375.0, 48.0, 350.0, 200.0)
+
+    let mem_pct = st.mem_used_gb / st.mem_total_gb
+    let mem_pct_int = to_int(mem_pct * 100.0)
+
+    label(ctx, "  MEMORY USAGE")
+    label(ctx, " ")
+    let _pg = progress(ctx, "RAM", mem_pct * 100.0, 100.0)
+    label(ctx, "  Used: " + to_str_1(st.mem_used_gb) + " GB / " + to_str_1(st.mem_total_gb) + " GB")
+    label(ctx, "  " + pct_bar(mem_pct, 30) + " " + str(mem_pct_int) + "%")
+    label(ctx, " ")
+
+    // Disk usage
+    let disk_pct = st.disk_used_gb / st.disk_total_gb
+    label(ctx, "  DISK USAGE")
+    let _pg2 = progress(ctx, "Disk", disk_pct * 100.0, 100.0)
+    label(ctx, "  Used: " + to_str_1(st.disk_used_gb) + " GB / " + to_str_1(st.disk_total_gb) + " GB")
+    label(ctx, "  " + pct_bar(disk_pct, 30) + " " + to_int(disk_pct * 100.0) + "%")
+
+    panel_end(ctx)
+    return st
+
+fn to_str_1(v: Float) -> String:
+    let whole = to_int(v)
+    let frac = to_int((v - to_float(whole)) * 10.0)
+    return str(whole) + "." + str(frac)
+
+// ============================================================================
+//  RENDER: NETWORK (top-right grid cell)
+// ============================================================================
+
+fn render_network(ctx: Int, st: DashboardState) -> DashboardState:
+    let _p = panel_begin(ctx, "NETWORK", 740.0, 48.0, 350.0, 200.0)
+
+    label(ctx, "  NETWORK I/O")
+    label(ctx, " ")
+    label(ctx, "  Sent:     " + to_str_1(st.net_sent_mb) + " MB")
+    label(ctx, "  Received: " + to_str_1(st.net_recv_mb) + " MB")
+    label(ctx, "  Total:    " + to_str_1(st.net_sent_mb + st.net_recv_mb) + " MB")
+    label(ctx, " ")
+    label(ctx, "  Interface: eth0")
+    label(ctx, "  Status:    UP")
+    label(ctx, "  MTU:       1500")
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  RENDER: PROCESS LIST (middle-left, spans 2 columns)
+// ============================================================================
+
+fn render_processes(ctx: Int, st: DashboardState) -> DashboardState:
+    let _p = panel_begin(ctx, "PROCESSES", 10.0, 258.0, 715.0, 260.0)
+
+    label(ctx, "  PROCESS LIST  (" + str(len(st.processes)) + " processes)")
+    label(ctx, " ")
+    label(ctx, "  PID    NAME                 CPU%     MEM(MB)  STATUS")
+    label(ctx, "  -----------------------------------------------------")
+
+    let visible = 8
+    let start = st.process_scroll
+    let total = len(st.processes)
+    var end_idx = start + visible
+    if end_idx > total:
+        end_idx = total
+
+    var i = start
+    while i < end_idx:
+        let proc = st.processes[i]
+        let pid_str = pad_left(str(proc.pid), 6)
+        let name_str = pad_right(proc.name, 20)
+        let cpu_str = pad_left(to_str_1(proc.cpu_pct), 5)
+        let mem_str = pad_left(str(proc.mem_mb), 6)
+        let status_str = pad_right(proc.status, 8)
+        label(ctx, "  " + pid_str + "  " + name_str + " " + cpu_str + "%   " + mem_str + "    " + status_str)
+        i = i + 1
+
+    label(ctx, " ")
+    if button(ctx, "  SCROLL UP"):
+        if st.process_scroll > 0:
+            st.process_scroll = st.process_scroll - visible
+            if st.process_scroll < 0:
+                st.process_scroll = 0
+
+    if button(ctx, "  SCROLL DOWN"):
+        if st.process_scroll + visible < total:
+            st.process_scroll = st.process_scroll + visible
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  RENDER: SYSTEM INFO (middle-right)
+// ============================================================================
+
+fn render_system_info(ctx: Int, st: DashboardState) -> DashboardState:
+    let _p = panel_begin(ctx, "SYSTEM", 740.0, 258.0, 350.0, 260.0)
+
+    label(ctx, "  SYSTEM INFO")
+    label(ctx, " ")
+    label(ctx, "  Host:     " + st.hostname)
+    label(ctx, "  OS:       " + st.os_name_str)
+    label(ctx, "  Arch:     " + os_arch_name())
+    label(ctx, "  Uptime:   " + format_uptime(st.uptime_sec))
+    label(ctx, "  PID:      " + str(os_getpid()))
+    label(ctx, " ")
+    label(ctx, "  CWD:      " + os_getcwd())
+    label(ctx, "  Frame:    " + str(st.frame_count))
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  RENDER: LOG OUTPUT (bottom-left)
+// ============================================================================
+
+fn render_logs(ctx: Int, st: DashboardState) -> DashboardState:
+    let _p = panel_begin(ctx, "SYSTEM LOG", 10.0, 528.0, 715.0, 140.0)
+
+    label(ctx, "  LOG OUTPUT  (" + str(len(st.logs)) + " entries)")
+    label(ctx, " ")
+
+    let visible = 5
+    let total = len(st.logs)
+    let start = if total > visible: total - visible else: 0
+
+    var i = start
+    while i < total:
+        let entry = st.logs[i]
+        let level_tag = if entry.level == "ERROR": "[ERR]" else if entry.level == "WARN": "[WRN]" else: "[INF]"
+        label(ctx, "  " + entry.timestamp + " " + level_tag + " " + entry.message)
+        i = i + 1
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  RENDER: COMMAND INPUT (bottom-right)
+// ============================================================================
+
+fn render_command(ctx: Int, st: DashboardState) -> DashboardState:
+    let _p = panel_begin(ctx, "COMMAND", 740.0, 528.0, 350.0, 140.0)
+
+    label(ctx, "  COMMAND INPUT")
+    label(ctx, " ")
+
+    let new_cmd = textbox(ctx, st.cmd_input, 128)
+    if len(new_cmd) > 0:
+        st.cmd_input = new_cmd
+
+    label(ctx, " ")
+
+    if button(ctx, "  EXECUTE"):
+        // Simulate command execution
+        if len(st.cmd_input) > 0:
+            push(st.logs, LogEntry {
+                timestamp: format_uptime(st.uptime_sec),
+                level: "INFO",
+                message: "CMD: " + st.cmd_input,
+            })
+        st.cmd_input = ""
+
+    if button(ctx, "  CLEAR LOG"):
+        st.logs = []
+
+    panel_end(ctx)
+    return st
+
+
+
+// ============================================================================
+//  ANIMATE
+// ============================================================================
+
+fn animate_state(st: DashboardState) -> DashboardState:
+    // Animate CPU cores
+    var i = 0
+    while i < len(st.cpu_cores):
+        st.cpu_cores[i].phase = st.cpu_cores[i].phase + 0.06
+        let base = 0.2 + to_float(i) * 0.05
+        let wave = sin(st.cpu_cores[i].phase) * 0.25 + sin(st.cpu_cores[i].phase * 2.3) * 0.15
+        st.cpu_cores[i].usage = base + wave
+        if st.cpu_cores[i].usage < 0.02:
+            st.cpu_cores[i].usage = 0.02
+        if st.cpu_cores[i].usage > 0.98:
+            st.cpu_cores[i].usage = 0.98
+        i = i + 1
+
+    // Animate memory
+    st.mem_used_gb = 4.0 + sin(to_float(st.frame_count) * 0.02) * 1.5
+    if st.mem_used_gb < 2.0:
+        st.mem_used_gb = 2.0
+    if st.mem_used_gb > 14.0:
+        st.mem_used_gb = 14.0
+
+    // Animate network
+    st.net_sent_mb = st.net_sent_mb + sin(to_float(st.frame_count) * 0.05) * 0.3
+    st.net_recv_mb = st.net_recv_mb + sin(to_float(st.frame_count) * 0.03 + 1.0) * 0.5
+
+    // Update uptime
+    if st.frame_count % 60 == 0:
+        st.uptime_sec = st.uptime_sec + 1
+
+    // Animate process CPU
+    i = 0
+    while i < len(st.processes):
+        let phase = to_float(st.frame_count) * 0.04 + to_float(i) * 1.5
+        let variation = sin(phase) * 3.0
+        st.processes[i].cpu_pct = st.processes[i].cpu_pct + variation * 0.1
+        if st.processes[i].cpu_pct < 0.1:
+            st.processes[i].cpu_pct = 0.1
+        if st.processes[i].cpu_pct > 50.0:
+            st.processes[i].cpu_pct = 50.0
+        i = i + 1
+
+    return st
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+pub fn main() -> Int:
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("TerminalDash", WIN_W, WIN_H)
+    if session <= 0:
+        return 1
+
+    let _win = native_ui_window_open(session, "KAIN TERMINAL DASHBOARD", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    let ctx = create(session)
+    if ctx <= 0:
+        return 2
+
+    // Monospace font throughout
+    let font_mono = load_font(ctx, "C:/Windows/Fonts/consola.ttf", 12.0)
+    let mono_id = if font_mono <= 0: load_default_font(ctx, 12.0) else: font_mono
+
+    let font_title = load_font(ctx, "C:/Windows/Fonts/consola.ttf", 16.0)
+    let title_id = if font_title <= 0: mono_id else: font_title
+
+    var state = init_dashboard()
+
+    while native_ui_host_should_close(session) == 0:
+        let _pump = native_ui_host_pump(session)
+        let _bf = native_ui_begin_frame(session, 16.0)
+        begin_frame(ctx)
+
+        // ── Header ──────────────────────────────────────────────────
+        let hdr = native_ui_node_create(session, "header")
+        native_ui_node_set_rect(session, hdr, 0.0, 0.0, to_float(WIN_W), 36.0)
+        native_ui_node_set_style_i64(session, hdr, "fill-color", CLR_GREEN_DARK)
+        let _ht = native_ui_draw_text(session, hdr, title_id, 12.0, 6.0,
+            " KAIN TERMINAL DASHBOARD  |  " + state.hostname + "  |  " + state.os_name_str + "  |  " + format_uptime(state.uptime_sec), "hdr-text")
+
+        // ── Grid row 1: CPU, Memory, Network ────────────────────────
+        state = render_cpu(ctx, state)
+        state = render_memory(ctx, state)
+        state = render_network(ctx, state)
+
+        // ── Grid row 2: Processes, System Info ──────────────────────
+        state = render_processes(ctx, state)
+        state = render_system_info(ctx, state)
+
+        // ── Grid row 3: Logs, Command Input ─────────────────────────
+        state = render_logs(ctx, state)
+        state = render_command(ctx, state)
+
+        // ── Status bar ──────────────────────────────────────────────
+        let status = native_ui_node_create(session, "status-bar")
+        native_ui_node_set_rect(session, status, 0.0, to_float(WIN_H - 26), to_float(WIN_W), 26.0)
+        native_ui_node_set_style_i64(session, status, "fill-color", CLR_GREEN_DARK)
+        let status_text = "  " + state.hostname + " | " + format_uptime(state.uptime_sec) + " | frame " + str(state.frame_count) + " | procs " + str(len(state.processes)) + " | mem " + to_str_1(state.mem_used_gb) + "/" + to_str_1(state.mem_total_gb) + "GB"
+        let _st_text = native_ui_draw_text(session, status, mono_id, 8.0, 3.0, status_text, "status-bar-text")
+
+        // ── Animate ─────────────────────────────────────────────────
+        state = animate_state(state)
+        state.frame_count = state.frame_count + 1
+
+        end_frame(ctx)
+        let _fe = native_ui_end_frame(session)
+        let _pr = native_ui_invalidate_window(session)
+
+    destroy(ctx)
+    let _ds = native_ui_session_destroy(session)
+    return 0

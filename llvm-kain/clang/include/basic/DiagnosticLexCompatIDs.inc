@@ -1,0 +1,1 @@
+// Stub: DiagnosticLexCompatIDs.inc

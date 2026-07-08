@@ -1,0 +1,327 @@
+// ============================================================================
+//  main.kn — Semantic Search Engine Entry Point
+//
+//  THE BEAST: All 7 semantic layers fused in a real tool.
+//
+//  Layers exercised:
+//    L7: actor (IndexWorker), collapse/observe/decay (postings scan)
+//    L6: axiom (fast_tokenizer, bm25_stability), shatter struct (Posting, FSTNode)
+//    L5: pulse (reindex_watcher), resonate (SearchIndex.doc_count)
+//    L4: orchestrate (build_pipeline)
+//    L3: converge (tokenize, bm25_score)
+//    L2: patch (store_indexed_file, finalize_index), law (index invariants)
+//    L1: world (SearchIndex, SubsystemRegistry)
+//    L0: fn, struct, let, if, while, match, use, mod
+//
+//  CLI dispatch: index | query | connect | profile | stats | watch
+// ============================================================================
+
+use std::runtime
+use std::process
+use std::time
+use std::intent
+use std::fs
+use std::text
+
+use types::SearchIndex
+use types::DocMeta
+use types::SearchResult
+use types::Connection
+use types::MAX_RESULTS
+use types::init_index
+use cli::CliConfig
+use cli::get_user_args
+use cli::parse_args
+use cli::usage
+use cli::EXIT_OK
+use cli::EXIT_HELP
+use cli::EXIT_ERROR
+use cli::CMD_INDEX
+use cli::CMD_QUERY
+use cli::CMD_CONNECT
+use cli::CMD_PROFILE
+use cli::CMD_STATS
+use cli::CMD_WATCH
+use cli::CMD_HELP
+use config::META_FILE
+use config::DEFAULT_CRATES_DIR
+use config::DEFAULT_RUNTIME_DIR
+use config::DEFAULT_STDLIB_DIR
+use config::WATCH_INTERVAL_MS
+use indexer::indexer
+use indexer::tokenizer
+use indexer::chunker
+use indexer::fst_builder
+use indexer::postings_writer
+use search::search_engine
+use search::fst_lookup
+use search::bm25
+use search::top_k
+use profile::connection_graph
+use profile::subsystem_registry
+use storage::index_io
+
+// ============================================================================
+//  SUBCOMMAND DISPATCH
+// ============================================================================
+
+fn cmd_index(cfg: CliConfig) -> Int with Unsafe, IO:
+    if cfg.verbose:
+        println("=== semantic-search: index ===")
+
+    let index_crates:  Bool = cfg.index_crates or cfg.index_all
+    let index_runtime: Bool = cfg.index_runtime or cfg.index_all
+    let index_stdlib:  Bool = cfg.index_stdlib or cfg.index_all
+
+    if index_crates == false and index_runtime == false and index_stdlib == false:
+        // Default: index everything
+        let _ = build_all_domains(true, true, true)
+    else:
+        let _ = build_all_domains(index_crates, index_runtime, index_stdlib)
+
+    // Save index
+    let save_rc: Int = save_index()
+    if cfg.verbose:
+        println("Index saved: " + str(SearchIndex.doc_count) + " docs, "
+            + str(SearchIndex.term_count) + " terms")
+
+    return save_rc
+
+
+fn cmd_query(cfg: CliConfig) -> Int with Unsafe, IO:
+    var query_text: String = cfg.query_text
+    if query_text == "":
+        if process_arg_count() > 2:
+            query_text = process_arg(2)
+    if query_text == "":
+        println("query: missing query text")
+        println("Usage: semantic-search query <expression>")
+        return EXIT_ERROR
+
+    if SearchIndex.doc_count <= 0:
+        println("Index is empty. Run 'semantic-search index --all' first.")
+        return EXIT_ERROR
+
+    let lang: String = cfg.query_lang
+    if lang == "":
+        lang = "kain"
+
+    let t_start: Int = now_millis()
+    let results: Array<SearchResult> = search(query_text, lang)
+    let elapsed: Int = now_millis() - t_start
+
+    if len(results) == 0:
+        println("No results found for: " + query_text)
+        return EXIT_OK
+
+    println("Results for '" + query_text + "' (" + str(len(results)) + " hits, " + str(elapsed) + "ms):")
+    println("")
+
+    var ri: Int = 0
+    while ri < len(results):
+        let r: SearchResult = results[ri]
+        let meta: DocMeta = r.doc.meta
+        println(str(ri + 1) + ". [" + score_str(r.doc.score) + "] " + meta.path + " (" + meta.domain + "/" + meta.subsys + ", " + meta.lang + ")")
+        ri = ri + 1
+
+    return EXIT_OK
+
+
+fn cmd_connect(cfg: CliConfig) -> Int with Unsafe, IO:
+    var symbol: String = cfg.connect_symbol
+    if symbol == "":
+        if process_arg_count() > 2:
+            symbol = process_arg(2)
+    if symbol == "":
+        println("connect: missing symbol name")
+        println("Usage: semantic-search connect <symbol>")
+        return EXIT_ERROR
+
+    if SearchIndex.conn_count <= 0:
+        println("Connection graph is empty. Run 'semantic-search index --all' first.")
+        return EXIT_ERROR
+
+    let conns: Array<Connection> = find_connections(symbol)
+    if len(conns) == 0:
+        println("No connections found for: " + symbol)
+        return EXIT_OK
+
+    println("Connections for '" + symbol + "' (" + str(len(conns)) + " edges):")
+    println("")
+
+    var ci: Int = 0
+    while ci < len(conns):
+        let c: Connection = conns[ci]
+        println("  " + c.edge_kind + " -> " + c.target_path + " [" + c.target_subsys + "]")
+        ci = ci + 1
+
+    return EXIT_OK
+
+
+fn cmd_profile(cfg: CliConfig) -> Int with Unsafe, IO:
+    var path: String = cfg.profile_path
+    if path == "":
+        if process_arg_count() > 2:
+            path = process_arg(2)
+    if path == "":
+        println("profile: missing file path")
+        println("Usage: semantic-search profile <path>")
+        return EXIT_ERROR
+
+    let doc_count: Int = SearchIndex.doc_count
+    if doc_count <= 0:
+        println("Index is empty. Run 'semantic-search index --all' first.")
+        return EXIT_ERROR
+
+    var found: Bool = false
+    var di: Int = 0
+    while di < doc_count:
+        let meta: DocMeta = SearchIndex.doc_store[di]
+        if text_contains_string(meta.path, path):
+            println("File:     " + meta.path)
+            println("Domain:   " + meta.domain)
+            println("Subsys:   " + meta.subsys)
+            println("Lang:     " + meta.lang)
+            println("Lines:    " + str(meta.lines))
+            found = true
+            di = doc_count
+        di = di + 1
+
+    if found == false:
+        println("File not found in index: " + path)
+
+    return EXIT_OK
+
+
+fn cmd_stats() -> Int with Unsafe, IO:
+    println("=== Search Index Statistics ===")
+    println("")
+    println("Documents:       " + str(SearchIndex.doc_count))
+    println("Unique Terms:    " + str(SearchIndex.term_count))
+    println("Total Postings:  " + str(SearchIndex.postings_count))
+    println("FST Nodes:       " + str(SearchIndex.fst_count))
+    println("Connections:     " + str(SearchIndex.conn_count))
+    println("Total Files:     " + str(SearchIndex.total_files))
+    println("Total Chunks:    " + str(SearchIndex.total_chunks))
+    println("Avg Doc Length:  " + float_str(SearchIndex.avg_doc_len))
+    println("Index Version:   " + str(SearchIndex.index_version))
+    println("Last Updated:    " + str(SearchIndex.last_updated))
+    return EXIT_OK
+
+
+fn cmd_watch(cfg: CliConfig) -> Int with Unsafe, IO:
+    var interval: Int = cfg.watch_interval
+    if interval <= 0:
+        interval = WATCH_INTERVAL_MS
+
+    println("=== Watch Mode ===")
+    println("Reindexing every " + str(interval) + "ms. Ctrl+C to stop.")
+    println("")
+
+    var iteration: Int = 0
+    while true:
+        iteration = iteration + 1
+        println("[WATCH] Iteration " + str(iteration) + " — reindexing...")
+
+        let _ = clear_index()
+        let _ = build_all_domains(true, true, true)
+
+        println("[WATCH] Indexed " + str(SearchIndex.doc_count) + " docs, " + str(SearchIndex.term_count) + " terms")
+
+        sleep_millis(interval)
+
+    return EXIT_OK
+
+
+// ── Helpers ──────────────────────────────────────────────────────
+
+fn score_str(s: Float) -> String:
+    let scaled: Int = to_int(s * 100.0)
+    let ip: Int = scaled / 100
+    let fp: Int = scaled - ip * 100
+    var fs: String = str(fp)
+    if fp < 10:
+        fs = "0" + fs
+    return str(ip) + "." + fs
+
+fn float_str(f: Float) -> String:
+    let scaled: Int = to_int(f * 100.0)
+    let ip: Int = scaled / 100
+    let fp: Int = scaled - ip * 100
+    var fs: String = str(fp)
+    if fp < 10:
+        fs = "0" + fs
+    return str(ip) + "." + fs
+
+
+// ============================================================================
+//  PULSE — Reindex Watcher (runtime-scheduled auto-reindex)
+// ============================================================================
+
+pulse reindex_check every 60000 ms jitter 5000 ms:
+    let ticks: Int = pulse_tick
+    // In production: check for modified files, trigger incremental update.
+    // For now: log the pulse firing to prove the runtime owns the scheduler.
+    let _log = ticks + SearchIndex.doc_count
+
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int with Unsafe, IO:
+    // ── Initialize runtime ────────────────────────────────────────────
+    let init_rc: Int = runtime_init()
+    if init_rc != 0:
+        return 100 + init_rc
+
+    // ── Allocate index buffers ───────────────────────────────────────
+    let _init = init_index()
+
+    // ── Parse CLI args ───────────────────────────────────────────────
+    let argv: Array<String> = get_user_args()
+    let cfg: CliConfig = parse_args(argv)
+
+    // ── Help ──────────────────────────────────────────────────────────
+    if cfg.show_help:
+        println(usage())
+        let _ = runtime_shutdown()
+        return EXIT_HELP
+
+    // ── Dispatch ─────────────────────────────────────────────────────
+    var exit_code: Int = EXIT_OK
+    let cmd: String = cfg.subcommand
+
+    if cmd == CMD_INDEX:
+        exit_code = cmd_index(cfg)
+
+    elif cmd == CMD_QUERY:
+        exit_code = cmd_query(cfg)
+
+    elif cmd == CMD_CONNECT:
+        exit_code = cmd_connect(cfg)
+
+    elif cmd == CMD_PROFILE:
+        exit_code = cmd_profile(cfg)
+
+    elif cmd == CMD_STATS:
+        exit_code = cmd_stats()
+
+    elif cmd == CMD_WATCH:
+        exit_code = cmd_watch(cfg)
+
+    elif cmd == CMD_HELP:
+        println(usage())
+        exit_code = EXIT_HELP
+
+    else:
+        println("Unknown command: " + cmd)
+        println(usage())
+        exit_code = EXIT_ERROR
+
+    // ── Shutdown ─────────────────────────────────────────────────────
+    let shutdown_rc: Int = runtime_shutdown()
+    if shutdown_rc != 0:
+        return 200 + shutdown_rc
+
+    return exit_code

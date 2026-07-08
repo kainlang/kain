@@ -1,0 +1,300 @@
+// ============================================================================
+//  widget_showcase.kn — Full Widget Showcase (self-contained, native elements only)
+//
+//  Showcases ALL widget visuals using native <box>, <text>, <stack> elements.
+//  No imported components.
+//
+//  Usage: kain build widget_showcase.kn --target llvm
+// ============================================================================
+
+use std::runtime
+
+component WidgetShowcaseApp(width=1050, height=700):
+    render <panel title="Kain Widget Showcase — All Widgets + Layout" fill_color="bg">
+        <text value="KAIN WIDGET SHOWCASE — All 8 Widgets + Layout" font_size={20} fill_color="accent" />
+
+        <text value="" font_size={8} />
+
+        // ── Row 1: Buttons + Checkboxes + Spinners ──────────────────────
+        <stack direction="horizontal" spacing={12}>
+
+            // Panel 1: Buttons
+            <stack direction="vertical" spacing={6}>
+                <text value="BUTTONS" font_size={14} fill_color="accent" />
+                <text value="Clicks: 0" font_size={13} fill_color="text" />
+
+                <box fill_color="accent" corner_radius={4} width={200} height={34}>
+                    <text value="Primary Action" font_size={14} fill_color="text_inverse" />
+                </box>
+
+                <box fill_color="accent2" corner_radius={4} width={200} height={34}>
+                    <text value="Secondary Action" font_size={14} fill_color="text_inverse" />
+                </box>
+
+                <box fill_color="accent4" corner_radius={4} width={200} height={34}>
+                    <text value="Delete Item" font_size={14} fill_color="text" />
+                </box>
+
+                <box fill_color="transparent" corner_radius={4} width={200} height={32}>
+                    <text value="Cancel" font_size={14} fill_color="text" />
+                </box>
+
+                <box fill_color="button_disabled" corner_radius={4} width={200} height={34}>
+                    <text value="Disabled" font_size={14} fill_color="text_dim" />
+                </box>
+
+                <stack direction="horizontal" spacing={6}>
+                    <box fill_color="accent" corner_radius={4} width={100} height={30}>
+                        <text value="Click" font_size={14} fill_color="text_inverse" />
+                    </box>
+                    <box fill_color="accent2" corner_radius={4} width={100} height={30}>
+                        <text value="Reset" font_size={14} fill_color="text_inverse" />
+                    </box>
+                </stack>
+            </stack>
+
+            // Panel 2: Checkboxes
+            <stack direction="vertical" spacing={6}>
+                <text value="CHECKBOXES" font_size={14} fill_color="accent" />
+
+                <stack direction="horizontal" spacing={8}>
+                    <box fill_color="accent" corner_radius={2} width={18} height={18}>
+                        <text value="✓" font_size={12} fill_color="text_inverse" />
+                    </box>
+                    <text value="Enable Music" font_size={14} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={8}>
+                    <box fill_color="button" corner_radius={2} width={18} height={18}>
+                        <text value="" />
+                    </box>
+                    <text value="Sound Effects" font_size={14} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={8}>
+                    <box fill_color="button" corner_radius={2} width={18} height={18}>
+                        <text value="" />
+                    </box>
+                    <text value="Fullscreen Mode" font_size={14} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={8}>
+                    <box fill_color="accent" corner_radius={2} width={18} height={18}>
+                        <text value="✓" font_size={12} fill_color="text_inverse" />
+                    </box>
+                    <text value="Dark Mode" font_size={14} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={8}>
+                    <box fill_color="accent" corner_radius={2} width={18} height={18}>
+                        <text value="✓" font_size={12} fill_color="text_inverse" />
+                    </box>
+                    <text value="Notifications" font_size={14} fill_color="text" />
+                </stack>
+
+                <text value="" font_size={2} />
+
+                <text value="TOGGLES (pill-shaped)" font_size={14} fill_color="accent" />
+
+                <stack direction="horizontal" spacing={10}>
+                    // Toggle ON
+                    <box fill_color="accent" corner_radius={12} width={44} height={24}>
+                        <box fill_color="text" corner_radius={10} width={20} height={20}>
+                            <text value="" />
+                        </box>
+                    </box>
+                    // Toggle OFF
+                    <box fill_color="slider_track" corner_radius={12} width={44} height={24}>
+                        <box fill_color="text" corner_radius={10} width={20} height={20}>
+                            <text value="" />
+                        </box>
+                    </box>
+                    // Toggle ON disabled
+                    <box fill_color="button_disabled" corner_radius={12} width={44} height={24}>
+                        <box fill_color="button_disabled" corner_radius={10} width={20} height={20}>
+                            <text value="" />
+                        </box>
+                    </box>
+                </stack>
+            </stack>
+
+            // Panel 3: Spinners & Progress
+            <stack direction="vertical" spacing={6}>
+                <text value="SPINNERS" font_size={14} fill_color="accent" />
+
+                <stack direction="horizontal" spacing={12}>
+                    <text value="Small:" font_size={13} fill_color="text_dim" />
+                    <box fill_color="accent" corner_radius={8} width={16} height={16}>
+                        <text value="" />
+                    </box>
+                    <text value="Medium:" font_size={13} fill_color="text_dim" />
+                    <box fill_color="accent2" corner_radius={12} width={24} height={24}>
+                        <text value="" />
+                    </box>
+                </stack>
+
+                <stack direction="horizontal" spacing={12}>
+                    <text value="Large:" font_size={13} fill_color="text_dim" />
+                    <box fill_color="accent3" corner_radius={16} width={32} height={32}>
+                        <text value="" />
+                    </box>
+                    <text value="Fast:" font_size={13} fill_color="text_dim" />
+                    <box fill_color="accent4" corner_radius={12} width={24} height={24}>
+                        <text value="" />
+                    </box>
+                </stack>
+
+                <text value="" font_size={4} />
+
+                <text value="PROGRESS BARS" font_size={14} fill_color="accent" />
+
+                <stack direction="horizontal" spacing={0}>
+                    <box fill_color="slider_track" width={200} height={18}>
+                        <box fill_color="accent2" width={124} height={18}>
+                            <text value="" />
+                        </box>
+                    </box>
+                    <text value="62%" font_size={12} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={0}>
+                    <box fill_color="slider_track" width={200} height={18}>
+                        <box fill_color="accent" width={86} height={18}>
+                            <text value="" />
+                        </box>
+                    </box>
+                    <text value="43%" font_size={12} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={0}>
+                    <box fill_color="slider_track" width={200} height={18}>
+                        <box fill_color="accent3" width={90} height={18}>
+                            <text value="" />
+                        </box>
+                    </box>
+                    <text value="45%" font_size={12} fill_color="text" />
+                </stack>
+
+                <stack direction="horizontal" spacing={0}>
+                    <box fill_color="slider_track" width={200} height={18}>
+                        <box fill_color="accent4" width={40} height={18}>
+                            <text value="" />
+                        </box>
+                    </box>
+                    <text value="20%" font_size={12} fill_color="text" />
+                </stack>
+            </stack>
+
+        </stack>
+
+        <text value="" font_size={8} />
+
+        // ── Horizontal divider ──────────────────────────────────────────
+        <box fill_color="border" width={1020} height={2}>
+            <text value="" />
+        </box>
+
+        <text value="" font_size={8} />
+
+        // ── Row 2: Sliders + Text Inputs ───────────────────────────────
+        <stack direction="horizontal" spacing={12}>
+
+            // Panel 4: Sliders
+            <stack direction="vertical" spacing={6}>
+                <text value="SLIDERS" font_size={14} fill_color="accent" />
+
+                <text value="Volume: 65%" font_size={13} fill_color="text" />
+                <stack direction="vertical" spacing={0}>
+                    <box fill_color="slider_track" width={200} height={6}>
+                        <text value="" />
+                    </box>
+                    <box fill_color="slider_fill" width={130} height={6}>
+                        <text value="" />
+                    </box>
+                </stack>
+
+                <text value="" font_size={4} />
+
+                <text value="Brightness: 80%" font_size={13} fill_color="text" />
+                <stack direction="vertical" spacing={0}>
+                    <box fill_color="slider_track" width={200} height={6}>
+                        <text value="" />
+                    </box>
+                    <box fill_color="slider_fill" width={160} height={6}>
+                        <text value="" />
+                    </box>
+                </stack>
+
+                <text value="" font_size={4} />
+
+                <text value="Speed: 40%" font_size={13} fill_color="text" />
+                <stack direction="vertical" spacing={0}>
+                    <box fill_color="slider_track" width={200} height={6}>
+                        <text value="" />
+                    </box>
+                    <box fill_color="slider_fill" width={80} height={6}>
+                        <text value="" />
+                    </box>
+                </stack>
+            </stack>
+
+            // Panel 5: Text Inputs
+            <stack direction="vertical" spacing={6}>
+                <text value="TEXT INPUTS" font_size={14} fill_color="accent" />
+
+                <text value="Username: kain_user" font_size={13} fill_color="text" />
+                <box fill_color="input_bg" corner_radius={4} width={400} height={28}>
+                    <text value="kain_user" font_size={14} fill_color="text" />
+                </box>
+
+                <text value="" font_size={4} />
+
+                <text value="Search: (empty)" font_size={13} fill_color="text" />
+                <box fill_color="input_bg" corner_radius={4} width={400} height={28}>
+                    <text value="Search..." font_size={14} fill_color="text_dim" />
+                </box>
+
+                <text value="" font_size={4} />
+
+                <text value="Password:" font_size={13} fill_color="text" />
+                <box fill_color="input_bg" corner_radius={4} width={400} height={28}>
+                    <text value="●●●●●●●●" font_size={14} fill_color="text" />
+                </box>
+            </stack>
+
+        </stack>
+
+        <text value="" font_size={8} />
+
+        // ── Horizontal divider ──────────────────────────────────────────
+        <box fill_color="border" width={1020} height={2}>
+            <text value="" />
+        </box>
+
+        <text value="" font_size={8} />
+
+        // ── Footer: Summary ────────────────────────────────────────────
+        <stack direction="horizontal" spacing={16}>
+            <text value="Clicks: 0 | Vol: 65% | Bright: 80% | Speed: 40%" font_size={12} fill_color="text_dim" />
+            <box fill_color="transparent" width={200} height={32}>
+                <text value="" />
+            </box>
+            <box fill_color="accent2" corner_radius={4} width={120} height={30}>
+                <text value="Reset All" font_size={14} fill_color="text_inverse" />
+            </box>
+        </stack>
+
+        <text value="" font_size={8} />
+
+        <text value="WIDGET MATRIX — 8 component types in one showcase" font_size={12} fill_color="text_dim" />
+        <text value="Button · Checkbox · Toggle | Slider · TextInput | ProgressBar · Spinner · Label" font_size={11} fill_color="text_dim" />
+    </panel>
+
+world WidgetShowcaseWorld:
+    surface native_ui => WidgetShowcaseApp
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

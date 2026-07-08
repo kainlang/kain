@@ -1,0 +1,376 @@
+// ============================================================================
+//  color.kn — Color math, blend modes, gradient helpers, color spaces
+//  P2-019: Blend mode constants KT_BLEND_SRC_OVER (0) through
+//          KT_BLEND_LUMINOSITY (26). Gradient helpers, color space helpers.
+//
+//  Design:
+//    - Blend mode constants match kaintana.h KaintanaBlendMode enum exactly.
+//    - CSS blend mode helpers (per-channel Float, pure Kain math).
+//    - compose_blend: foreground/background compositing with mode dispatch.
+//    - Color space conversions: pure Float math (piecewise sRGB/linear).
+//    - gradient_sample: pure Kain gradient sampling between KtColor stops.
+//    - All functions operate on KtColor from theme.kn.
+//
+//  Uses types from std::kaintana::core and KtColor from std::kaintana::theme.
+// ============================================================================
+
+use std::kaintana::theme as theme
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Blend Mode Constants
+//  Exact match: kaintana.h KaintanaBlendMode enum
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Porter-Duff: source over destination (default). Value 0.
+pub const KT_BLEND_SRC_OVER:       Int = 0
+/// Porter-Duff: source copy. Value 1.
+pub const KT_BLEND_SRC:            Int = 1
+/// Porter-Duff: destination copy. Value 2.
+pub const KT_BLEND_DST:            Int = 2
+/// Porter-Duff: source in. Value 3.
+pub const KT_BLEND_SRC_IN:         Int = 3
+/// Porter-Duff: destination in. Value 4.
+pub const KT_BLEND_DST_IN:         Int = 4
+/// Porter-Duff: source out. Value 5.
+pub const KT_BLEND_SRC_OUT:        Int = 5
+/// Porter-Duff: destination out. Value 6.
+pub const KT_BLEND_DST_OUT:        Int = 6
+/// Porter-Duff: source atop. Value 7.
+pub const KT_BLEND_SRC_ATOP:       Int = 7
+/// Porter-Duff: destination atop. Value 8.
+pub const KT_BLEND_DST_ATOP:       Int = 8
+/// Porter-Duff: XOR. Value 9.
+pub const KT_BLEND_XOR:            Int = 9
+/// Porter-Duff: plus (additive, unclamped). Value 10.
+pub const KT_BLEND_PLUS:           Int = 10
+/// Porter-Duff: plus lighter (additive, clamped). Value 11.
+pub const KT_BLEND_PLUS_LIGHTER:   Int = 11
+/// CSS: multiply. Value 12.
+pub const KT_BLEND_MULTIPLY:       Int = 12
+/// CSS: screen. Value 13.
+pub const KT_BLEND_SCREEN:         Int = 13
+/// CSS: overlay. Value 14.
+pub const KT_BLEND_OVERLAY:        Int = 14
+/// CSS: darken. Value 15.
+pub const KT_BLEND_DARKEN:         Int = 15
+/// CSS: lighten. Value 16.
+pub const KT_BLEND_LIGHTEN:        Int = 16
+/// CSS: color-dodge. Value 17.
+pub const KT_BLEND_COLOR_DODGE:    Int = 17
+/// CSS: color-burn. Value 18.
+pub const KT_BLEND_COLOR_BURN:     Int = 18
+/// CSS: hard-light. Value 19.
+pub const KT_BLEND_HARD_LIGHT:     Int = 19
+/// CSS: soft-light. Value 20.
+pub const KT_BLEND_SOFT_LIGHT:     Int = 20
+/// CSS: difference. Value 21.
+pub const KT_BLEND_DIFFERENCE:     Int = 21
+/// CSS: exclusion. Value 22.
+pub const KT_BLEND_EXCLUSION:      Int = 22
+/// HSL: hue. Value 23.
+pub const KT_BLEND_HUE:            Int = 23
+/// HSL: saturation. Value 24.
+pub const KT_BLEND_SATURATION:     Int = 24
+/// HSL: color. Value 25.
+pub const KT_BLEND_COLOR:          Int = 25
+/// HSL: luminosity. Value 26.
+pub const KT_BLEND_LUMINOSITY:     Int = 26
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CSS Blend Mode Helpers — per-channel Float [0..1]
+//  Pure Kain math matching kaintana.h §17D logic.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Normal: cs (no interaction).
+pub fn blend_normal(cb: Float, cs: Float) -> Float:
+    let _ = cb
+    return cs
+
+/// CSS multiply: cb * cs
+pub fn blend_multiply(cb: Float, cs: Float) -> Float:
+    return cb * cs
+
+/// CSS screen: cb + cs - cb * cs
+pub fn blend_screen(cb: Float, cs: Float) -> Float:
+    return cb + cs - cb * cs
+
+/// CSS overlay: if cb <= 0.5: 2*cs*cb; else: 1 - 2*(1-cs)*(1-cb)
+pub fn blend_overlay(cb: Float, cs: Float) -> Float:
+    if cb <= 0.5:
+        return 2.0 * cs * cb
+    return 1.0 - 2.0 * (1.0 - cs) * (1.0 - cb)
+
+/// CSS darken: min(cb, cs)
+pub fn blend_darken(cb: Float, cs: Float) -> Float:
+    if cb < cs:
+        return cb
+    return cs
+
+/// CSS lighten: max(cb, cs)
+pub fn blend_lighten(cb: Float, cs: Float) -> Float:
+    if cb > cs:
+        return cb
+    return cs
+
+/// CSS color-dodge
+pub fn blend_color_dodge(cb: Float, cs: Float) -> Float:
+    if cb == 0.0:
+        return 0.0
+    if cs >= 1.0:
+        return 1.0
+    let d = cb / (1.0 - cs)
+    if d < 1.0:
+        return d
+    return 1.0
+
+/// CSS color-burn
+pub fn blend_color_burn(cb: Float, cs: Float) -> Float:
+    if cb >= 1.0:
+        return 1.0
+    if cs == 0.0:
+        return 0.0
+    let d = (1.0 - cb) / cs
+    if d < 1.0:
+        return 1.0 - d
+    return 0.0
+
+/// CSS hard-light
+pub fn blend_hard_light(cb: Float, cs: Float) -> Float:
+    if cs <= 0.5:
+        return 2.0 * cb * cs
+    let two_cs_minus_1 = 2.0 * cs - 1.0
+    return cb + two_cs_minus_1 - cb * two_cs_minus_1
+
+/// CSS soft-light (Vello approximation)
+pub fn blend_soft_light(cb: Float, cs: Float) -> Float:
+    let d: Float = if cb <= 0.25:
+        ((16.0 * cb - 12.0) * cb + 4.0) * cb
+    else:
+        if cb < 0.0:
+            0.0
+        else:
+            cb
+    if cs <= 0.5:
+        return cb - (1.0 - 2.0 * cs) * cb * (1.0 - cb)
+    return cb + (2.0 * cs - 1.0) * (d - cb)
+
+/// CSS difference: abs(cb - cs)
+pub fn blend_difference(cb: Float, cs: Float) -> Float:
+    let d = cb - cs
+    if d < 0.0:
+        return -d
+    return d
+
+/// CSS exclusion: cb + cs - 2 * cb * cs
+pub fn blend_exclusion(cb: Float, cs: Float) -> Float:
+    return cb + cs - 2.0 * cb * cs
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Dispatch: blend a single channel by mode number
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Blend a single channel by CSS blend mode number.
+/// mode 0-11: Porter-Duff (returns cs). 12-22: CSS modes. 23-26: HSL.
+pub fn blend_channel(cb: Float, cs: Float, mode: Int) -> Float:
+    if mode == 12:
+        return blend_multiply(cb, cs)
+    elif mode == 13:
+        return blend_screen(cb, cs)
+    elif mode == 14:
+        return blend_overlay(cb, cs)
+    elif mode == 15:
+        return blend_darken(cb, cs)
+    elif mode == 16:
+        return blend_lighten(cb, cs)
+    elif mode == 17:
+        return blend_color_dodge(cb, cs)
+    elif mode == 18:
+        return blend_color_burn(cb, cs)
+    elif mode == 19:
+        return blend_hard_light(cb, cs)
+    elif mode == 20:
+        return blend_soft_light(cb, cs)
+    elif mode == 21:
+        return blend_difference(cb, cs)
+    elif mode == 22:
+        return blend_exclusion(cb, cs)
+    // Porter-Duff (0-11) and HSL (23-26): normal compositing
+    return cs
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Compose Blend — blend foreground over background
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Blend foreground KtColor over background KtColor using the given mode.
+pub fn compose_blend(fg: theme::KtColor, bg: theme::KtColor, mode: Int) -> theme::KtColor:
+    // Porter-Duff SRC_OVER fast path (mode 0): fg + bg * (1 - fg.a)
+    if mode == 0:
+        let inv_a = 1.0 - fg.a
+        return theme::KtColor {
+            r: fg.r + bg.r * inv_a,
+            g: fg.g + bg.g * inv_a,
+            b: fg.b + bg.b * inv_a,
+            a: fg.a + bg.a * inv_a,
+        }
+    // CSS blend modes (12-22): blend channels, then over-composite
+    if mode >= 12 and mode <= 22:
+        let mixed_r = blend_channel(bg.r, fg.r, mode)
+        let mixed_g = blend_channel(bg.g, fg.g, mode)
+        let mixed_b = blend_channel(bg.b, fg.b, mode)
+        let inv_a = 1.0 - fg.a
+        return theme::KtColor {
+            r: mixed_r * fg.a + bg.r * inv_a,
+            g: mixed_g * fg.a + bg.g * inv_a,
+            b: mixed_b * fg.a + bg.b * inv_a,
+            a: fg.a + bg.a * inv_a,
+        }
+    // Porter-Duff modes 1-9: coefficient-based compositing
+    var fa: Float = 1.0
+    var fb: Float = 1.0
+    if mode == 1:
+        fa = 1.0
+        fb = 0.0              // SRC
+    elif mode == 2:
+        fa = 0.0
+        fb = 1.0              // DST
+    elif mode == 3:
+        fa = bg.a
+        fb = 0.0              // SRC_IN
+    elif mode == 4:
+        fa = 0.0
+        fb = fg.a             // DST_IN
+    elif mode == 5:
+        fa = 1.0 - bg.a
+        fb = 0.0              // SRC_OUT
+    elif mode == 6:
+        fa = 0.0
+        fb = 1.0 - fg.a       // DST_OUT
+    elif mode == 7:
+        fa = bg.a
+        fb = 1.0 - fg.a       // SRC_ATOP
+    elif mode == 8:
+        fa = 1.0 - bg.a
+        fb = fg.a             // DST_ATOP
+    elif mode == 9:
+        fa = 1.0 - bg.a
+        fb = 1.0 - fg.a       // XOR
+    // modes 10-11 (PLUS, PLUS_LIGHTER): fa=1, fb=1
+    return theme::KtColor {
+        r: fa * fg.r + fb * bg.r,
+        g: fa * fg.g + fb * bg.g,
+        b: fa * fg.b + fb * bg.b,
+        a: fa * fg.a + fb * bg.a,
+    }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Color Space Conversion — sRGB ↔ Linear
+//  Pure Float math — piecewise formulas matching kaintana.h §17C.
+//  For UI rendering, polynomial approximations are visually equivalent.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Convert sRGB float [0..1] to linear float.
+/// Uses standard piecewise: c <= 0.04045 → c/12.92, else → ((c+0.055)/1.055)^2.4
+pub fn srgb_to_linear(c: Float) -> Float:
+    if c <= 0.04045:
+        return c / 12.92
+    let a = (c + 0.055) / 1.055
+    // Compute a^2.4 ≈ a^2 * a^0.4
+    // a^0.4 approximated as a smooth blend for [0,1] range
+    let a2 = a * a
+    let a04 = -0.221 * a2 + 0.943 * a + 0.262
+    return a2 * a04
+
+/// Convert linear float [0..1] to sRGB float.
+/// Uses standard piecewise: c <= 0.0031308 → c*12.92, else → 1.055*c^(1/2.4)-0.055
+pub fn linear_to_srgb(c: Float) -> Float:
+    if c <= 0.0031308:
+        return c * 12.92
+    // Compute c^0.4167 ≈ c^(1/2.4) using polynomial on [0,1]
+    let ci = -0.083 * c * c + 0.565 * c + 0.515
+    return 1.055 * ci - 0.055
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Luminance & Saturation
+//  Rec. 601 luminance: 0.299*R + 0.587*G + 0.114*B
+//  Saturation: max(R,G,B) - min(R,G,B)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Compute Rec. 601 luminance of a KtColor.
+pub fn luminance(c: theme::KtColor) -> Float:
+    return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
+
+/// Compute saturation (chroma magnitude) of a KtColor.
+pub fn saturation(c: theme::KtColor) -> Float:
+    var mx: Float = 0.0
+    if c.r > c.g:
+        if c.r > c.b:
+            mx = c.r
+        else:
+            mx = c.b
+    else:
+        if c.g > c.b:
+            mx = c.g
+        else:
+            mx = c.b
+    var mn: Float = 0.0
+    if c.r < c.g:
+        if c.r < c.b:
+            mn = c.r
+        else:
+            mn = c.b
+    else:
+        if c.g < c.b:
+            mn = c.g
+        else:
+            mn = c.b
+    return mx - mn
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Gradient Sampling — pure Kain between KtColor stops
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Sample a color gradient at position t [0..1].
+/// stops: array of KtColor values.
+/// positions: array of Float stop positions [0..1] (same length as stops).
+/// Returns the interpolated KtColor, lerping between the two surrounding stops.
+pub fn gradient_sample(stops: [theme::KtColor], positions: [Float], t: Float) -> theme::KtColor:
+    let n = array_len(stops)
+    if n == 0:
+        return theme::KtColor { r: 0.0, g: 0.0, b: 0.0, a: 0.0 }
+    if n == 1:
+        return stops[0]
+    // Clamp t to [0, 1]
+    let xt: Float = if t < 0.0: 0.0 elif t > 1.0: 1.0 else: t
+    // Find the two surrounding stops
+    var lo_idx: Int = 0
+    var hi_idx: Int = n - 1
+    var found: Bool = false
+    var i: Int = 0
+    while i < n - 1:
+        if xt >= positions[i] and xt <= positions[i + 1]:
+            lo_idx = i
+            hi_idx = i + 1
+            found = true
+            break
+        i = i + 1
+    if found == false:
+        if xt < positions[0]:
+            return stops[0]
+        return stops[n - 1]
+    // Linear interpolation between stops
+    let p_lo = positions[lo_idx]
+    let p_hi = positions[hi_idx]
+    let seg_t: Float = if p_hi > p_lo:
+        (xt - p_lo) / (p_hi - p_lo)
+    else:
+        0.0
+    let lo = stops[lo_idx]
+    let hi = stops[hi_idx]
+    return lo.lerp(hi, seg_t)
+
+/// Helper: count elements in an array.
+fn array_len<T>(arr: [T]) -> Int:
+    var count: Int = 0
+    for _elem in arr:
+        count = count + 1
+    return count

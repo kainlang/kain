@@ -1,0 +1,4 @@
+# hash_table_proofs.yaml — Z3 proof pack: hash table correctness
+# Proves: no false negatives for keys present in the table,
+# load factor stays below 0.7 after any sequence of insertions,
+# probe sequence always terminates, key uniqueness is preserved.

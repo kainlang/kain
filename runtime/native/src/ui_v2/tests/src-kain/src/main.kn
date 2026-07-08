@@ -1,0 +1,716 @@
+// ============================================================================
+//  main.kn — Kaintana Test Runner Entry Point
+//
+//  CLI-style test runner for the Kaintana UI substrate. Links against
+//  the C substrate (tree.c, box_math.c, draw_pixels.c, etc.) via
+//  include "../../kaintana.h" as kt for direct LLVM-level C interop.
+//
+//  Subcommands:
+//    test_runner run [--spec <name>] [--json] [specs/...]
+//    test_runner list [specs/...]
+//    test_runner check [specs/...]
+//    test_runner --help
+//    test_runner --version
+//
+//  Ladder: Layer 0 entry point, calls into L1 (world via patch),
+//  L5 (pulse via timing), L3 (converge via cmd_count checks).
+//  The kaintana.h C substrate is Layer 0 platform code.
+//
+//  Usage:
+//    ./kaintana-test-runner run specs/kaintana_tests.tsv --json
+//    ./kaintana-test-runner list specs/
+// ============================================================================
+
+use std::runtime
+use std::fs
+use std::json
+use std::time
+use std::text
+use std::intent
+use cli
+use spec_parser
+use reporters::json_rep       // TestResult, build_suite_object, print_suite, passing_result, failing_result
+use reporters::terminal       // print_header, print_test_result, print_footer, print_error
+
+// ============================================================================
+//  C INTEROP — Include the Kaintana C substrate
+// ============================================================================
+//  At the LLVM level, this compiles to direct call instructions against
+//  tree.c, box_math.c, draw_pixels.c, arena.c, color.c, attr_table.c.
+//  No marshalling, no FFI bridge, no overhead.
+//
+//  The null backend (host_null.c) is linked as a companion .c translation unit.
+//  kaintana_test_helpers.{c,h} expose the framebuffer pointer to Kain.
+
+// NOTE: kaintana_test_helpers.h and .c are in the tests/ root dir
+include "../../kaintana.h" as kt
+// NOTE: kaintana_test_get_fb_ptr/get_fb_width/get_fb_height are declared in
+// kaintana.h and implemented in tests/kaintana_test_helpers.c
+// include "../kaintana_test_helpers.h" as th
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+pub const APP_VERSION: String = "0.1.0"
+
+// Default framebuffer size for tests
+const DEFAULT_FB_W: Int = 320
+const DEFAULT_FB_H: Int = 240
+
+// Default backend name
+const BACKEND_NULL: String = "null"
+
+// Default spec file pattern
+const DEFAULT_SPEC_DIR: String = "../specs"
+const DEFAULT_GOLDEN_DIR: String = "../golden"
+
+// ============================================================================
+//  LAYOUT COMMAND EXECUTION — run a colon-delimited layout script against
+//  the Kaintana C substrate.
+//
+//  Format: "row:fill:#21D4A1:width=100:height=30:end_row"
+//  Commands:
+//    row             — begin new element (pushes element stack)
+//    end_row         — close current element (pops element stack)
+//    fill:COLOR      — set fill color on current element
+//    stroke:COLOR:W  — set stroke color and width
+//    radius:N        — set corner radius
+//    width:N         — set element width
+//    height:N        — set element height
+//    pad:N           — set uniform padding
+//    gap:N           — set gap between children
+//    direction:N     — set layout direction (0=row, 1=col)
+// ============================================================================
+
+struct ElemStack:
+    ids: Array<Int>
+
+fn push_elem(stack: ElemStack, id: Int) -> ElemStack:
+    push(stack.ids, id)
+    return stack
+
+fn pop_elem(stack: ElemStack) -> (ElemStack, Int):
+    let count = len(stack.ids)
+    if count == 0:
+        return (stack, -1)
+    let top = stack.ids[count - 1]
+    // Rebuild array without last element
+    var new_ids: Array<Int> = []
+    var i: Int = 0
+    while i < count - 1:
+            push(new_ids, stack.ids[i])
+        i = i + 1
+    return (ElemStack { ids: new_ids }, top)
+
+fn current_elem(stack: ElemStack) -> Int:
+    let count = len(stack.ids)
+    if count == 0:
+        return -1
+    return stack.ids[count - 1]
+
+fn parent_elem(stack: ElemStack) -> Int:
+    let count = len(stack.ids)
+    if count <= 1:
+        return -1
+    return stack.ids[count - 2]
+
+// ============================================================================
+//  EXECUTE LAYOUT — run a colon-delimited layout script
+// ============================================================================
+//
+//  Returns the number of draw commands emitted (from kt_cmd_count)
+//  and a status string ("" = success, otherwise error message).
+
+fn execute_layout(
+    session: kt_Session,
+    layout: String,
+    fb_w: Int,
+    fb_h: Int,
+) -> (Int, String) with Unsafe:
+    if layout == "":
+        return (0, "empty layout")
+
+    // Parse colon-delimited commands
+    let commands = text_split_string(layout, ":")
+    var stack = ElemStack { ids: [] }
+    var error_msg: String = ""
+
+    // Begin frame
+    kt_begin(session, 16.0)
+
+    var cmd_idx: Int = 0
+    while cmd_idx < len(commands) and error_msg == "":
+        let cmd = commands[cmd_idx]
+
+        // --- row: begin new element ---
+        if cmd == "row":
+            let parent = current_elem(stack)
+            let elem_id = kt_row(session, parent, "box", "")
+            if elem_id < 0:
+                error_msg = "kt_row returned " + str(elem_id)
+            else:
+                stack = push_elem(stack, elem_id)
+
+        // --- end_row: close current element ---
+        elif cmd == "end_row":
+            kt_end_row(session)
+            let (new_stack, _popped) = pop_elem(stack)
+            stack = new_stack
+
+        // --- fill:COLOR ---
+        elif text_starts_with_string(cmd, "fill:"):
+            let color = text_substring_string(cmd, 5, len(cmd) - 5)
+            let elem = current_elem(stack)
+            if elem >= 0:
+                kt_fill(session, elem, color)
+            else:
+                error_msg = "kt_fill with no active element"
+
+        // --- stroke:COLOR:WIDTH ---
+        elif text_starts_with_string(cmd, "stroke:"):
+            let rest = text_substring_string(cmd, 7, len(cmd) - 7)
+            let parts = text_split_string(rest, ":")
+            let elem = current_elem(stack)
+            if elem >= 0 and len(parts) >= 2:
+                let color = parts[0]
+                let w = fs_parse_int_or_zero(parts[1])
+                kt_stroke(session, elem, color, w as Float)
+            elif elem < 0:
+                error_msg = "kt_stroke with no active element"
+
+        // --- radius:N ---
+        elif text_starts_with_string(cmd, "radius:"):
+            let val_str = text_substring_string(cmd, 7, len(cmd) - 7)
+            let val = fs_parse_int_or_zero(val_str)
+            let elem = current_elem(stack)
+            if elem >= 0:
+                kt_radius(session, elem, val as Float)
+            else:
+                error_msg = "kt_radius with no active element"
+
+        // --- width:N ---
+        elif text_starts_with_string(cmd, "width:"):
+            let val_str = text_substring_string(cmd, 6, len(cmd) - 6)
+            let val = fs_parse_int_or_zero(val_str)
+            let elem = current_elem(stack)
+            if elem >= 0:
+                kt_width(session, elem, val as Float)
+            else:
+                error_msg = "kt_width with no active element"
+
+        // --- height:N ---
+        elif text_starts_with_string(cmd, "height:"):
+            let val_str = text_substring_string(cmd, 7, len(cmd) - 7)
+            let val = fs_parse_int_or_zero(val_str)
+            let elem = current_elem(stack)
+            if elem >= 0:
+                kt_height(session, elem, val as Float)
+            else:
+                error_msg = "kt_height with no active element"
+
+        // --- pad:N ---
+        elif text_starts_with_string(cmd, "pad:"):
+            let val_str = text_substring_string(cmd, 4, len(cmd) - 4)
+            let val = fs_parse_int_or_zero(val_str)
+            let elem = current_elem(stack)
+            if elem >= 0:
+                kt_pad(session, elem, val as Float)
+            else:
+                error_msg = "kt_pad with no active element"
+
+        // --- gap:N ---
+        elif text_starts_with_string(cmd, "gap:"):
+            let val_str = text_substring_string(cmd, 4, len(cmd) - 4)
+            let val = fs_parse_int_or_zero(val_str)
+            let elem = current_elem(stack)
+            if elem >= 0:
+                kt_gap(session, elem, val as Float)
+            else:
+                error_msg = "kt_gap with no active element"
+
+        // --- direction:N ---
+        elif text_starts_with_string(cmd, "direction:"):
+            let val_str = text_substring_string(cmd, 10, len(cmd) - 10)
+            let val = fs_parse_int_or_zero(val_str)
+            let elem = current_elem(stack)
+            if elem >= 0:
+                kt_direction(session, elem, val)
+            else:
+                error_msg = "kt_direction with no active element"
+
+        // --- opacity:N ---
+        elif text_starts_with_string(cmd, "opacity:"):
+            let val_str = text_substring_string(cmd, 8, len(cmd) - 8)
+            let val = fs_parse_int_or_zero(val_str)
+            let elem = current_elem(stack)
+            if elem >= 0:
+                kt_opacity(session, elem, val as Float)
+            else:
+                error_msg = "kt_opacity with no active element"
+
+        // --- font:N ---
+        elif text_starts_with_string(cmd, "font:"):
+            let val_str = text_substring_string(cmd, 5, len(cmd) - 5)
+            let val = fs_parse_int_or_zero(val_str)
+            let elem = current_elem(stack)
+            if elem >= 0:
+                kt_font(session, elem, val as Float)
+            else:
+                error_msg = "kt_font with no active element"
+
+        // --- text:CONTENT ---
+        elif text_starts_with_string(cmd, "text:"):
+            let content = text_substring_string(cmd, 5, len(cmd) - 5)
+            let elem = current_elem(stack)
+            if elem >= 0:
+                kt_text(session, elem, content)
+            else:
+                error_msg = "kt_text with no active element"
+
+        // --- Unknown command, skip silently ---
+        else:
+            // skip unknown tokens (like comments, whitespace)
+            0
+
+        cmd_idx = cmd_idx + 1
+
+    // End frame
+    if error_msg == "":
+        kt_end(session)
+
+    // Close any remaining open elements
+    while len(stack.ids) > 0:
+        kt_end_row(session)
+        let (new_stack, _popped) = pop_elem(stack)
+        stack = new_stack
+
+    // Get draw command count
+    let cmd_count = kt_cmd_count(session)
+
+    // Present (no-op in null backend)
+    kt_present(session)
+
+    return (cmd_count, error_msg)
+
+// ============================================================================
+//  READ PIXEL — read a single pixel from the framebuffer
+// ============================================================================
+
+fn read_pixel(fb: ptr<u32>, x: Int, y: Int, stride: Int) -> u32 with Unsafe:
+    let offset = (y * stride) + x
+    return mem_load(ptr_offset(fb, offset, "u32"), "u32")
+
+// ============================================================================
+//  COMPARE FRAMEBUFFER — byte-for-byte comparison against golden .bin
+// ============================================================================
+//
+//  Returns:
+//     0  = perfect match
+//    -1  = size mismatch (golden file size != w*h*4)
+//    -2  = golden file not found or empty
+//    >0  = byte offset of first mismatch
+
+fn check_framebuffer(
+    fb_ptr: ptr<u32>,
+    golden_path: String,
+    w: Int,
+    h: Int,
+) -> Int with Unsafe, IO:
+    if golden_path == "":
+        return 0  // skip pixel check
+
+    if fs_exists(golden_path) == false:
+        return -2  // golden file not found
+
+    let golden = fs_read_bytes(golden_path)
+    let fb_size = w * h * 4
+
+    if len(golden) != fb_size:
+        return -1  // size mismatch
+
+    var byte_idx: Int = 0
+    while byte_idx < fb_size:
+        // Read framebuffer byte-by-byte via mem_load on ptr<u8>
+        let pixel_byte: u32 = mem_load(
+            ptr_offset(fb_ptr as ptr<u8>, byte_idx, "u8"), "u8"
+        )
+        let golden_byte: u32 = golden[byte_idx] as u32
+        if pixel_byte != golden_byte:
+            return byte_idx + 1  // first mismatch location (1-indexed)
+        byte_idx = byte_idx + 1
+
+    return 0  // match
+
+// ============================================================================
+//  RUN ONE TEST — execute a single TestSpec against the null backend
+// ============================================================================
+//
+//  Returns a TestResult capturing pass/fail, cmd_count, pixel comparison,
+//  and duration.
+
+fn run_one_test(
+    session: kt_Session,
+    spec: TestSpec,
+) -> TestResult with Unsafe, IO:
+    let start_us = now_millis() * 1000
+
+    // Execute the layout script
+    let (cmd_count, layout_error) = execute_layout(session, spec.layout, spec.width, spec.height)
+
+    let duration_us = (now_millis() * 1000) - start_us
+
+    // Check if layout execution failed
+    if layout_error != "":
+        return failing_result(
+            spec.name,
+            cmd_count,
+            spec.expected_cmds,
+            "skip",
+            -1,
+            duration_us,
+            layout_error,
+        )
+
+    // Check command count against expected
+    let cmd_ok = check_cmd_count(cmd_count, spec.expected_cmds)
+
+    // Compare framebuffer against golden
+    var pixel_status: String = "skip"
+    var first_mismatch: Int = -1
+
+    if spec.golden_file != "":
+        let abs_golden = fs_path_join(DEFAULT_GOLDEN_DIR, spec.golden_file)
+        let fb_ptr = kaintana_test_get_fb_ptr()
+        let fb_w = kaintana_test_get_fb_width()
+        let fb_h = kaintana_test_get_fb_height()
+
+        let mismatch = check_framebuffer(fb_ptr, abs_golden, fb_w, fb_h)
+        if mismatch == 0:
+            pixel_status = "pass"
+        elif mismatch == -2:
+            pixel_status = "skip"
+            if cmd_ok == false:
+                return failing_result(
+                    spec.name, cmd_count, spec.expected_cmds,
+                    "skip", -1, duration_us,
+                    "golden file not found: " + abs_golden,
+                )
+        else:
+            pixel_status = "fail"
+            first_mismatch = mismatch
+
+    // Build result
+    if cmd_ok and (pixel_status == "pass" or pixel_status == "skip"):
+        return passing_result(spec.name, cmd_count, spec.expected_cmds, duration_us)
+
+    let error = if cmd_ok == false:
+            "cmd_count " + str(cmd_count) + " did not satisfy expected " + spec.expected_cmds
+        else:
+            "pixel mismatch at byte " + str(first_mismatch)
+
+    return failing_result(
+        spec.name, cmd_count, spec.expected_cmds,
+        pixel_status, first_mismatch, duration_us, error,
+    )
+
+// ============================================================================
+//  RUN TESTS — iterate over all specs and execute each one
+// ============================================================================
+
+fn run_tests(specs: Array<TestSpec>, json_mode: Bool) -> (Array<TestResult>, Int) with Unsafe, IO:
+    var results: Array<TestResult> = []
+    var exit_code: Int = 0
+
+    if json_mode == false:
+        print_header(len(specs), DEFAULT_FB_W, DEFAULT_FB_H)
+
+    // Initialize Kaintana system
+    kt_init()
+
+    // Create session with null backend
+    let session = kt_make("kaintana-test-runner", DEFAULT_FB_W, DEFAULT_FB_H)
+    if session == none:
+        print_error("kt_make returned NULL — session creation failed")
+        return (results, 2)
+
+    // Note: null backend is auto-registered when included as companion .c
+    // For explicit registration, we'd call:
+    //   kt_backend_register(session, "null", ...)
+    //   kt_backend_select(session, "null")
+
+    var i: Int = 0
+    while i < len(specs):
+        let spec = specs[i]
+        let result = run_one_test(session, spec)
+
+        if json_mode:
+            // In JSON mode, emit each result as a JSON line immediately
+            json_rep.print_result_line(result)
+        else:
+            print_test_result(
+                result.name, result.status,
+                result.cmd_count, result.expected_cmds,
+                result.pixel_status, result.duration_us,
+            )
+
+        push(results, result)
+        if result.status == "fail" or result.status == "error":
+            exit_code = 1
+
+        i = i + 1
+
+    // Cleanup
+    kt_free(session)
+
+    return (results, exit_code)
+
+// ============================================================================
+//  FIND SPEC FILES — discover spec .tsv files in a directory
+// ============================================================================
+
+fn find_spec_files(spec_dir: String) -> Array<String>:
+    if fs_is_dir(spec_dir) == false:
+        return []
+
+    // Read directory as text paths for simplicity
+    let dir_text = fs_read_dir_paths_text(spec_dir)
+    let paths = fs_nonempty_lines(dir_text)
+    var tsv_files: Array<String> = []
+    var i: Int = 0
+    while i < len(paths):
+        let entry_path = paths[i]
+        if text_ends_with_string(entry_path, ".tsv"):
+            push(tsv_files, entry_path)
+        i = i + 1
+
+    return tsv_files
+
+// ============================================================================
+//  LOAD ALL SPECS — load specs from all .tsv files in a directory
+// ============================================================================
+
+fn load_all_specs(spec_dir: String) -> Array<TestSpec>:
+    let files = find_spec_files(spec_dir)
+    var all_specs: Array<TestSpec> = []
+    var i: Int = 0
+    while i < len(files):
+        let specs = parse_specs(files[i])
+        var j: Int = 0
+        while j < len(specs):
+            push(all_specs, specs[j])
+            j = j + 1
+        i = i + 1
+    return all_specs
+
+// ============================================================================
+//  SUBCOMMAND: run  — execute test suite
+// ============================================================================
+
+fn cmd_run(cfg: CliConfig) -> Int with Unsafe, IO:
+    let boot = runtime_init()
+    if boot != 0:
+        print_error("runtime_init failed: " + str(boot))
+        return 2
+
+    // Determine spec path
+    let spec_path = if cfg.filepath != "":
+            cfg.filepath
+        else:
+            DEFAULT_SPEC_DIR
+
+    // Load specs
+    let specs = if fs_is_dir(spec_path):
+            load_all_specs(spec_path)
+        elif fs_is_file(spec_path):
+            parse_specs(spec_path)
+        else:
+            print_error("spec path not found: " + spec_path)
+            let _s = runtime_shutdown()
+            return 2
+
+    if len(specs) == 0:
+        print_error("no test specs found in: " + spec_path)
+        let _s = runtime_shutdown()
+        return 2
+
+    // Validate specs
+    var valid: Array<TestSpec> = []
+    var i: Int = 0
+    while i < len(specs):
+        let err = validate_spec(specs[i])
+        if err == "":
+            push(valid, specs[i])
+        else:
+            print_error("invalid spec: " + err)
+        i = i + 1
+
+    if len(valid) == 0:
+        print_error("no valid specs after validation")
+        let _s = runtime_shutdown()
+        return 2
+
+    // Filter by --spec if provided
+    var filter_spec: String = cfg.output_path  // reuse output_path for --spec value
+    // Note: --spec flag would need to be added to cli.kn's parse_args
+
+    var run_specs = valid
+    // If we had a --spec filter, we'd filter here
+
+    // Run tests
+    let (results, exit_code) = run_tests(run_specs, cfg.json)
+
+    // Emit JSON suite report if in JSON mode
+    if cfg.json and len(results) > 0:
+        // The suite header was already printed as NDJSON lines during run
+        // For full suite JSON, build and print at end
+        let suite = build_suite_object(results, DEFAULT_FB_W, DEFAULT_FB_H, BACKEND_NULL)
+        // Print suite as final JSON object
+        print_suite(suite)
+
+    // Terminal summary
+    if cfg.json == false:
+        var pass_count: Int = 0
+        var fail_count: Int = 0
+        var total: Int = len(results)
+        var j: Int = 0
+        while j < total:
+            if results[j].status == "pass":
+                pass_count = pass_count + 1
+            elif results[j].status == "fail" or results[j].status == "error":
+                fail_count = fail_count + 1
+            j = j + 1
+        print_footer(total, pass_count, fail_count, 0)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        print_error("runtime_shutdown failed: " + str(shutdown))
+        return 2
+
+    return exit_code
+
+// ============================================================================
+//  SUBCOMMAND: list  — list available test specs
+// ============================================================================
+
+fn cmd_list(cfg: CliConfig) -> Int:
+    let spec_path = if cfg.filepath != "":
+            cfg.filepath
+        else:
+            DEFAULT_SPEC_DIR
+
+    let specs = if fs_is_dir(spec_path):
+            load_all_specs(spec_path)
+        elif fs_is_file(spec_path):
+            parse_specs(spec_path)
+        else:
+            print_error("spec path not found: " + spec_path)
+            return 2
+
+    if len(specs) == 0:
+        println("No tests found in: " + spec_path)
+        return 0
+
+    println("Available tests (" + str(len(specs)) + "):")
+    println("")
+
+    var i: Int = 0
+    while i < len(specs):
+        let s = specs[i]
+        let has_golden = if s.golden_file != "":
+                " [golden: " + s.golden_file + "]"
+            else:
+                " [no golden]"
+        println("  " + s.name + " — " + str(s.width) + "x" + str(s.height)
+            + ", expected " + s.expected_cmds + " cmds" + has_golden)
+        i = i + 1
+
+    return 0
+
+// ============================================================================
+//  SUBCOMMAND: check  — verify golden files exist and specs are valid
+// ============================================================================
+
+fn cmd_check(cfg: CliConfig) -> Int:
+    let spec_path = if cfg.filepath != "":
+            cfg.filepath
+        else:
+            DEFAULT_SPEC_DIR
+
+    let specs = if fs_is_dir(spec_path):
+            load_all_specs(spec_path)
+        elif fs_is_file(spec_path):
+            parse_specs(spec_path)
+        else:
+            print_error("spec path not found: " + spec_path)
+            return 2
+
+    if len(specs) == 0:
+        print_error("no test specs found in: " + spec_path)
+        return 2
+
+    var errors: Int = 0
+    var i: Int = 0
+    while i < len(specs):
+        let s = specs[i]
+        let verr = validate_spec(s)
+        if verr != "":
+            print_error("invalid spec: " + verr)
+            errors = errors + 1
+        elif s.golden_file != "":
+            let golden_path = fs_path_join(DEFAULT_GOLDEN_DIR, s.golden_file)
+            if fs_exists(golden_path) == false:
+                print_error("golden file missing: " + golden_path + " (spec: " + s.name + ")")
+                errors = errors + 1
+        i = i + 1
+
+    println("Checked " + str(len(specs)) + " specs — " + str(errors) + " errors found.")
+    if errors > 0:
+        return 1
+    return 0
+
+// ============================================================================
+//  MAIN ENTRY POINT
+// ============================================================================
+
+fn main() -> Int with Unsafe, IO:
+    // Parse CLI arguments via cli.kn
+    let argv = get_user_args()
+    let cfg = parse_args(argv)
+
+    // --help / -h
+    if cfg.show_help:
+        print(usage())
+        return EXIT_HELP
+
+    // --version / -v
+    if cfg.show_version:
+        print(version())
+        return EXIT_HELP
+
+    // Subcommand dispatch
+    if cfg.subcommand == SUBCMD_HELP:
+        print(usage())
+        return EXIT_HELP
+
+    if cfg.subcommand == SUBCMD_VERSION:
+        print(version())
+        return EXIT_HELP
+
+    if cfg.subcommand == SUBCMD_RUN:
+        return cmd_run(cfg)
+
+    if cfg.subcommand == SUBCMD_CHECK:
+        return cmd_check(cfg)
+
+    // Add custom subcommand: list
+    if cfg.subcommand == "list":
+        return cmd_list(cfg)
+
+    // Unknown subcommand
+    print("Unknown subcommand: " + cfg.subcommand + "\n")
+    print("Run 'kaintana-test-runner --help' for usage.\n")
+    return EXIT_UNKNOWN
+
+// NOTE: usage() and version() are provided by cli.kn
+// (they appear under more specific kaintana-test-runner branding)

@@ -1,0 +1,271 @@
+// ============================================================================
+//  widgets/ScrollView.kn — Scrollable container with inertia physics
+//  P2-017: Pulse-driven momentum scroll with friction, rubber-band overscroll
+//          damping, and optional scrollbar indicators. Axis selection (vertical
+//          / horizontal / both). Stateful — maintains scroll position, velocity,
+//          and content dimensions across frames.
+//
+//  Physics model:
+//    - Friction: velocity *= 0.92^(dt*60) per frame — frame-rate independent
+//    - Rubber-band: ratio/(1+ratio) * viewport for overscroll damping
+//    - Settle: stops updating when velocity < SV_EPSILON
+//
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+// ============================================================================
+
+pub type KtSession   = Int
+pub type KtElementId = Int
+
+// ── @extern bindings (from core.kn) ──────────────────────────────────────
+@extern fn kt_row(s: KtSession, parent: KtElementId, kind: String, key: String) -> KtElementId
+@extern fn kt_end_row(s: KtSession) -> Void
+@extern fn kt_fill(s: KtSession, elem: KtElementId, color: String) -> Void
+@extern fn kt_width(s: KtSession, elem: KtElementId, w: Float) -> Void
+@extern fn kt_height(s: KtSession, elem: KtElementId, h: Float) -> Void
+@extern fn kt_radius(s: KtSession, elem: KtElementId, r: Float) -> Void
+@extern fn kt_opacity(s: KtSession, elem: KtElementId, a: Float) -> Void
+@extern fn kt_direction(s: KtSession, elem: KtElementId, dir: Int) -> Void
+@extern fn kt_pad(s: KtSession, elem: KtElementId, all: Float) -> Void
+@extern fn kt_gap(s: KtSession, elem: KtElementId, gap: Float) -> Void
+
+// ── Widget trait (from Widget.kn) ────────────────────────────────────────
+pub trait Widget:
+    fn stable_key(_self: Self_) -> String:
+        return ""
+    fn kind(_self: Self_) -> String:
+        return "widget"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return
+
+// ── Pure helper functions (not component methods) ─────────────────────────
+//  These take raw Float/String values and compute physics/layout.
+
+/// Absolute value for Float.
+fn abs_f(v: Float) -> Float:
+    if v < 0.0: return -v
+    return v
+
+/// Frame-rate independent friction factor: 0.92^(dt*60).
+/// Computed via iterated multiply since Kain lacks pow().
+fn friction_for_dt(dt_ms: Float) -> Float:
+    var f: Float = 1.0
+    var rem: Float = dt_ms
+    while rem > 0.0:
+        f = f * 0.92
+        rem = rem - 16.0
+    return f
+
+/// Rubber-band overscroll damping: ratio/(1+ratio) * viewport.
+/// Maps infinite overscroll to [0, viewport) via asymptotic clamping.
+pub fn rubber_band(overscroll: Float, viewport: Float) -> Float:
+    if overscroll <= 0.0:
+        return overscroll
+    let ratio = overscroll / viewport
+    let clamped = ratio / (1.0 + ratio)
+    return clamped * viewport
+
+/// Minimum of two Float values.
+fn min_f(a: Float, b: Float) -> Float:
+    if a < b: return a
+    return b
+
+/// Maximum of two Float values.
+fn max_f(a: Float, b: Float) -> Float:
+    if a > b: return a
+    return b
+
+/// Clamp value to [lo, hi].
+fn clamp_f(v: Float, lo: Float, hi: Float) -> Float:
+    var r = v
+    if r < lo: r = lo
+    if r > hi: r = hi
+    return r
+
+// ── ScrollView constants ────────────────────────────────────────────────
+
+/// Clamp threshold for settle detection.
+pub const SV_EPSILON: Float = 0.5
+
+/// Scrollbar track color (semi-transparent white overlay).
+pub const SV_BAR_COLOR:  String = "#FFFFFF33"
+
+/// Scrollbar active/hover color.
+pub const SV_BAR_ACTIVE: String = "#FFFFFF66"
+
+/// Scrollbar thickness in logical points.
+pub const SV_BAR_WIDTH:  Float = 6.0
+
+/// Scrollbar corner radius.
+pub const SV_BAR_RADIUS: Float = 3.0
+
+/// Minimum scrollbar length in logical points.
+pub const SV_BAR_MIN:    Float = 20.0
+
+// ============================================================================
+//  Component: ScrollView
+// ============================================================================
+
+/// Scrollable container with inertia physics.
+///
+/// Manages scroll position and velocity via pulse-driven physics.
+/// Supports vertical and/or horizontal scrolling with rubber-band
+/// overscroll and optional scrollbar indicators. The content offset
+/// and clip region are handled by the C substrate when it processes
+/// the "scrollview" element kind.
+///
+/// Physics pulse runs every 16ms:
+///   1. Apply friction to velocity
+///   2. Update scroll position from velocity
+///   3. Rubber-band at scroll boundaries
+///   4. Settle when velocity drops below threshold
+component ScrollView(
+    axis:           String = "vertical",
+    show_indicator: Bool = true,
+    width:          Float = 200.0,
+    height:         Float = 300.0,
+    key:            String = "scroll",
+):
+    // ── Scroll position state ─────────────────────────────────────────
+    state scroll_x: Float = 0.0
+    state scroll_y: Float = 0.0
+
+    // ── Inertia velocity state ────────────────────────────────────────
+    state velocity_x: Float = 0.0
+    state velocity_y: Float = 0.0
+
+    // ── Content dimensions (updated when children are measured) ───────
+    state content_width:  Float = 600.0
+    state content_height: Float = 900.0
+
+    // ── Scroll physics helpers ────────────────────────────────────────
+
+    /// Check if horizontal scrolling is allowed.
+    fn can_scroll_x(_self: Self_) -> Bool:
+        return _self.axis == "horizontal" or _self.axis == "both"
+
+    /// Check if vertical scrolling is allowed.
+    fn can_scroll_y(_self: Self_) -> Bool:
+        return _self.axis == "vertical" or _self.axis == "both"
+
+    /// Maximum scroll position in x (clamped to 0 if content ≤ viewport).
+    fn max_scroll_x(_self: Self_) -> Float:
+        return max_f(_self.content_width - _self.width, 0.0)
+
+    /// Maximum scroll position in y (clamped to 0 if content ≤ viewport).
+    fn max_scroll_y(_self: Self_) -> Float:
+        return max_f(_self.content_height - _self.height, 0.0)
+
+    /// Apply rubber-band to overscrolled position, x-axis.
+    fn clamp_scroll_x(_self: Self_) -> Float:
+        var sx = _self.scroll_x
+        if sx < 0.0:
+            let damped = rubber_band(-sx, _self.width)
+            sx = -damped
+        let max_sx = _self.max_scroll_x()
+        if sx > max_sx:
+            let overscroll = sx - max_sx
+            sx = max_sx + rubber_band(overscroll, _self.width)
+        return sx
+
+    /// Apply rubber-band to overscrolled position, y-axis.
+    fn clamp_scroll_y(_self: Self_) -> Float:
+        var sy = _self.scroll_y
+        if sy < 0.0:
+            let damped = rubber_band(-sy, _self.height)
+            sy = -damped
+        let max_sy = _self.max_scroll_y()
+        if sy > max_sy:
+            let overscroll = sy - max_sy
+            sy = max_sy + rubber_band(overscroll, _self.height)
+        return sy
+
+    /// Vertical scrollbar height in logical points.
+    fn scrollbar_v_height(_self: Self_) -> Float:
+        if _self.content_height <= 0.0:
+            return _self.height
+        let ratio = _self.height / _self.content_height
+        let raw = ratio * _self.height
+        return max_f(raw, SV_BAR_MIN)
+
+    /// Vertical scrollbar opacity: 1.0 when visible, 0.0 when hidden.
+    fn scrollbar_v_opacity(_self: Self_) -> Float:
+        if _self.show_indicator == false:
+            return 0.0
+        if _self.axis == "horizontal":
+            return 0.0
+        return 1.0
+
+    /// Horizontal scrollbar width in logical points.
+    fn scrollbar_h_width(_self: Self_) -> Float:
+        if _self.content_width <= 0.0:
+            return _self.width
+        let ratio = _self.width / _self.content_width
+        let raw = ratio * _self.width
+        return max_f(raw, SV_BAR_MIN)
+
+    /// Horizontal scrollbar opacity: 1.0 when visible, 0.0 when hidden.
+    fn scrollbar_h_opacity(_self: Self_) -> Float:
+        if _self.show_indicator == false:
+            return 0.0
+        if _self.axis == "vertical":
+            return 0.0
+        return 1.0
+
+    // ── Inertia scroll physics pulse ──────────────────────────────────
+
+    /// Pulse-driven scroll physics: apply friction, update position,
+    /// rubber-band at boundaries, settle when velocity is negligible.
+    pulse scroll_physics every 16ms jitter 2ms:
+        let dt = pulse_dt_ms
+
+        // Compute frame-rate-independent friction factor
+        let ff = friction_for_dt(dt)
+
+        // Apply friction to velocity
+        if can_scroll_x(self):
+            velocity_x = velocity_x * ff
+        else:
+            velocity_x = 0.0
+
+        if can_scroll_y(self):
+            velocity_y = velocity_y * ff
+        else:
+            velocity_y = 0.0
+
+        // Update scroll position from velocity
+        // Velocity is in "pixels per 60fps frame" units
+        let dt_norm = dt / 16.0
+        scroll_x = scroll_x + velocity_x * dt_norm
+        scroll_y = scroll_y + velocity_y * dt_norm
+
+        // Apply rubber-band overscroll clamping
+        scroll_x = clamp_scroll_x(self)
+        scroll_y = clamp_scroll_y(self)
+
+        // Settle detection: stop when velocity is negligible
+        if abs_f(velocity_x) < SV_EPSILON and abs_f(velocity_y) < SV_EPSILON:
+            velocity_x = 0.0
+            velocity_y = 0.0
+
+    // ── Render ────────────────────────────────────────────────────────
+
+    render <box kind="scrollview" key={key} width={width} height={height}>
+        <box key="scrollbar-v" fill={SV_BAR_COLOR} width={SV_BAR_WIDTH} height={scrollbar_v_height()} radius={SV_BAR_RADIUS} opacity={scrollbar_v_opacity()} />
+        <box key="scrollbar-h" fill={SV_BAR_COLOR} height={SV_BAR_WIDTH} width={scrollbar_h_width()} radius={SV_BAR_RADIUS} opacity={scrollbar_h_opacity()} />
+    </box>
+
+// ============================================================================
+//  Widget trait implementation for ScrollView
+// ============================================================================
+
+impl Widget for ScrollView:
+    fn stable_key(_self: Self_) -> String:
+        return _self.key
+    fn kind(_self: Self_) -> String:
+        return "scrollview"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return

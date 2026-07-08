@@ -3779,11 +3779,13 @@ fn run_kain_compile(
             artifacts.extend(write_hybrid_artifacts(primary_output, hybrid)?);
         }
         _ => {
+            let is_shared = matches!(emit, NativeEmit::SharedLib);
             let mut compiled = session.compile_with_source_path_and_progress(
                 &source,
                 Some(source_path),
                 target,
                 progress,
+                is_shared,
             )?;
             if target == CompileTarget::Llvm && native_llvm_ir_slicing_enabled()? {
                 if let Some((sliced, stats)) =

@@ -1,0 +1,14 @@
+// v1_no_surface.kn — component WITHOUT world surface binding
+// Does the component keyword itself crash, or is it the surface loop?
+
+use std::runtime
+
+component BareComponent():
+    render <text value="no surface binding" font_size={12} />
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    return 0

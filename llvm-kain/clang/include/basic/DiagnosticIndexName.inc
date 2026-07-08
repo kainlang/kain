@@ -1,0 +1,1 @@
+// Stub: DiagnosticIndexName.inc

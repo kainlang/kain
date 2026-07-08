@@ -1,0 +1,138 @@
+// ============================================================================
+//  dpi.kn — DPI helpers and pixel snapping
+//  P2-020: DPI helpers wrapping kt_scale_factor_x/y, kt_native_scale_x/y.
+//          Pixel snap wrappers. DpiContext struct.
+//
+//  Design rules:
+//    - All session values are logical points — DPI conversion is explicit.
+//    - DpiContext bundles session + computed scale factors.
+//    - Pixel snapping uses round(logical * scale) / scale for sub-pixel prevention.
+//    - 1/64 logical point rounding for layout stability.
+//
+//  Declares its own @extern bindings for the DPI C API.
+// ============================================================================
+
+use std::kaintana::core as core
+
+// ── @extern bindings (DPI functions from kaintana.h §20) ──────────────
+
+@extern fn kt_scale_factor_x(s: core::KtSession) -> Float
+@extern fn kt_scale_factor_y(s: core::KtSession) -> Float
+@extern fn kt_native_scale_x(s: core::KtSession) -> Float
+@extern fn kt_native_scale_y(s: core::KtSession) -> Float
+@extern fn kt_set_native_scale(s: core::KtSession, sx: Float, sy: Float) -> Void
+@extern fn kt_set_zoom(s: core::KtSession, zoom: Float) -> Void
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Constants
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Baseline DPI for 100% scaling (96 DPI).
+pub const KT_DPI_BASELINE: Float = 96.0
+
+/// Default scale factor when OS DPI not yet queried (96 DPI = 100%).
+pub const KT_DEFAULT_SCALE: Float = 1.0
+
+/// 1/64 logical point — numerical stability factor for layout.
+pub const KT_ROUND_UI_FACTOR: Float = 64.0
+
+/// Minimum user zoom (egui pattern).
+pub const KT_ZOOM_MIN: Float = 0.2
+
+/// Maximum user zoom.
+pub const KT_ZOOM_MAX: Float = 5.0
+
+/// Keyboard zoom granularity.
+pub const KT_ZOOM_STEP: Float = 0.1
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  DpiContext — per-session DPI state
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Per-session DPI context carrying effective scale factors.
+pub struct DpiContext:
+    scale_x: Float
+    scale_y: Float
+    zoom:    Float
+    session: core::KtSession
+
+/// Create a DpiContext by querying the session's current scale factors.
+pub fn dpi_context(s: core::KtSession) -> DpiContext:
+    return DpiContext {
+        scale_x: kt_scale_factor_x(s),
+        scale_y: kt_scale_factor_y(s),
+        zoom:    1.0,
+        session: s,
+    }
+
+/// Create a DpiContext with explicit scale and zoom values.
+pub fn dpi_context_explicit(
+    sx: Float, sy: Float, zoom: Float, s: core::KtSession,
+) -> DpiContext:
+    return DpiContext {
+        scale_x: sx,
+        scale_y: sy,
+        zoom:    zoom,
+        session: s,
+    }
+
+/// Refresh DpiContext from current session state.
+pub fn dpi_context_refresh(ctx: DpiContext) -> DpiContext:
+    return DpiContext {
+        scale_x: kt_scale_factor_x(ctx.session),
+        scale_y: kt_scale_factor_y(ctx.session),
+        zoom:    ctx.zoom,
+        session: ctx.session,
+    }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Pixel Snap (pure Float math)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Snap a logical X to nearest physical pixel boundary.
+pub fn round_to_pixel_x(logical: Float, scale: Float) -> Float:
+    let snapped = logical * scale + 0.5
+    let floored = snapped - (snapped % 1.0)
+    return floored / scale
+
+/// Snap a logical Y to nearest physical pixel boundary.
+pub fn round_to_pixel_y(logical: Float, scale: Float) -> Float:
+    let snapped = logical * scale + 0.5
+    let floored = snapped - (snapped % 1.0)
+    return floored / scale
+
+/// Snap to pixel center for 1px-wide lines.
+pub fn round_to_pixel_center_x(logical: Float, scale: Float) -> Float:
+    let multiplied = logical * scale
+    let floored = multiplied - (multiplied % 1.0)
+    return (floored + 0.5) / scale
+
+/// Express 1 physical pixel in logical coords.
+pub fn one_physical_pixel(scale: Float) -> Float:
+    return 1.0 / scale
+
+/// Round to 1/64 logical point for layout stability.
+pub fn round_ui(x: Float) -> Float:
+    let snapped = x * KT_ROUND_UI_FACTOR + 0.5
+    let floored = snapped - (snapped % 1.0)
+    return floored / KT_ROUND_UI_FACTOR
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Convenience
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Convert logical points to physical pixels via DpiContext.
+pub fn dp_to_px_x(ctx: DpiContext, logical: Float) -> Float:
+    return round_to_pixel_x(logical, ctx.scale_x)
+
+/// Convert logical points to physical pixels via DpiContext.
+pub fn dp_to_px_y(ctx: DpiContext, logical: Float) -> Float:
+    return round_to_pixel_y(logical, ctx.scale_y)
+
+/// Convert to physical pixels snapped to pixel center.
+pub fn dp_to_px_center_x(ctx: DpiContext, logical: Float) -> Float:
+    return round_to_pixel_center_x(logical, ctx.scale_x)
+
+/// Compute DPI scaling factor from OS-reported DPI value.
+pub fn dpi_scale_from_dpi(dpi: Float) -> Float:
+    return dpi / KT_DPI_BASELINE

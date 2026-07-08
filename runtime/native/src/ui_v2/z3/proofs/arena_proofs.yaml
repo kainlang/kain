@@ -1,0 +1,4 @@
+# arena_proofs.yaml — Z3 proof pack: arena safety
+# Proves: arena never overflows its current page, grow operation
+# is safe (new page >= requested size), all alloc indices stay
+# within bounds, frame marker release preserves arena invariants.

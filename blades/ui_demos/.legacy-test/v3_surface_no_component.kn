@@ -1,0 +1,17 @@
+// v3_surface_no_component.kn — world with surface but NO component body
+// Does the surface loop crash with no JSX?
+
+use std::runtime
+
+world EmptyWorld:
+    surface native_ui => EmptyRoot
+
+component EmptyRoot():
+    render <panel title="EMPTY" />
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    return 0

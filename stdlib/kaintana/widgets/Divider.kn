@@ -1,0 +1,76 @@
+// ============================================================================
+//  widgets/Divider.kn — Horizontal/vertical separator line
+//  P2-016: Simplest widget — straight stroke render with orientation,
+//          thickness, and color props. Color defaults to theme.border.
+//          Pure stroke — no fill, no interaction, no state.
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+// ============================================================================
+
+pub type KtSession   = Int
+pub type KtElementId = Int
+
+// ── @extern bindings (from core.kn) ──────────────────────────────────────
+@extern fn kt_row(s: KtSession, parent: KtElementId, kind: String, key: String) -> KtElementId
+@extern fn kt_end_row(s: KtSession) -> Void
+@extern fn kt_fill(s: KtSession, elem: KtElementId, color: String) -> Void
+@extern fn kt_stroke(s: KtSession, elem: KtElementId, color: String, w: Float) -> Void
+@extern fn kt_width(s: KtSession, elem: KtElementId, w: Float) -> Void
+@extern fn kt_height(s: KtSession, elem: KtElementId, h: Float) -> Void
+
+// ── Widget trait (from Widget.kn) ────────────────────────────────────────
+pub trait Widget:
+    fn stable_key(_self: Self_) -> String:
+        return ""
+    fn kind(_self: Self_) -> String:
+        return "widget"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return
+
+// ============================================================================
+//  Component: Divider
+// ============================================================================
+
+/// Horizontal or vertical separator line.
+/// Stateless — all values from props. Renders a thin stroked line using
+/// kt_stroke with the given color (defaults to theme border color).
+/// No interaction state, no callbacks — purely decorative.
+component Divider(
+    orientation: String = "horizontal",
+    thickness:   Float = 1.0,
+    color:       String = "#2E2E4A",
+    key:         String = "divider",
+):
+    /// Resolve stroke color: use explicit color or fall back to theme border.
+    fn resolved_color(_self: Self_) -> String:
+        if _self.color != "#2E2E4A":
+            return _self.color
+        return "#2E2E4A"
+
+    /// Resolve orientation: horizontal = fixed height, full width; vertical = fixed width, full height.
+    fn div_width(_self: Self_) -> Float:
+        if _self.orientation == "vertical":
+            return _self.thickness
+        return 200.0
+
+    fn div_height(_self: Self_) -> Float:
+        if _self.orientation == "vertical":
+            return 200.0
+        return _self.thickness
+
+    render <box kind="divider" key={key} width={div_width()} height={div_height()} />
+
+// ============================================================================
+//  Widget trait implementation for Divider
+// ============================================================================
+
+impl Widget for Divider:
+    fn stable_key(_self: Self_) -> String:
+        return _self.key
+    fn kind(_self: Self_) -> String:
+        return "divider"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return

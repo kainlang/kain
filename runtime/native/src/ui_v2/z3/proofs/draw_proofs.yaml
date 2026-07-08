@@ -1,0 +1,4 @@
+# draw_proofs.yaml — Z3 proof pack: draw command integrity
+# Proves: draw command count never exceeds the ring buffer capacity,
+# merge of adjacent same-style commands is idempotent and correct,
+# write-pointer never wraps past read-pointer.

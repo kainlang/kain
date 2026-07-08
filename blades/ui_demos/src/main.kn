@@ -1,0 +1,478 @@
+// ============================================================================
+//  main.kn — Kain UI Demo Runner
+//
+//  Drop .kn files in a folder. Each file creates a window, renders UI,
+//  and can self-report telemetry via stdout lines with the UI_DEMO: prefix.
+//
+//  Usage:
+//    kain run blades/ui_demos/ -- run              # run all demos
+//    kain run blades/ui_demos/ -- run widget       # filter by name
+//    kain run blades/ui_demos/ -- list             # list all demos
+//
+//  Ladder: Layer 0 — plain fn + IO effect for process/filesystem.
+// ============================================================================
+
+use std::time
+use std::fs
+use std::path
+use std::os
+use std::runtime
+use std::text
+use std::ascii
+
+// ============================================================================
+//  CONFIG
+// ============================================================================
+
+const DEMO_TIMEOUT_MS: Int = 5000
+
+// ============================================================================
+//  RESULT
+// ============================================================================
+
+struct DemoResult:
+    demo_name:   String
+    exe_path:    String
+    status:      String
+    frames:      Int
+    fps:         Int
+    errors:      Int
+    error_msg:   String
+    build_ok:    Bool
+    run_ok:      Bool
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    let args = user_args()
+    if len(args) < 1:
+        println("usage: demo run [filter]")
+        println("  demo list")
+        let _s = runtime_shutdown()
+        return 1
+
+    let cmd = args[0]
+    var filter = ""
+    if len(args) >= 2:
+        filter = args[1]
+
+    let cwd = os_getcwd()
+    let dir = cwd
+
+    if cmd == "list":
+        let _s = runtime_shutdown()
+        return cmd_list(dir, filter)
+    if cmd == "run":
+        let _s = runtime_shutdown()
+        return cmd_run(dir, filter)
+
+    println("unknown command: " + cmd)
+    let _s = runtime_shutdown()
+    return 3
+
+fn user_args() -> Array<String>:
+    let count = process_arg_count()
+    let args: Array<String> = []
+    var i = 1
+    while i < count:
+        push(args, process_arg(i))
+        i = i + 1
+    return args
+
+// ============================================================================
+//  CMD LIST
+// ============================================================================
+
+fn cmd_list(dir: String, filter: String) -> Int:
+    let files = find_demo_files(dir)
+    let filtered = apply_filter(files, filter)
+    if len(filtered) == 0:
+        println("no .kn demo files in " + dir)
+        if filter != "": println("  (filter: " + filter + ")")
+        return 0
+    println(str(len(filtered)) + " demo file(s) in " + dir + ":")
+    var i = 0
+    while i < len(filtered):
+        println("  " + filtered[i])
+        i = i + 1
+    return 0
+
+// ============================================================================
+//  CMD RUN
+// ============================================================================
+
+fn cmd_run(dir: String, filter: String) -> Int:
+    let files = find_demo_files(dir)
+    let filtered = apply_filter(files, filter)
+    if len(filtered) == 0:
+        println("no .kn demo files in " + dir)
+        if filter != "": println("  (filter: " + filter + ")")
+        return 0
+
+    let results: Array<DemoResult> = []
+    var i = 0
+    while i < len(filtered):
+        let file = filtered[i]
+        let abs_file = path_join(dir, file)
+        let dname = path_stem(file)
+        println("[" + str(i + 1) + "/" + str(len(filtered)) + "] " + dname + " ...")
+        let result = demo_file(abs_file)
+        push(results, result)
+        if result.build_ok and result.run_ok:
+            println("  -> " + result.status + " | frames=" + str(result.frames) +
+                    " | fps=" + str(result.fps) + " | errors=" + str(result.errors))
+        else:
+            println("  -> FAILED: " + result.error_msg)
+        i = i + 1
+
+    let report = write_markdown_report(dir, results)
+    println("")
+    println("report: " + report)
+    return 0
+
+// ============================================================================
+//  FIND .kn FILES — exclude src/ (the runner itself)
+// ============================================================================
+
+fn find_demo_files(dir: String) -> Array<String>:
+    let entries = fs_walk(dir)
+    let result: Array<String> = []
+    var i = 0
+    while i < len(entries):
+        let ep = entries[i].path
+        if text_ends_with_string(ep, ".kn"):
+            // Exclude build.kn, _test*.kn, and files in src/ directory
+            let fname = path_file_name(ep)
+            if fname != "build.kn":
+                if text_starts_with_string(fname, "_test") == false:
+                    if text_contains_string(ep, "\\src\\") == false:
+                        if text_contains_string(ep, "/src/") == false:
+                            push(result, fname)
+        i = i + 1
+    return result
+
+// ============================================================================
+//  FILTER — case-insensitive substring match on demo name
+// ============================================================================
+
+fn apply_filter(files: Array<String>, filter: String) -> Array<String>:
+    if filter == "": return files
+    let result: Array<String> = []
+    var i = 0
+    while i < len(files):
+        let stem = path_stem(files[i])
+        if text_contains_string_ignore_case(stem, filter):
+            push(result, files[i])
+        i = i + 1
+    return result
+
+fn text_contains_string_ignore_case(haystack: String, needle: String) -> Bool:
+    if len(needle) > len(haystack): return false
+    var i = 0
+    while i <= len(haystack) - len(needle):
+        var matched = true
+        var j = 0
+        while j < len(needle):
+            let hc = ascii_char_code(char_at(haystack, i + j))
+            let nc = ascii_char_code(char_at(needle, j))
+            // Compare case-insensitively for ASCII letters
+            var hcl = hc
+            if hcl >= 65 and hcl <= 90: hcl = hcl + 32
+            var ncl = nc
+            if ncl >= 65 and ncl <= 90: ncl = ncl + 32
+            if hcl != ncl:
+                matched = false
+                break
+            j = j + 1
+        if matched: return true
+        i = i + 1
+    return false
+
+// ============================================================================
+//  DEMO A SINGLE FILE — build, run with timeout, parse UI_DEMO: stdout lines
+// ============================================================================
+
+fn demo_file(abs_kn_path: String) -> DemoResult:
+    let dname = path_stem(abs_kn_path)
+
+    // Build
+    let fixed_path = text_replace_string(abs_kn_path, "\\", "/")
+    let _bs = os_system("kain build " + fixed_path + " --target llvm")
+
+    // Find built exe
+    let exe = find_built_exe(abs_kn_path)
+    if exe == "":
+        return fail_result(dname, "", false, "build failed — no exe produced")
+
+    // Run with timeout — UI apps don't exit, so we capture stdout for 5s then kill
+    let fixed_exe = text_replace_string(exe, "\\", "/")
+    let output = os_popen_read(fixed_exe, DEMO_TIMEOUT_MS)
+
+    // Parse UI_DEMO: lines from output
+    if output == "":
+        // UI apps typically produce no stdout unless they print telemetry.
+        // The process was killed by timeout (normal for UI apps).
+        return DemoResult {
+            demo_name: dname, exe_path: exe, status: "RAN",
+            frames: 0, fps: 0, errors: 0,
+            error_msg: "no stdout (UI app ran, no telemetry lines)",
+            build_ok: true, run_ok: true,
+        }
+
+    return parse_demo_output(dname, exe, output)
+
+// ============================================================================
+//  PARSE UI_DEMO: OUTPUT
+//  Format: UI_DEMO:<name>|STATUS:ok|FRAMES:180|FPS:60|ERRORS:0
+// ============================================================================
+
+fn parse_demo_output(dname: String, exe: String, output: String) -> DemoResult:
+    var status = "FAIL"
+    var frames = 0
+    var fps = 0
+    var errors = 0
+    var found = false
+
+    let lines = split_lines(output)
+    var li = 0
+    while li < len(lines):
+        let ln = text_trim_string(lines[li])
+        if text_starts_with_string(ln, "UI_DEMO:"):
+            found = true
+            let s = parse_field(ln, "STATUS:")
+            if s != "": status = s
+            let f = parse_int_field(ln, "FRAMES:")
+            if f >= 0: frames = f
+            let p = parse_int_field(ln, "FPS:")
+            if p >= 0: fps = p
+            let e = parse_int_field(ln, "ERRORS:")
+            if e >= 0: errors = e
+        li = li + 1
+
+    if found == false:
+        // Got stdout but no UI_DEMO: line — maybe error messages
+        return DemoResult {
+            demo_name: dname, exe_path: exe, status: "NO_TELEMETRY",
+            frames: 0, fps: 0, errors: 0,
+            error_msg: "stdout present but no UI_DEMO: line",
+            build_ok: true, run_ok: true,
+        }
+
+    var run_ok = true
+    if status == "fail" or status == "FAIL" or status == "crash" or status == "CRASH":
+        run_ok = false
+
+    return DemoResult {
+        demo_name: dname, exe_path: exe, status: status,
+        frames: frames, fps: fps, errors: errors,
+        error_msg: "",
+        build_ok: true, run_ok: run_ok,
+    }
+
+// ============================================================================
+//  FIND BUILT EXE — walk .kain/out, check sibling, check cwd
+// ============================================================================
+
+fn find_built_exe(abs_kn_path: String) -> String:
+    let bname = path_stem(abs_kn_path)
+    let target_name = bname + ".exe"
+
+    // 1. Walk .kain/out (fresh build from kain build command)
+    var search_dir = path_parent(abs_kn_path)
+    var attempts = 0
+    while attempts < 5:
+        let out_path = path_join(path_join(search_dir, ".kain"), "out")
+        if fs_exists(out_path):
+            let entries = fs_walk(out_path)
+            var i = 0
+            while i < len(entries):
+                if text_ends_with_string(entries[i].path, target_name):
+                    return entries[i].path
+                i = i + 1
+        let up = path_parent(search_dir)
+        if up == search_dir: break
+        search_dir = up
+        attempts = attempts + 1
+
+    // 2. Check sibling (next to .kn file)
+    let parent = path_parent(abs_kn_path)
+    let sibling = path_join(parent, target_name)
+    if fs_exists(sibling):
+        return sibling
+
+    // 3. Check repo root
+    let cwd = os_getcwd()
+    let root_exe = path_join(cwd, target_name)
+    if fs_exists(root_exe):
+        return root_exe
+
+    return ""
+
+// ============================================================================
+//  PARSE HELPERS
+// ============================================================================
+
+fn fail_result(dname: String, exe: String, built: Bool, msg: String) -> DemoResult:
+    return DemoResult {
+        demo_name: dname, exe_path: exe, status: "FAIL",
+        frames: 0, fps: 0, errors: 0,
+        error_msg: msg,
+        build_ok: built, run_ok: false,
+    }
+
+fn parse_int_field(ln: String, key: String) -> Int:
+    // Find "|KEY:" in ln, parse trailing integer
+    var i = 0
+    while i <= len(ln) - len(key) - 1:
+        if char_at(ln, i) != "|":
+            i = i + 1
+            continue
+        var matched = true
+        var j = 0
+        while j < len(key):
+            if char_at(ln, i + 1 + j) != char_at(key, j):
+                matched = false
+                break
+            j = j + 1
+        if matched:
+            var start = i + 1 + len(key)
+            var val = 0
+            var sign = 1
+            if start < len(ln) and char_at(ln, start) == "-":
+                sign = -1
+                start = start + 1
+            var k = start
+            while k < len(ln):
+                let c = char_at(ln, k)
+                let code = ascii_char_code(c)
+                if code >= 48 and code <= 57:
+                    val = val * 10 + (code - 48)
+                else:
+                    break
+                k = k + 1
+            return val * sign
+        i = i + 1
+    return -1
+
+fn parse_field(ln: String, key: String) -> String:
+    // Parse a text field like STATUS:ok (stops at | or end of line)
+    var i = 0
+    while i <= len(ln) - len(key) - 1:
+        if char_at(ln, i) != "|":
+            i = i + 1
+            continue
+        var matched = true
+        var j = 0
+        while j < len(key):
+            if char_at(ln, i + 1 + j) != char_at(key, j):
+                matched = false
+                break
+            j = j + 1
+        if matched:
+            var start = i + 1 + len(key)
+            var val = ""
+            var k = start
+            while k < len(ln):
+                let c = char_at(ln, k)
+                if c == "|" or c == "\n" or c == "\r":
+                    break
+                val = val + c
+                k = k + 1
+            return val
+        i = i + 1
+    return ""
+
+fn split_lines(text: String) -> Array<String>:
+    let result: Array<String> = []
+    var current = ""
+    var i = 0
+    while i < len(text):
+        let c = char_at(text, i)
+        if c == "\n":
+            push(result, current)
+            current = ""
+        elif c != "\r":
+            current = current + c
+        i = i + 1
+    if current != "": push(result, current)
+    return result
+
+// ============================================================================
+//  WRITE MARKDOWN REPORT
+// ============================================================================
+
+fn write_markdown_report(dir: String, results: Array<DemoResult>) -> String:
+    var md = "# UI Demo Report\n\n"
+    md = md + "**Folder:** `" + dir + "`  \n"
+    md = md + "**Date:** " + iso_now() + "  \n"
+    md = md + "**Timeout:** " + str(DEMO_TIMEOUT_MS) + "ms per demo  \n"
+    md = md + "**Demos:** " + str(len(results)) + "\n\n"
+
+    md = md + "| Demo | Status | Frames | FPS | Errors | Binary |\n"
+    md = md + "|------|--------|--------|-----|--------|--------|\n"
+    var i = 0
+    while i < len(results):
+        let r = results[i]
+        var status_icon = "???"
+        if r.build_ok == false:
+            status_icon = "BUILD_FAIL"
+        elif r.run_ok == false:
+            status_icon = "FAIL"
+        elif r.status == "ok" or r.status == "OK":
+            status_icon = "PASS"
+        elif r.status == "RAN":
+            status_icon = "RAN"
+        elif r.status == "NO_TELEMETRY":
+            status_icon = "RAN"
+        else:
+            status_icon = r.status
+
+        var row = "| `" + r.demo_name + "` | " + status_icon + " | "
+        if r.frames > 0 or (r.build_ok and r.run_ok and r.status == "RAN"):
+            row = row + str(r.frames) + " | " + str(r.fps) + " | " + str(r.errors) + " | "
+        else:
+            row = row + "— | — | — | "
+        row = row + "`" + r.exe_path + "` |\n"
+        md = md + row
+        i = i + 1
+
+    md = md + "\n## Details\n\n"
+    i = 0
+    while i < len(results):
+        let r = results[i]
+        md = md + "### " + r.demo_name + "\n\n"
+        if r.build_ok == false:
+            md = md + "BUILD FAILED: " + r.error_msg + "\n\n"
+        elif r.run_ok == false:
+            md = md + "CRASH / FAIL: " + r.error_msg + "\n\n"
+        else:
+            md = md + "- **Status:** " + r.status + "\n"
+            md = md + "- **Frames:** " + str(r.frames) + "\n"
+            md = md + "- **FPS:** " + str(r.fps) + "\n"
+            md = md + "- **Errors:** " + str(r.errors) + "\n"
+            md = md + "- **Binary:** `" + r.exe_path + "`\n"
+            if r.error_msg != "":
+                md = md + "- **Note:** " + r.error_msg + "\n"
+        md = md + "\n"
+        i = i + 1
+
+    let report_path = path_join(dir, "report.md")
+    let ok = os_write_text(report_path, md)
+    if ok: return report_path
+    return ""
+
+fn iso_now() -> String:
+    let now = now_millis()
+    let dt = datetime_from_epoch_millis(now)
+    var buf = str(dt.year) + "-" + zero2(dt.month) + "-" + zero2(dt.day)
+    buf = buf + " " + zero2(dt.hour) + ":" + zero2(dt.minute) + ":" + zero2(dt.second)
+    return buf
+
+fn zero2(v: Int) -> String:
+    if v < 10: return "0" + str(v)
+    return str(v)

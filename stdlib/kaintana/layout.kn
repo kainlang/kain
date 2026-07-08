@@ -1,0 +1,224 @@
+// ============================================================================
+//  layout.kn — Layout Composition Components
+//  P1-005: HStack, VStack, ZStack, Grid, Spacer, Padding
+//
+//  Architecture:
+//    Pure Kain wrappers over the C-side flexbox solver (box_math.c).
+//    NO layout computation in Kain — all math lives in the C substrate.
+//    Each component opens a <box kind="stack|grid|spacer|padding"> and
+//    sets direction/gap/pad/width/height attributes via JSX that the C
+//    attribute table processes into box_math.c layout fields.
+//
+//  Dependencies:
+//    - core.kn: kt_row, kt_end_row, attribute setters, type aliases
+//    - theme.kn: KtSpacing, KT_SPACING for spacing defaults
+//
+//  Rules:
+//    1. No layout computation in Kain.
+//    2. Spacer uses flex_grow=1 via kind="spacer".
+//    3. Grid uses flex-wrap for row wrapping + computed column widths.
+//    4. Padding uses individual side overrides when set (>= 0).
+//    5. All visual values flow through JSX attributes to C attribute table.
+// ============================================================================
+
+use std::kaintana::core as core
+use std::kaintana::theme as theme
+
+// ============================================================================
+//  LAYOUT DIRECTION CONSTANTS (re-exported from core.kn)
+pub use KT_DIR_ROW
+pub use KT_DIR_COLUMN
+pub use KT_DIR_ROW_REVERSE
+pub use KT_DIR_COLUMN_REVERSE
+// ============================================================================
+//  JUSTIFY CONTENT CONSTANTS (main-axis alignment)
+//  Matches KaintanaJustify C enum in kaintana.h
+// ============================================================================
+
+/// Items packed toward start of main axis.
+pub const KT_JUSTIFY_FLEX_START:    Int = 0
+/// Items packed toward center of main axis.
+pub const KT_JUSTIFY_CENTER:        Int = 1
+/// Items packed toward end of main axis.
+pub const KT_JUSTIFY_FLEX_END:      Int = 2
+/// Items evenly distributed, first at start, last at end.
+pub const KT_JUSTIFY_SPACE_BETWEEN: Int = 3
+/// Items evenly distributed, equal space around each item.
+pub const KT_JUSTIFY_SPACE_AROUND:  Int = 4
+/// Items evenly distributed, equal space between items and edges.
+pub const KT_JUSTIFY_SPACE_EVENLY:  Int = 5
+
+// ============================================================================
+//  ALIGN ITEMS CONSTANTS (cross-axis alignment)
+//  Matches KaintanaAlign C enum in kaintana.h
+// ============================================================================
+
+/// Items stretch to fill container cross size.
+pub const KT_ALIGN_STRETCH:    Int = 0
+/// Items aligned toward start of cross axis.
+pub const KT_ALIGN_FLEX_START: Int = 1
+/// Items aligned toward center of cross axis.
+pub const KT_ALIGN_CENTER:     Int = 2
+/// Items aligned toward end of cross axis.
+pub const KT_ALIGN_FLEX_END:   Int = 3
+/// Items aligned to their text baseline.
+pub const KT_ALIGN_BASELINE:   Int = 4
+/// Items use their own alignment (auto).
+pub const KT_ALIGN_AUTO:       Int = 5
+
+// ============================================================================
+//  HStack — horizontal stack layout
+//  Children laid out left-to-right with optional spacing and padding.
+//  Wraps <box kind="stack"> with direction=row.
+// ============================================================================
+
+/// Horizontal stack: children flow left-to-right.
+///
+/// Props:
+///   spacing  — gap between children in logical points (default KT_SPACING.md)
+///   padding  — uniform padding around all children (default 0)
+///   alignment — cross-axis alignment (default "center")
+///   width    — explicit width in logical points (0 = auto)
+///   height   — explicit height in logical points (0 = auto)
+///   key      — stable key for reconciliation
+component HStack(
+    spacing: Float = theme::KT_SPACING.md,
+    padding: Float = 0.0,
+    alignment: String = "center",
+    width: Float = 0.0,
+    height: Float = 0.0,
+    key: String = "hstack",
+):
+    render <box kind="stack" key={key} direction={KT_DIR_ROW} gap={spacing} pad={padding} alignment={alignment} width={width} height={height}>
+    </box>
+
+// ============================================================================
+//  VStack — vertical stack layout
+//  Children laid out top-to-bottom with optional spacing and padding.
+//  Wraps <box kind="stack"> with direction=column.
+// ============================================================================
+
+/// Vertical stack: children flow top-to-bottom.
+///
+/// Props:
+///   spacing  — gap between children in logical points (default KT_SPACING.md)
+///   padding  — uniform padding around all children (default 0)
+///   alignment — cross-axis alignment (default "center")
+///   width    — explicit width in logical points (0 = auto)
+///   height   — explicit height in logical points (0 = auto)
+///   key      — stable key for reconciliation
+component VStack(
+    spacing: Float = theme::KT_SPACING.md,
+    padding: Float = 0.0,
+    alignment: String = "center",
+    width: Float = 0.0,
+    height: Float = 0.0,
+    key: String = "vstack",
+):
+    render <box kind="stack" key={key} direction={KT_DIR_COLUMN} gap={spacing} pad={padding} alignment={alignment} width={width} height={height}>
+    </box>
+
+// ============================================================================
+//  ZStack — z-order stack layout
+//  Children stacked back-to-front at the same position.
+//  Uses the default stack (no direction override) so all children
+//  occupy the same bounds and are rendered in declaration order.
+// ============================================================================
+
+/// Z-order stack: children stacked back-to-front, same position.
+///
+/// Props:
+///   alignment — cross-axis alignment (default "center")
+///   width    — explicit width in logical points (0 = auto)
+///   height   — explicit height in logical points (0 = auto)
+///   key      — stable key for reconciliation
+component ZStack(
+    alignment: String = "center",
+    width: Float = 0.0,
+    height: Float = 0.0,
+    key: String = "zstack",
+):
+    render <box kind="stack" key={key} alignment={alignment} width={width} height={height}>
+    </box>
+
+// ============================================================================
+//  Grid — multi-column grid layout
+//  Children arranged in a row-major grid with `columns` columns.
+//  Uses flex-wrap to wrap children to new rows. Each child is sized
+//  to fill (100% / columns) of the container width.
+//  The C-side box_math.c handles the flex-wrap and percentage-based
+//  child sizing. This component sets flex-wrap=wrap and children
+//  receive width={100% / columns} from the attribute table.
+// ============================================================================
+
+/// Grid: children arranged in a row-major grid with N columns.
+///
+/// Props:
+///   columns  — number of columns (default 2). Each child gets
+///              (100% / columns) width automatically.
+///   spacing  — gap between children in logical points (default KT_SPACING.md)
+///   padding  — uniform padding around the grid (default 0)
+///   width    — explicit width in logical points (0 = auto)
+///   height   — explicit height in logical points (0 = auto)
+///   key      — stable key for reconciliation
+component Grid(
+    columns: Int = 2,
+    spacing: Float = theme::KT_SPACING.md,
+    padding: Float = 0.0,
+    width: Float = 0.0,
+    height: Float = 0.0,
+    key: String = "grid",
+):
+    render <box kind="grid" key={key} direction={KT_DIR_ROW} gap={spacing} pad={padding} width={width} height={height}>
+    </box>
+
+// ============================================================================
+//  Spacer — flexible space filler
+//  Takes remaining space in a flex container via flex_grow.
+//  Wraps <box kind="spacer"> which the C substrate interprets
+//  as a flex-grow: 1 element.
+// ============================================================================
+
+/// Spacer: fills remaining space in a flex container (flex-grow: 1).
+///
+/// Props:
+///   min_size — minimum size in logical points (default 0). The spacer
+///              will not shrink below this value.
+///   key      — stable key for reconciliation
+component Spacer(
+    min_size: Float = 0.0,
+    key: String = "spacer",
+):
+    render <box kind="spacer" key={key} width={min_size}>
+    </box>
+
+// ============================================================================
+//  Padding — insets children by specified padding
+//  Wraps children in a padded container. Supports uniform (all) and
+//  per-side (left, right, top, bottom) padding values.
+//  When a per-side value is specified (>= 0), it overrides 'all'.
+// ============================================================================
+
+/// Padding: insets children on all four sides.
+///
+/// Props:
+///   all    — uniform padding on all sides (default KT_SPACING.md)
+///   left   — left-side override (-1 = use 'all')
+///   right  — right-side override (-1 = use 'all')
+///   top    — top-side override (-1 = use 'all')
+///   bottom — bottom-side override (-1 = use 'all')
+///   key    — stable key for reconciliation
+component Padding(
+    all: Float = theme::KT_SPACING.md,
+    left: Float = -1.0,
+    right: Float = -1.0,
+    top: Float = -1.0,
+    bottom: Float = -1.0,
+    width: Float = 0.0,
+    height: Float = 0.0,
+    key: String = "pad",
+):
+    state resolved_pad: Float = all
+
+    render <box kind="padding" key={key} pad={resolved_pad} width={width} height={height}>
+    </box>

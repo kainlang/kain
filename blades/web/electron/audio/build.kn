@@ -1,0 +1,138 @@
+// ============================================================================
+//  build.kn — Audio Effect Builder
+// ============================================================================
+//  Builds all audio effects as native executables for testing.
+//  Each file exports its process function and has a trivial main().
+//
+//  BUILD ALL:  cd X:/blades/web/electron/audio && kain build .
+//  BUILD ONE:  kain build audio/lowpass.kn --target llvm
+//  CHECK ALL:  kain check *.kn
+// ============================================================================
+
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let root: String = "."
+    let build_out: String = ".kain/out"
+
+    // ── Lowpass ───────────────────────────────────────────────────
+    let lp_proj = project("lowpass-proj")
+        .kind("kain_executable").version("0.1.0")
+        .description("Lowpass filter")
+        .entry("lowpass.kn")
+        .source_root(root).module_root(root)
+        .targets("llvm")
+        .artifact_root(out).cache_root(out).profile("debug")
+
+    let lp_check = check_task("lowpass-check")
+        .project(lp_proj).entry("lowpass.kn").target("llvm")
+        .input("lowpass.kn").input("build.kn")
+
+    let lp_exe = native_executable("lowpass-exe")
+        .project(lp_proj).entry("lowpass.kn").target("llvm")
+        .output("$blade/lowpass.exe")
+        .input("lowpass.kn").input("build.kn")
+        .requires("lowpass-check")
+
+    // ── Reverb ────────────────────────────────────────────────────
+    let rv_proj = project("reverb-proj")
+        .kind("kain_executable").version("0.1.0")
+        .description("Schroeder reverb")
+        .entry("reverb.kn")
+        .source_root(root).module_root(root)
+        .targets("llvm")
+        .artifact_root(out).cache_root(out).profile("debug")
+
+    let rv_check = check_task("reverb-check")
+        .project(rv_proj).entry("reverb.kn").target("llvm")
+        .input("reverb.kn").input("build.kn")
+
+    let rv_exe = native_executable("reverb-exe")
+        .project(rv_proj).entry("reverb.kn").target("llvm")
+        .output("$blade/reverb.exe")
+        .input("reverb.kn").input("build.kn")
+        .requires("reverb-check")
+
+    // ── Delay ────────────────────────────────────────────────────
+    let dl_proj = project("delay-proj")
+        .kind("kain_executable").version("0.1.0")
+        .description("Ping-pong delay")
+        .entry("delay.kn")
+        .source_root(root).module_root(root)
+        .targets("llvm")
+        .artifact_root(out).cache_root(out).profile("debug")
+
+    let dl_check = check_task("delay-check")
+        .project(dl_proj).entry("delay.kn").target("llvm")
+        .input("delay.kn").input("build.kn")
+
+    let dl_exe = native_executable("delay-exe")
+        .project(dl_proj).entry("delay.kn").target("llvm")
+        .output("$blade/delay.exe")
+        .input("delay.kn").input("build.kn")
+        .requires("delay-check")
+
+    // ── Chorus ───────────────────────────────────────────────────
+    let ch_proj = project("chorus-proj")
+        .kind("kain_executable").version("0.1.0")
+        .description("Chorus effect")
+        .entry("chorus.kn")
+        .source_root(root).module_root(root)
+        .targets("llvm")
+        .artifact_root(out).cache_root(out).profile("debug")
+
+    let ch_check = check_task("chorus-check")
+        .project(ch_proj).entry("chorus.kn").target("llvm")
+        .input("chorus.kn").input("build.kn")
+
+    let ch_exe = native_executable("chorus-exe")
+        .project(ch_proj).entry("chorus.kn").target("llvm")
+        .output("$blade/chorus.exe")
+        .input("chorus.kn").input("build.kn")
+        .requires("chorus-check")
+
+    // ── Tremolo ──────────────────────────────────────────────────
+    let tr_proj = project("tremolo-proj")
+        .kind("kain_executable").version("0.1.0")
+        .description("Tremolo effect")
+        .entry("tremolo.kn")
+        .source_root(root).module_root(root)
+        .targets("llvm")
+        .artifact_root(out).cache_root(out).profile("debug")
+
+    let tr_check = check_task("tremolo-check")
+        .project(tr_proj).entry("tremolo.kn").target("llvm")
+        .input("tremolo.kn").input("build.kn")
+
+    let tr_exe = native_executable("tremolo-exe")
+        .project(tr_proj).entry("tremolo.kn").target("llvm")
+        .output("$blade/tremolo.exe")
+        .input("tremolo.kn").input("build.kn")
+        .requires("tremolo-check")
+
+    // ── Run Audio (Test Harness) ──────────────────────────────────
+    let run_proj = project("run-proj")
+        .kind("kain_executable").version("0.1.0")
+        .description("Audio test harness")
+        .entry("run_audio.kn")
+        .source_root(root).module_root(root)
+        .targets("llvm")
+        .artifact_root(out).cache_root(out).profile("debug")
+
+    let run_check = check_task("run-check")
+        .project(run_proj).entry("run_audio.kn").target("llvm")
+        .input("run_audio.kn").input("build.kn")
+
+    let run_exe = native_executable("run-exe")
+        .project(run_proj).entry("run_audio.kn").target("llvm")
+        .output("$blade/run_audio.exe")
+        .input("run_audio.kn").input("build.kn")
+        .requires("run-check")
+
+    return build_graph()
+        .project(lp_proj).task(lp_check).task(lp_exe)
+        .project(rv_proj).task(rv_check).task(rv_exe)
+        .project(dl_proj).task(dl_check).task(dl_exe)
+        .project(ch_proj).task(ch_check).task(ch_exe)
+        .project(tr_proj).task(tr_check).task(tr_exe)
+        .project(run_proj).task(run_check).task(run_exe)

@@ -1,0 +1,141 @@
+// ============================================================================
+//  search/fst_lookup.kn — FST Dictionary Lookup
+//
+//  Layer 0: wraps the trie lookup from fst_builder in a search-oriented API.
+//  Returns term metadata: term_id, doc_freq, and postings pointer.
+//  O(len(term)) lookup time.
+// ============================================================================
+
+use types::SearchIndex
+use types::FST_CHAR_CODE
+use types::FST_SIBLING
+use types::FST_CHILD
+use types::FST_IS_FINAL
+use types::FST_DOC_FREQ
+use types::FST_TERM_ID
+
+// ============================================================================
+//  LOOKUP RESULT
+// ============================================================================
+
+pub struct FSTLookupResult:
+    found:         Bool
+    term_id:       Int
+    doc_freq:      Int
+    postings_start: Int  // index into postings array (-1 if not found)
+
+// ============================================================================
+//  FST LOOKUP WRAPPER
+// ============================================================================
+
+// Look up a normalized term in the FST.
+// Returns FSTLookupResult with all metadata needed for BM25 scoring.
+pub fn lookup_term(term: String) -> FSTLookupResult with Unsafe:
+    let char_codes: ptr<Int> = SearchIndex.fst_char_codes
+    let siblings: ptr<Int> = SearchIndex.fst_siblings
+    let children: ptr<Int> = SearchIndex.fst_children
+    let is_finals: ptr<Int> = SearchIndex.fst_is_finals
+    let doc_freqs: ptr<Int> = SearchIndex.fst_doc_freqs
+    let term_ids: ptr<Int> = SearchIndex.fst_term_ids
+    if ptr_to_int(char_codes) == 0:
+        return FSTLookupResult {
+            found: false, term_id: -1, doc_freq: 0, postings_start: -1
+        }
+
+    let result: FSTLookupResult = observe char_codes:
+        observe siblings:
+            observe children:
+                observe is_finals:
+                    observe doc_freqs:
+                        observe term_ids:
+                            var node_idx: Int = 0  // root
+                            var term_len: Int = len(term)
+                            var pos: Int = 0
+                            var found: Bool = true
+
+                            while pos < term_len:
+                                let ch: Int = ord(char_at(term, pos))
+                                var child: Int = mem_load(ptr_offset(children, node_idx, "Int"), "Int")
+                                var matched: Bool = false
+
+                                while child >= 0:
+                                    let cc: Int = mem_load(ptr_offset(char_codes, child, "Int"), "Int")
+                                    if cc == ch:
+                                        node_idx = child
+                                        matched = true
+                                        child = -2  // break
+                                    else:
+                                        child = mem_load(ptr_offset(siblings, child, "Int"), "Int")
+
+                                if matched == false:
+                                    found = false
+                                    pos = term_len  // break
+                                pos = pos + 1
+
+                            if found == false:
+                                FSTLookupResult { found: false, term_id: -1, doc_freq: 0, postings_start: -1 }
+                            else:
+                                let final_flag: Int = mem_load(ptr_offset(is_finals, node_idx, "Int"), "Int")
+                                if final_flag != 0:
+                                    let tid: Int = mem_load(ptr_offset(term_ids, node_idx, "Int"), "Int")
+                                    let start_arr: ptr<Int> = SearchIndex.postings_start
+                                    let end_arr: ptr<Int> = SearchIndex.postings_end
+                                    let ps: Int = observe start_arr:
+                                        if ptr_to_int(start_arr) != 0 and tid >= 0:
+                                            mem_load(ptr_offset(start_arr, tid, "Int"), "Int")
+                                        else:
+                                            -1
+                                    let _pe: Int = observe end_arr:
+                                        if ptr_to_int(end_arr) != 0 and tid >= 0:
+                                            mem_load(ptr_offset(end_arr, tid, "Int"), "Int")
+                                        else:
+                                            -1
+                                    FSTLookupResult {
+                                        found: true,
+                                        term_id: tid,
+                                        doc_freq: mem_load(ptr_offset(doc_freqs, node_idx, "Int"), "Int"),
+                                        postings_start: ps
+                                    }
+                                else:
+                                    FSTLookupResult { found: false, term_id: -1, doc_freq: 0, postings_start: -1 }
+
+    return result
+
+// ============================================================================
+//  BATCH LOOKUP — Multiple terms
+// ============================================================================
+
+pub fn lookup_terms(terms: [String]) -> [FSTLookupResult] with Unsafe:
+    var results: [FSTLookupResult] = []
+    var i: Int = 0
+    while i < len(terms):
+        push(results, lookup_term(terms[i]))
+        i = i + 1
+    return results
+
+// ============================================================================
+//  TERM STRING RETRIEVAL
+// ============================================================================
+
+// Retrieve the term string for a given term_id from term_strings storage.
+pub fn get_term_string(term_id: Int) -> String with Unsafe:
+    let strings: ptr<Int> = SearchIndex.term_strings
+    if ptr_to_int(strings) == 0:
+        return ""
+
+    let pos_arr: ptr<Int> = SearchIndex.term_strings_pos
+    let start: Int = mem_load(ptr_offset(pos_arr, term_id, "Int"), "Int")
+
+    let result: String = observe strings:
+        var s: String = ""
+        var i: Int = start
+        while true:
+            let byte: Int = mem_load(ptr_offset(strings, i, "Int"), "Int")
+            if byte == 0:
+                i = -1  // break
+            else:
+                s = s + chr(byte)
+                i = i + 1
+        s
+
+    return result

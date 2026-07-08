@@ -1,0 +1,158 @@
+// ============================================================================
+//  hooks.kn — Kaintana state management hooks
+//  P1-007: useState, useAnimation, useRef wrapping kt_get/kt_put with
+//          component-scoped key prefixes.
+//
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+//
+//  Design:
+//    - useState wraps kt_get/kt_put with component-scoped key prefix
+//    - useAnimation manages SpringState lifecycle automatically
+//    - useRef provides persistent mutable value without render-cycle coupling
+//    - Keys are scoped by component stable_key + field name to avoid collisions
+// ============================================================================
+
+pub type KtSession = Int
+
+// ── @extern bindings for state persistence (from core.kn) ────────────────
+@extern fn kt_put(s: KtSession, key: String, v: Int) -> Void
+@extern fn kt_put_f(s: KtSession, key: String, v: Float) -> Void
+@extern fn kt_put_s(s: KtSession, key: String, v: String) -> Void
+@extern fn kt_get(s: KtSession, key: String, fallback: Int) -> Int
+@extern fn kt_get_f(s: KtSession, key: String, fallback: Float) -> Float
+@extern fn kt_get_s(s: KtSession, key: String, fallback: String) -> String
+
+// ============================================================================
+//  SpringState — local definition (animation.kn is a separate P1 file)
+//  Standard spring physics: stiffness=0.3, damping=0.7 defaults.
+// ============================================================================
+
+pub struct SpringState:
+    value:     Float
+    velocity:  Float
+    stiffness: Float
+    damping:   Float
+
+pub fn spring_default() -> SpringState:
+    return SpringState { value: 0.0, velocity: 0.0, stiffness: 0.3, damping: 0.7 }
+
+pub fn spring_new(v: Float, vel: Float, stiff: Float, damp: Float) -> SpringState:
+    return SpringState { value: v, velocity: vel, stiffness: stiff, damping: damp }
+
+pub fn spring_update(s: SpringState, target: Float, dt_ms: Float) -> SpringState:
+    let delta = s.value - target
+    let force = -s.stiffness * delta
+    let damp = -s.damping * s.velocity
+    let accel = force + damp
+    let new_vel = s.velocity + accel * dt_ms
+    let new_val = s.value + new_vel * dt_ms
+    return SpringState { value: new_val, velocity: new_vel, stiffness: s.stiffness, damping: s.damping }
+
+// ============================================================================
+//  useState — typed state via kt_get/kt_put with prefix-scoped keys
+// ============================================================================
+
+pub struct StateInt:
+    session: KtSession
+    key:     String
+    value:   Int
+
+pub impl StateInt:
+    pub fn get(_self: Self_) -> Int:
+        return _self.value
+    pub fn set(_self: Self_, val: Int):
+        kt_put(_self.session, _self.key, val)
+
+pub fn useStateInt(s: KtSession, comp_key: String, field_name: String, initial: Int) -> StateInt:
+    let storage = comp_key + "." + field_name
+    let current = kt_get(s, storage, initial)
+    return StateInt { session: s, key: storage, value: current }
+
+pub struct StateFloat:
+    session: KtSession
+    key:     String
+    value:   Float
+
+pub impl StateFloat:
+    pub fn get(_self: Self_) -> Float:
+        return _self.value
+    pub fn set(_self: Self_, val: Float):
+        kt_put_f(_self.session, _self.key, val)
+
+pub fn useStateFloat(s: KtSession, comp_key: String, field_name: String, initial: Float) -> StateFloat:
+    let storage = comp_key + "." + field_name
+    let current = kt_get_f(s, storage, initial)
+    return StateFloat { session: s, key: storage, value: current }
+
+pub struct StateString:
+    session: KtSession
+    key:     String
+    value:   String
+
+pub impl StateString:
+    pub fn get(_self: Self_) -> String:
+        return _self.value
+    pub fn set(_self: Self_, val: String):
+        kt_put_s(_self.session, _self.key, val)
+
+pub fn useStateString(s: KtSession, comp_key: String, field_name: String, initial: String) -> StateString:
+    let storage = comp_key + "." + field_name
+    let current = kt_get_s(s, storage, initial)
+    return StateString { session: s, key: storage, value: current }
+
+// ============================================================================
+//  useAnimation — auto-manage SpringState lifecycle
+// ============================================================================
+
+pub struct AnimationHandle:
+    session: KtSession
+    key:     String
+    state:   SpringState
+
+pub impl AnimationHandle:
+    pub fn current(_self: Self_) -> Float:
+        return _self.state.value
+    pub fn update(_self: Self_, target: Float, dt_ms: Float) -> AnimationHandle:
+        let new_state = spring_update(_self.state, target, dt_ms)
+        return AnimationHandle { session: _self.session, key: _self.key, state: new_state }
+
+pub fn useAnimation(s: KtSession, comp_key: String, field_name: String, initial_target: Float, stiffness: Float, damping: Float) -> AnimationHandle:
+    let storage = comp_key + "." + field_name + "._anim"
+    let s_state = spring_new(initial_target, 0.0, stiffness, damping)
+    return AnimationHandle { session: s, key: storage, state: s_state }
+
+// ============================================================================
+//  useRef — persistent mutable value without render-cycle coupling
+// ============================================================================
+
+pub struct RefInt:
+    session: KtSession
+    key:     String
+    value:   Int
+
+pub impl RefInt:
+    pub fn get(_self: Self_) -> Int:
+        return _self.value
+    pub fn set(_self: Self_, val: Int):
+        kt_put(_self.session, _self.key, val)
+
+pub fn useRefInt(s: KtSession, comp_key: String, field_name: String, initial: Int) -> RefInt:
+    let storage = comp_key + "." + field_name + "._ref"
+    let current = kt_get(s, storage, initial)
+    return RefInt { session: s, key: storage, value: current }
+
+pub struct RefFloat:
+    session: KtSession
+    key:     String
+    value:   Float
+
+pub impl RefFloat:
+    pub fn get(_self: Self_) -> Float:
+        return _self.value
+    pub fn set(_self: Self_, val: Float):
+        kt_put_f(_self.session, _self.key, val)
+
+pub fn useRefFloat(s: KtSession, comp_key: String, field_name: String, initial: Float) -> RefFloat:
+    let storage = comp_key + "." + field_name + "._ref"
+    let current = kt_get_f(s, storage, initial)
+    return RefFloat { session: s, key: storage, value: current }

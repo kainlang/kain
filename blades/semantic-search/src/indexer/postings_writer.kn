@@ -1,0 +1,182 @@
+// ============================================================================
+//  indexer/postings_writer.kn — Postings List Builder
+//
+//  Builds inverted-index postings lists from tokenized chunks.
+//  Uses shatter struct Posting for SoA layout (doc_id, term_freq, positions).
+//  Postings are stored in a flat, sequential array for cache-friendly scanning.
+// ============================================================================
+
+use types::Posting
+use types::SearchIndex
+use types::MAX_POSTINGS
+use types::MAX_TERMS
+use types::MAX_TERM_LEN
+use types::FST_CHAR_CODE
+use types::FST_SIBLING
+use types::FST_CHILD
+use types::FST_IS_FINAL
+use types::FST_DOC_FREQ
+use types::FST_TERM_ID
+use util
+
+// ============================================================================
+//  POSTINGS DATA — flat array of shatter structs
+// ============================================================================
+
+pub fn init_postings() -> Int with Unsafe:
+    let cap: Int = MAX_POSTINGS
+    let tids: ptr<Int> = alloc_zeroed(cap, "Int")
+    let dids: ptr<Int> = alloc_zeroed(cap, "Int")
+    let tfs: ptr<Int> = alloc_zeroed(cap, "Int")
+    SearchIndex.posting_term_ids = tids
+    SearchIndex.posting_doc_ids = dids
+    SearchIndex.posting_term_freqs = tfs
+    SearchIndex.postings_cap = cap
+    SearchIndex.postings_count = 0
+
+    // Allocate per-term posting ranges
+    let start_arr: ptr<Int> = alloc_zeroed(MAX_TERMS, "Int")
+    let end_arr: ptr<Int> = alloc_zeroed(MAX_TERMS, "Int")
+    SearchIndex.postings_start = start_arr
+    SearchIndex.postings_end = end_arr
+    return 0
+
+// ============================================================================
+//  TERM STRING STORAGE — arena-allocated term strings
+// ============================================================================
+
+pub fn init_term_strings() -> Int with Unsafe:
+    let term_strings: ptr<Int> = alloc_zeroed(MAX_TERMS * MAX_TERM_LEN, "Int")
+    let term_strings_pos: ptr<Int> = alloc_zeroed(MAX_TERMS, "Int")
+    let term_doc_freqs: ptr<Int> = alloc_zeroed(MAX_TERMS, "Int")
+    SearchIndex.term_strings = term_strings
+    SearchIndex.term_strings_pos = term_strings_pos
+    SearchIndex.term_strings_len = 0
+    SearchIndex.term_doc_freqs = term_doc_freqs
+    SearchIndex.term_count = 0
+    return 0
+
+// Store a term string. Returns term_id.
+pub fn store_term(term: String) -> Int with Unsafe:
+    let tid: Int = SearchIndex.term_count
+    let pos: Int = SearchIndex.term_strings_len
+    let strings: ptr<Int> = SearchIndex.term_strings
+    let pos_arr: ptr<Int> = SearchIndex.term_strings_pos
+
+    collapse strings:
+        var i: Int = 0
+        while i < len(term):
+            let byte: Int = ord(char_at(term, i))
+            mem_store(ptr_offset(strings, pos + i, "Int"), byte, "Int")
+            i = i + 1
+        mem_store(ptr_offset(strings, pos + len(term), "Int"), 0, "Int")  // null term
+        0
+
+    mem_store(ptr_offset(pos_arr, tid, "Int"), pos, "Int")
+    SearchIndex.term_strings_len = pos + len(term) + 1
+    SearchIndex.term_count = tid + 1
+    return tid
+
+// ============================================================================
+//  BUILD POSTINGS
+// ============================================================================
+
+// Build the full postings list from a flat mapping of (term_id, doc_id) pairs.
+// source_docs is parallel arrays of (term_ids, doc_ids) pairs.
+// Returns the number of postings created.
+pub fn build_postings_for_term(term_id: Int, term: String, doc_ids: ptr<Int>, doc_count: Int) -> Int with Unsafe:
+    let posting_tids: ptr<Int> = SearchIndex.posting_term_ids
+    let posting_dids: ptr<Int> = SearchIndex.posting_doc_ids
+    let posting_tfs: ptr<Int> = SearchIndex.posting_term_freqs
+    let base: Int = SearchIndex.postings_count
+    let doc_freq: Int = doc_count
+
+    collapse posting_tids:
+        collapse posting_dids:
+            collapse posting_tfs:
+                var i: Int = 0
+                while i < doc_count:
+                    let did: Int = mem_load(ptr_offset(doc_ids, i, "Int"), "Int")
+                    mem_store(ptr_offset(posting_tids, base + i, "Int"), term_id, "Int")
+                    mem_store(ptr_offset(posting_dids, base + i, "Int"), did, "Int")
+                    mem_store(ptr_offset(posting_tfs, base + i, "Int"), 1, "Int")
+                    i = i + 1
+                0
+            0
+        0
+
+    SearchIndex.postings_count = base + doc_count
+
+    // Update term doc_freq in FST — field-level access
+    let char_codes: ptr<Int> = SearchIndex.fst_char_codes
+    let siblings: ptr<Int> = SearchIndex.fst_siblings
+    let children: ptr<Int> = SearchIndex.fst_children
+    let doc_freqs: ptr<Int> = SearchIndex.fst_doc_freqs
+    collapse char_codes:
+        collapse siblings:
+            collapse children:
+                collapse doc_freqs:
+                    // Find the final node for this term via hash lookup
+                    let hash_idx: Int = hash_string(term) & 0xFFFFF
+                    let id_slots: ptr<Int> = SearchIndex.term_id_slots
+                    let tid: Int = mem_load(ptr_offset(id_slots, hash_idx, "Int"), "Int")
+                    if tid == term_id:
+                        // Walk FST to update doc_freq
+                        let node_idx: Int = 0  // root
+                        var pos: Int = 0
+                        let tl: Int = len(term)
+                        var found: Bool = false
+                        while pos < tl and node_idx >= 0:
+                            let ch: Int = ord(char_at(term, pos))
+                            var child: Int = mem_load(ptr_offset(children, node_idx, "Int"), "Int")
+                            found = false
+                            while child >= 0:
+                                let cc: Int = mem_load(ptr_offset(char_codes, child, "Int"), "Int")
+                                if cc == ch:
+                                    node_idx = child
+                                    found = true
+                                    child = -2
+                                else:
+                                    child = mem_load(ptr_offset(siblings, child, "Int"), "Int")
+                            pos = pos + 1
+                        if found:
+                            mem_store(ptr_offset(doc_freqs, node_idx, "Int"), doc_count, "Int")
+                    0
+                0
+            0
+        0
+    return doc_count
+
+// ============================================================================
+//  APPEND SINGLE POSTING — Called during indexing for each (term, doc) pair
+// ============================================================================
+
+// Append one posting for (term_id, doc_id) to the flat postings array.
+// Returns the index of the appended posting, or -1 if capacity exceeded.
+pub fn append_posting(term_id: Int, doc_id: Int) -> Int with Unsafe:
+    let idx: Int = SearchIndex.postings_count
+    if idx >= SearchIndex.postings_cap:
+        return -1
+
+    let tids: ptr<Int> = SearchIndex.posting_term_ids
+    let dids: ptr<Int> = SearchIndex.posting_doc_ids
+    let tfs: ptr<Int> = SearchIndex.posting_term_freqs
+    collapse tids:
+        collapse dids:
+            collapse tfs:
+                mem_store(ptr_offset(tids, idx, "Int"), term_id, "Int")
+                mem_store(ptr_offset(dids, idx, "Int"), doc_id, "Int")
+                mem_store(ptr_offset(tfs, idx, "Int"), 1, "Int")
+                0
+            0
+        0
+
+    SearchIndex.postings_count = idx + 1
+    return idx
+
+// ============================================================================
+//  PATCH — Journaled Index Insert
+// ============================================================================
+
+// Document insertion is handled in indexer.kn via store_indexed_file patch
+// and build_index_single. This module focuses on postings and FST building.

@@ -1,0 +1,47 @@
+// ============================================================================
+//  kaintana.kn — Re-export hub for the std::kaintana standard library
+//  Layers P0-P2: core, Widget, theme, layout, animation, hooks,
+//                input, color, dpi, surface, and widget modules.
+//
+//  Usage:
+//    use std::kaintana::core
+//    use std::kaintana::layout::{HStack, VStack}
+//    use std::kaintana::theme::{DEFAULT_THEME, KtColor}
+//
+//  Or import the hub and use qualified paths:
+//    use std::kaintana as kt
+//    kt::core::KtSession
+//
+//  This file is updated incrementally as new modules are added.
+// ============================================================================
+
+// ── P0: Foundation modules ────────────────────────────────────────────
+
+pub use std::kaintana::core as core
+pub use std::kaintana::Widget as Widget
+pub use std::kaintana::theme as theme
+
+// ── P1: Layout, Animation, Hooks ──────────────────────────────────────
+
+pub use std::kaintana::layout as layout
+pub use std::kaintana::animation as animation
+pub use std::kaintana::hooks as hooks
+
+// ── P1: Widgets ───────────────────────────────────────────────────────
+
+pub use std::kaintana::widgets::Button as Button
+pub use std::kaintana::widgets::Label as Label
+pub use std::kaintana::widgets::ProgressBar as ProgressBar
+pub use std::kaintana::widgets::Checkbox as Checkbox
+pub use std::kaintana::widgets::Divider as Divider
+pub use std::kaintana::widgets::Spinner as Spinner
+pub use std::kaintana::widgets::Toggle as Toggle
+pub use std::kaintana::widgets::TextInput as TextInput
+pub use std::kaintana::widgets::ScrollView as ScrollView
+
+// ── P2: Input, Color, DPI, Surface ────────────────────────────────────
+
+pub use std::kaintana::input as input
+pub use std::kaintana::color as color
+pub use std::kaintana::dpi as dpi
+pub use std::kaintana::surface as surface

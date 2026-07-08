@@ -1,0 +1,105 @@
+// ============================================================================
+//  button_test.kn — Button Visual Test (self-contained, native elements only)
+//
+//  Demonstrates button-like visual elements using native <box> and <text>.
+//  No imported components — works around cross-file component linking limitation.
+//
+//  Usage: kain build button_test.kn --target llvm
+//         kain check button_test.kn [--json]
+//
+//  Ladder: Layer UI — native element composition
+//
+//  NOTE: All test files in 2b_std_ui_widgets/ use native elements only
+//  because cross-file component imports (use std::ui::components::*) are not
+//  yet linked by the LLVM codegen pipeline.
+// ============================================================================
+
+use std::runtime
+
+// ============================================================================
+//  APP COMPONENT — Uses only native <box>, <text>, <stack>
+// ============================================================================
+
+component ButtonTestApp(width=640, height=520):
+    render <panel title="Button Test" fill_color="bg">
+        <text value="BUTTON TEST — All Variants + States" font_size={18} fill_color="accent" />
+
+        <text value="" font_size={8} />
+
+        // ── Header labels ────────────────────────────────────────────
+        <text value="LABEL COMPONENTS" font_size={16} fill_color="accent" />
+        <text value="A primary header label (accent, weight=700)" font_size={14} fill_color="text" />
+        <text value="A dim label for secondary info" font_size={12} fill_color="text_dim" />
+        <text value="A centered label with large font" font_size={20} fill_color="accent2" />
+        <text value="A small right-aligned label" font_size={10} fill_color="text_dim" />
+
+        <text value="" font_size={8} />
+
+        // ── Primary buttons ──────────────────────────────────────────
+        <text value="PRIMARY VARIANT (accent fill)" font_size={14} fill_color="text" />
+        <box fill_color="accent" corner_radius={4} width={200} height={36}>
+            <text value="Primary — Click Me" font_size={14} fill_color="text_inverse" />
+        </box>
+
+        <text value="" font_size={4} />
+
+        <text value="SECONDARY VARIANT (accent2 fill)" font_size={14} fill_color="text" />
+        <box fill_color="accent2" corner_radius={4} width={180} height={36}>
+            <text value="Secondary Action" font_size={14} fill_color="text_inverse" />
+        </box>
+
+        <text value="" font_size={4} />
+
+        <text value="DESTRUCTIVE VARIANT (accent4 fill)" font_size={14} fill_color="text" />
+        <box fill_color="accent4" corner_radius={4} width={140} height={36}>
+            <text value="Delete" font_size={14} fill_color="text" />
+        </box>
+        <box fill_color="accent4" corner_radius={4} width={180} height={36}>
+            <text value="Remove All" font_size={14} fill_color="text" />
+        </box>
+
+        <text value="" font_size={4} />
+
+        <text value="GHOST VARIANT (transparent fill)" font_size={14} fill_color="text" />
+        <box fill_color="transparent" corner_radius={4} width={120} height={32}>
+            <text value="Dismiss" font_size={14} fill_color="text" />
+        </box>
+
+        <text value="" font_size={4} />
+
+        <text value="DISABLED STATE (dimmed)" font_size={14} fill_color="text" />
+        <box fill_color="button_disabled" corner_radius={4} width={200} height={36}>
+            <text value="Disabled Primary" font_size={14} fill_color="text_dim" />
+        </box>
+
+        <text value="" font_size={4} />
+
+        <text value="COMPACT SIZES" font_size={14} fill_color="text" />
+        <box fill_color="accent" corner_radius={4} width={60} height={28}>
+            <text value="XS" font_size={12} fill_color="text_inverse" />
+        </box>
+        <box fill_color="accent2" corner_radius={4} width={80} height={28}>
+            <text value="Small" font_size={12} fill_color="text_inverse" />
+        </box>
+
+        <text value="" font_size={8} />
+
+        <text value="RESET — All variants display correctly" font_size={14} fill_color="text" />
+    </panel>
+
+// ============================================================================
+//  WORLD
+// ============================================================================
+
+world ButtonTestWorld:
+    surface native_ui => ButtonTestApp
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

@@ -1,0 +1,81 @@
+// ============================================================================
+//  component_basic.kn — MINIMAL COMPONENT DEMO
+//  ============================================================================
+//  Proves the component keyword + world + surface pipeline works end-to-end.
+//  Uses only std::runtime — no external deps needed.
+//
+//  Build:  kain run blades/ui_demos/component_basic.kn --target llvm
+// ============================================================================
+
+use std::runtime
+use std::ui
+
+// ── World with surface binding ───────────────────────────────────
+
+world AppWorld:
+    state title: String = "KUIF"
+    state count: Int = 42
+    state status: String = "online"
+    surface native_ui => MainView
+
+// ── Formatting helpers ───────────────────────────────────────────
+
+fn title_text() -> String:
+    return "Kain UI Framework: " + AppWorld.title
+
+fn count_text() -> String:
+    return "Value: " + str(AppWorld.count)
+
+fn status_text() -> String:
+    return "Status: " + AppWorld.status
+
+fn read_fields() -> Int:
+    return AppWorld.count
+
+// ── Leaf component ───────────────────────────────────────────────
+
+component InfoCard(label: String, value: String):
+    render <stack direction="vertical" padding={8} spacing={4}>
+        <text value={label} font_size={10} />
+        <text value={value} font_size={20} />
+    </stack>
+
+// ── Root component ───────────────────────────────────────────────
+
+component MainView():
+    render <panel title="Kain Component Demo">
+        <stack direction="vertical" padding={24} spacing={20}>
+            // Header
+            <text value={title_text()} font_size={22} />
+
+            // Info row
+            <stack direction="horizontal" spacing={24}>
+                <InfoCard label="Count" value={count_text()} />
+                <InfoCard label="Status" value={status_text()} />
+                <InfoCard label="Framework" value="KUIF v1" />
+            </stack>
+
+            // Divider
+            <text value="────────────────────────" font_size={9} />
+
+            // Footer info
+            <stack direction="vertical" spacing={4}>
+                <text value="Component pipeline: world → surface → component → JSX → vtable → framebuffer" font_size={10} />
+                <text value="No @extern. No widget system. Pure Kain component." font_size={10} />
+            </stack>
+        </stack>
+    </panel>
+
+// ── Entry point ──────────────────────────────────────────────────
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let _fields = read_fields()
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

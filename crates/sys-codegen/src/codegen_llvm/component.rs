@@ -55,7 +55,9 @@ fn map_jsx_attr_to_surface_key(attr_name: &str) -> AttrMapping {
     match attr_name {
         // ── Existing: numeric (f64) attrs ────────────────────
         "padding" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "padding" },
+        "pad" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "padding" },
         "spacing" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "spacing" },
+        "gap" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "spacing" },
         "corner_radius" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "corner_radius" },
         "radius" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "radius" },
         "font_size" => AttrMapping { vtable_offset: OFF_ELEMENT_SET_ATTR_F64, fn_ptr_ty: "void (i64, i64, i8*, double)*", style_key: "font_size" },

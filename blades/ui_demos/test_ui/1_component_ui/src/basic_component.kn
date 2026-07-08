@@ -1,0 +1,21 @@
+// basic_component.kn — Minimal component with world surface binding
+// PROVEN: world + surface + component + render works. Compiles, window appears.
+use std::runtime
+
+component App():
+    render <panel title="Basic Component Proof" fill_color="#1a1a2e">
+        <stack direction="vertical" spacing={12.0} padding={16.0}>
+            <text value="Basic Component Proof" font_size={18.0} fill_color="#E8E8F0" />
+            <text value="world + surface + component → JSX → vtable" font_size={14.0} fill_color="#21D4A1" />
+            <text value="If you can see this, the pipeline works." font_size={12.0} fill_color="#8888A0" />
+        </stack>
+    </panel>
+
+world AppWorld:
+    surface native_ui => App
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

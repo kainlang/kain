@@ -1,0 +1,106 @@
+// ============================================================================
+//  storage/index_format.kn — Index Format Specifications
+//
+//  Layer 0: constants defining the on-disk binary format for the index.
+//  Everything uses explicit magic numbers, version stamps, and section
+//  headers for forward/backward compatibility.
+//
+//  Format layout:
+//    [MAGIC: 4 bytes] [VERSION: 4 bytes] [SECTIONS...]
+//    Each section: [SECTION_MAGIC][SECTION_LEN][SECTION_DATA]
+// ============================================================================
+
+// ============================================================================
+//  GLOBAL MAGIC & VERSION
+// ============================================================================
+
+pub const MAGIC:        String = "KSNI"   // Kain Semantic Index
+pub const VERSION_MAJOR: Int = 1
+pub const VERSION_MINOR: Int = 0
+
+// ============================================================================
+//  SECTION TYPES
+// ============================================================================
+
+pub const SECTION_HEADER:      Int = 0x0001  // Global header (magic, version, counts)
+pub const SECTION_FST_NODES:   Int = 0x0002  // FST trie nodes (shatter struct array)
+pub const SECTION_TERM_HASH:   Int = 0x0003  // Term hash index
+pub const SECTION_TERM_STRINGS: Int = 0x0004 // Term string arena
+pub const SECTION_POSTINGS:    Int = 0x0005  // Postings lists
+pub const SECTION_DOC_STORE:   Int = 0x0006  // Document metadata
+pub const SECTION_CONNECTIONS: Int = 0x0007  // Connection graph edges
+pub const SECTION_FOOTER:      Int = 0xFFFF  // End-of-file marker
+
+// ============================================================================
+//  SECTION MAGIC STRINGS (4 bytes each)
+// ============================================================================
+
+pub const HEADER_MAGIC:      String = "HEAD"
+pub const FST_MAGIC:         String = "FSTN"
+pub const TERM_HASH_MAGIC:   String = "THSH"
+pub const TERM_STR_MAGIC:    String = "TSTR"
+pub const POST_MAGIC:        String = "POST"
+pub const DOC_MAGIC:         String = "DOCS"
+pub const CONN_MAGIC:        String = "CONN"
+pub const FOOTER_MAGIC:      String = "FOOT"
+
+// ============================================================================
+//  HEADER STRUCTURE (serialized as hex text for simplicity)
+// ============================================================================
+//
+//  JSON-like header:
+//    {
+//      "magic": "KSNI",
+//      "version_major": 1,
+//      "version_minor": 0,
+//      "created": <timestamp>,
+//      "term_count": <int>,
+//      "doc_count": <int>,
+//      "postings_count": <int>,
+//      "fst_count": <int>,
+//      "conn_count": <int>,
+//      "total_terms_in_docs": <int>,
+//      "avg_doc_len": <float>
+//    }
+
+// ============================================================================
+//  SECTION HEADER (binary layout concept)
+// ============================================================================
+//
+//  Each section on disk:
+//    [section_magic: 4 bytes]     // e.g. "FSTN"
+//    [section_type:  4 bytes]     // e.g. 0x0002
+//    [section_len:   4 bytes]     // data length in bytes (excludes header)
+//    [section_data:  section_len bytes]
+
+// ============================================================================
+//  STRING ENCODING HELPERS
+// ============================================================================
+
+// Encode an Int as hex string (8 hex digits)
+pub fn hex_encode_int(v: Int) -> String:
+    let hex_digits: String = "0123456789ABCDEF"
+    var result: String = ""
+    var i: Int = 28
+    while i >= 0:
+        let digit: Int = (v >> i) & 0xF
+        result = result + char_at(hex_digits, digit)
+        i = i - 4
+    return result
+
+// Decode hex string to Int (up to 8 hex digits)
+pub fn hex_decode_int(hex: String) -> Int:
+    var result: Int = 0
+    var i: Int = 0
+    while i < len(hex):
+        let ch: String = char_at(hex, i)
+        var digit: Int = 0
+        if ch >= "0" and ch <= "9":
+            digit = ord(ch) - 48
+        elif ch >= "A" and ch <= "F":
+            digit = ord(ch) - 55
+        elif ch >= "a" and ch <= "f":
+            digit = ord(ch) - 87
+        result = (result << 4) | digit
+        i = i + 1
+    return result

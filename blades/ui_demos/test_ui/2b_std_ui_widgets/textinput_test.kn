@@ -1,0 +1,93 @@
+// ============================================================================
+//  textinput_test.kn — TextInput Visual Test (self-contained, native elements only)
+//
+//  Demonstrates text input visual elements using native <box> and <text>.
+//  No imported components.
+//
+//  Usage: kain build textinput_test.kn --target llvm
+// ============================================================================
+
+use std::runtime
+
+component TextInputTestApp(width=700, height=500):
+    render <panel title="TextInput Test" fill_color="bg">
+        <text value="TEXTINPUT TEST — Click to focus, type to edit" font_size={20} fill_color="accent" />
+
+        <text value="" font_size={8} />
+
+        // ── Simple text inputs ──────────────────────────────────────────
+        <text value="SIMPLE TEXT INPUTS" font_size={14} fill_color="text" />
+        <text value="Username: kain_user" font_size={13} fill_color="accent2" />
+
+        <box fill_color="input_bg" corner_radius={4} width={300} height={28}>
+            <text value="kain_user" font_size={14} fill_color="text" />
+        </box>
+
+        <text value="" font_size={4} />
+
+        <text value="Email: you@example.com" font_size={13} fill_color="accent2" />
+        <box fill_color="input_bg" corner_radius={4} width={300} height={28}>
+            <text value="you@example.com" font_size={14} fill_color="text" />
+        </box>
+
+        <text value="" font_size={8} />
+
+        // ── Password input (masked) ────────────────────────────────────
+        <text value="PASSWORD INPUT (masked with ●)" font_size={14} fill_color="text" />
+        <text value="Password: (9 chars, masked)" font_size={13} fill_color="accent2" />
+
+        <box fill_color="input_bg" corner_radius={4} width={300} height={28}>
+            <text value="●●●●●●●●●" font_size={14} fill_color="text" />
+        </box>
+
+        <text value="" font_size={8} />
+
+        // ── Different widths ───────────────────────────────────────────
+        <text value="VARIABLE WIDTHS" font_size={14} fill_color="text" />
+
+        <text value="Search: (empty placeholder)" font_size={13} fill_color="accent2" />
+        <box fill_color="input_bg" corner_radius={4} width={400} height={28}>
+            <text value="Search..." font_size={14} fill_color="text_dim" />
+        </box>
+
+        <text value="" font_size={4} />
+
+        <text value="Bio: Short bio text here" font_size={13} fill_color="accent2" />
+        <box fill_color="input_bg" corner_radius={4} width={500} height={28}>
+            <text value="Short bio text here" font_size={14} fill_color="text" />
+        </box>
+
+        <text value="" font_size={4} />
+
+        <text value="Note: Hello, Kain!" font_size={13} fill_color="accent2" />
+        <box fill_color="input_bg" corner_radius={4} width={200} height={28}>
+            <text value="Hello, Kain!" font_size={14} fill_color="text" />
+        </box>
+
+        <text value="" font_size={8} />
+
+        // ── Focused input (with cursor) ─────────────────────────────────
+        <text value="FOCUSED INPUT (with blinking cursor)" font_size={14} fill_color="text" />
+        <box fill_color="input_bg" corner_radius={4} width={300} height={28}>
+            <stack direction="horizontal">
+                <text value="typing..." font_size={14} fill_color="text" />
+                <text value="|" font_size={14} fill_color="accent" />
+            </stack>
+        </box>
+
+        <text value="" font_size={8} />
+
+        <text value="INPUT INFO" font_size={14} fill_color="text" />
+        <text value="Default width: 200 | Height: 28 px | bg: input_bg (#0A0A14)" font_size={12} fill_color="text_dim" />
+        <text value="Focused: cursor '|' blinks in accent color" font_size={12} fill_color="text_dim" />
+        <text value="Password mode: characters display as ● (U+25CF)" font_size={12} fill_color="text_dim" />
+    </panel>
+
+world TextInputTestWorld:
+    surface native_ui => TextInputTestApp
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

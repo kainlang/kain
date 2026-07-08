@@ -1410,6 +1410,7 @@ fn run_kain(
             Some(entry),
             CompileTarget::Interpret,
             progress,
+            false,
         )?;
         Ok(RunUnitExecution {
             id: "kain".to_string(),

@@ -1,0 +1,218 @@
+// ============================================================================
+//  font_gallery.kn — Kain Font Showcase Gallery
+//  ============================================================================
+//  A font showcase demo for Kain's Native UI runtime:
+//    - Loads 14 fonts from C:/Windows/Fonts/
+//    - Renders each font's name and sample text in panels
+//    - Color cycling accent bar (8 colors, 2s interval)
+//    - Hero panel with load stats
+//    - Info panel with usage notes
+//
+//  Layer: L0 (plain code — widget wrappers + main loop)
+//  Usage:  kain run blades/ui_demos/font_gallery.kn --target llvm
+//
+//  NOTE: All imports bring symbols directly into scope — no prefix needed.
+//  ============================================================================
+
+use std::ui
+use std::ui::widget
+use std::ui::style
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const WIN_W: Int = 1200
+const WIN_H: Int = 800
+
+const SAMPLE: String = "The quick brown fox jumps over the lazy dog  0123456789"
+
+const COLORS: [Int] = [
+    0xFF21D4A1,  // teal
+    0xFF4A90D9,  // blue
+    0xFFE8914A,  // orange
+    0xFFE84A5F,  // red
+    0xFFAA88FF,  // purple
+    0xFFFFAA44,  // amber
+    0xFF44DDFF,  // cyan
+    0xFFFF66AA,  // pink
+]
+
+// ============================================================================
+//  FONT ENTRY
+// ============================================================================
+
+struct FontEntry:
+    name: String
+    path: String
+    size: Float
+    fid: Int
+    ok: Bool
+
+// ============================================================================
+//  STATE
+// ============================================================================
+
+struct GState:
+    fonts: [FontEntry]
+    ci: Int
+    timer: Float
+    frame: Int
+
+// ============================================================================
+//  BUILD FONT LIST (14 fonts from C:/Windows/Fonts/)
+// ============================================================================
+
+fn build_list() -> [FontEntry]:
+    return [
+        FontEntry { name: "Arial",           path: "C:/Windows/Fonts/arial.ttf",      size: 16.0, fid: 0, ok: false },
+        FontEntry { name: "Arial Bold",      path: "C:/Windows/Fonts/arialbd.ttf",    size: 18.0, fid: 0, ok: false },
+        FontEntry { name: "Arial Black",     path: "C:/Windows/Fonts/ariblk.ttf",     size: 22.0, fid: 0, ok: false },
+        FontEntry { name: "Consolas",        path: "C:/Windows/Fonts/consola.ttf",    size: 14.0, fid: 0, ok: false },
+        FontEntry { name: "Courier New",     path: "C:/Windows/Fonts/cour.ttf",       size: 14.0, fid: 0, ok: false },
+        FontEntry { name: "Georgia",         path: "C:/Windows/Fonts/georgia.ttf",    size: 16.0, fid: 0, ok: false },
+        FontEntry { name: "Impact",          path: "C:/Windows/Fonts/impact.ttf",     size: 24.0, fid: 0, ok: false },
+        FontEntry { name: "Segoe UI",        path: "C:/Windows/Fonts/segoeui.ttf",    size: 16.0, fid: 0, ok: false },
+        FontEntry { name: "Tahoma",          path: "C:/Windows/Fonts/tahoma.ttf",     size: 15.0, fid: 0, ok: false },
+        FontEntry { name: "Times New Roman", path: "C:/Windows/Fonts/times.ttf",      size: 17.0, fid: 0, ok: false },
+        FontEntry { name: "Trebuchet MS",    path: "C:/Windows/Fonts/trebuc.ttf",     size: 15.0, fid: 0, ok: false },
+        FontEntry { name: "Verdana",         path: "C:/Windows/Fonts/verdana.ttf",    size: 15.0, fid: 0, ok: false },
+        FontEntry { name: "Comic Sans MS",   path: "C:/Windows/Fonts/comic.ttf",      size: 16.0, fid: 0, ok: false },
+        FontEntry { name: "Gabriola",        path: "C:/Windows/Fonts/Gabriola.ttf",   size: 20.0, fid: 0, ok: false },
+    ]
+
+// ============================================================================
+//  LOAD ALL FONTS
+// ============================================================================
+
+fn load_all(ctx: Int, list: [FontEntry]) -> [FontEntry]:
+    var result_list: [FontEntry] = []
+    var i = 0
+    while i < len(list):
+        let e = list[i]
+        let idv = load_font(ctx, e.path, e.size)
+        let ne = FontEntry { name: e.name, path: e.path, size: e.size, fid: idv, ok: idv > 0 }
+        push(result_list, ne)
+        i = i + 1
+    return result_list
+
+// ============================================================================
+//  ACCENT COLOR
+// ============================================================================
+
+fn accent(st: GState) -> Int:
+    let idx = st.ci % len(COLORS)
+    return COLORS[idx]
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+pub fn main() -> Int:
+    // ── Init UI session ─────────────────────────────────────────────
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("FontGallery", WIN_W, WIN_H)
+    if session <= 0: return 1
+    let _win = native_ui_window_open(session, "Kain Font Gallery -- Typeface Showcase", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    // ── Widget context ──────────────────────────────────────────────
+    let ctx = create(session)
+    if ctx <= 0: return 2
+
+    // ── Load default font fallback ──────────────────────────────────
+    let _def = load_default_font(ctx, 14.0)
+
+    // ── Load all gallery fonts ──────────────────────────────────────
+    let raw = build_list()
+    let fonts = load_all(ctx, raw)
+
+    // ── Count loaded ────────────────────────────────────────────────
+    var ok_n = 0
+    var i = 0
+    while i < len(fonts):
+        if fonts[i].ok: ok_n = ok_n + 1
+        i = i + 1
+
+    // ── Init state ──────────────────────────────────────────────────
+    var st = GState { fonts: fonts, ci: 0, timer: 0.0, frame: 0 }
+
+    // ── Main loop ───────────────────────────────────────────────────
+    while native_ui_host_should_close(session) == 0:
+        let _pump = native_ui_host_pump(session)
+
+        // Color cycle
+        st.timer = st.timer + 0.016
+        if st.timer > 2.0:
+            st.timer = 0.0
+            st.ci = st.ci + 1
+
+        let ac = accent(st)
+
+        // ── UI frame begin ──────────────────────────────────────────
+        let _bf = native_ui_begin_frame(session, 16.0)
+        begin_frame(ctx)
+
+        // ── Header bar ──────────────────────────────────────────────
+        let hdr = native_ui_node_create(session, "header")
+        native_ui_node_set_rect(session, hdr, 0.0, 0.0, to_float(WIN_W), 44.0)
+        native_ui_node_set_style_i64(session, hdr, "fill-color", COLOR_HEADER)
+        let al = native_ui_node_create(session, "accent-line")
+        native_ui_node_set_rect(session, al, 0.0, 42.0, to_float(WIN_W), 2.0)
+        native_ui_node_set_style_i64(session, al, "fill-color", ac)
+
+        // ── Hero panel ──────────────────────────────────────────────
+        let _hero = panel_begin(ctx, "KAIN FONT GALLERY", 10.0, 52.0, 1180.0, 65.0)
+        label(ctx, "Loaded " + str(ok_n) + "/" + str(len(fonts)) + " fonts from C:/Windows/Fonts/")
+        label(ctx, "Color scheme: " + str(st.ci % len(COLORS) + 1) + "/" + str(len(COLORS)))
+        panel_end(ctx)
+
+        // ── Font panels (2 columns) ─────────────────────────────────
+        let PW = 575.0
+        let PH = 82.0
+        let SY = 128.0
+        let GY = 4.0
+
+        var fi = 0
+        while fi < len(fonts):
+            let entry = fonts[fi]
+            let col = fi % 2
+            let row = fi / 2
+            let px = if col == 0: 12.0 else: 605.0
+            let py = SY + to_float(row) * (PH + GY)
+
+            let _np = panel_begin(ctx, entry.name, px, py, PW, PH)
+
+            if entry.ok == false:
+                label(ctx, "  [NOT LOADED] " + entry.path)
+            else:
+                label(ctx, "  " + entry.name + "  |  " + str(to_int(entry.size)) + "pt  |  ID=" + str(entry.fid))
+                // Draw font sample via native ABI with font_id
+                label(ctx, "  \"" + SAMPLE + "\"")
+                let fb_raw = native_ui_framebuffer_ptr(session)
+                if fb_raw != 0:
+                    let _dt = native_ui_draw_text(session, _np, entry.fid,
+                        px + 6.0, py + 32.0, SAMPLE, "gallery-text")
+
+            panel_end(ctx)
+            fi = fi + 1
+
+        // ── Info panel ──────────────────────────────────────────────
+        let iy = SY + to_float((len(fonts) + 1) / 2) * (PH + GY) + 6.0
+        let _info = panel_begin(ctx, "FONT INFO", 10.0, iy, 1180.0, 90.0)
+        label(ctx, "Font rendering uses stb_truetype via the Kain UI runtime (font.kn).")
+        label(ctx, "Each font is loaded with load_font(ctx, path, size) -> font_id.")
+        label(ctx, "Glyphs are rasterized to alpha masks and composited into the framebuffer.")
+        label(ctx, "Esc = exit")
+        panel_end(ctx)
+
+        // ── End frame ──────────────────────────────────────────────
+        st.frame = st.frame + 1
+        end_frame(ctx)
+        let _fe = native_ui_end_frame(session)
+        let _pr = native_ui_invalidate_window(session)
+
+    // ── Cleanup ─────────────────────────────────────────────────────
+    destroy(ctx)
+    let _ds = native_ui_session_destroy(session)
+    return 0

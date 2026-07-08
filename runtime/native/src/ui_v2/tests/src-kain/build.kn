@@ -1,0 +1,42 @@
+// ============================================================================
+//  build.kn — Kaintana Test Runner Build Authority
+//
+//  Compiles the test runner into a native executable via the LLVM pipeline.
+//  Links against kaintana.h C substrate (tree.c, box_math.c, damage.c,
+//  draw_pixels.c, arena.c, color.c, attr_table.c) as companion translation
+//  units via include <kaintana.h> as kt.
+//
+//  Usage:
+//    kain check tests/                    Typecheck sources
+//    kain build tests/ --target llvm      Build native .exe
+//    ./kaintana-test-runner.exe           Run tests against null backend
+// ============================================================================
+
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("kaintana-test-runner")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Kaintana UI substrate — deterministic CI test runner")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+
+    let exe = native_executable("kaintana-test-runner")
+        .project(app)
+        .output("$blade/kaintana-test-runner.exe")
+        .requires(check)
+
+    return build_graph()
+        .project(app)
+        .task(check)
+        .task(exe)

@@ -1,0 +1,67 @@
+// ============================================================================
+//  widgets/Label.kn — Simple text label component
+//  P1-009: Stateless label with color, font_size, align, weight props.
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+// ============================================================================
+
+pub type KtSession   = Int
+pub type KtElementId = Int
+
+// ── @extern bindings (from core.kn) ──────────────────────────────────────
+@extern fn kt_row(s: KtSession, parent: KtElementId, kind: String, key: String) -> KtElementId
+@extern fn kt_end_row(s: KtSession) -> Void
+@extern fn kt_text(s: KtSession, elem: KtElementId, text: String) -> Void
+
+// ── Widget trait (from Widget.kn) ────────────────────────────────────────
+pub trait Widget:
+    fn stable_key(_self: Self_) -> String:
+        return ""
+    fn kind(_self: Self_) -> String:
+        return "widget"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return
+
+// ============================================================================
+//  Component: Label
+// ============================================================================
+
+/// Static text label component. Stateless — all values from props.
+component Label(
+    value:     String,
+    color:     String = "",
+    font_size: Float = 0.0,
+    align:     String = "left",
+    weight:    Int = 400,
+    key:       String = "",
+):
+    /// Resolve text color: use explicit color or fall back.
+    fn resolved_color(_self: Self_) -> String:
+        if _self.color != "":
+            return _self.color
+        return "#F1F1F6"
+
+    /// Resolve font size: use explicit size or fall back.
+    fn resolved_font_size(_self: Self_) -> Float:
+        if _self.font_size > 0.0:
+            return _self.font_size
+        return 14.0
+
+    render <box kind="text" key={key}>
+        <text value={value} />
+    </box>
+
+// ============================================================================
+//  Widget trait implementation for Label
+// ============================================================================
+
+impl Widget for Label:
+    fn stable_key(_self: Self_) -> String:
+        return _self.key
+    fn kind(_self: Self_) -> String:
+        return "text"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return

@@ -1,0 +1,662 @@
+// ============================================================================
+//  COMPONENT FUZZ -- A Plethora of Components Pushed to Breaking Point
+// ============================================================================
+//
+//  LESSONS LEARNED (from compiler feedback):
+//    1. JSX {} can only reference: prop names, method calls, literals, operators.
+//       _self is NOT in scope inside JSX. Use getter methods instead.
+//    2. JSX for loop variables do NOT bind in the loop body.
+//       Pre-compute arrays in methods, render lists differently.
+//    3. JSX {/* */} comments do NOT exist. Use // outside render body.
+//    4. JSX if conditions can only use method calls returning Bool or simple
+//       identifiers -- no >, <, == operators inline.
+//    5. weak state is actor-only, not component.
+//    6. Component names cannot shadow builtin types (Void).
+//
+//  This file pushes every boundary the compiler allows.
+// ============================================================================
+
+use std::alloc
+
+const FUZZ_MODULUS: Int = 1000000007
+const FUZZ_HOT_SLOTS: Int = 32
+
+// ============================================================================
+//  S1 -- NAKED COMPONENTS
+// ============================================================================
+
+component Atom():
+    render <text value="." />
+
+component Blank():
+    render <panel title="" />
+
+component Fragments():
+    render <Fragment>
+        <text value="A" />
+        <text value="B" />
+        <text value="C" />
+        <text value="D" />
+        <text value="E" />
+    </Fragment>
+
+component ExprOnly(value: Int):
+    render <text value={value} />
+
+component LongText():
+    render <text value="Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua" />
+
+// ============================================================================
+//  S2 -- STATEFUL COMPONENTS
+// ============================================================================
+
+component Toggle():
+    state on: Bool = false
+
+    fn flip(_self: Self_):
+        _self.on = _self.on == false
+
+    fn label(_self: Self_) -> String:
+        if _self.on:
+            return "ON"
+        return "OFF"
+
+    render <box>
+        <text value={label()} />
+    </box>
+
+component BoundedCounter(limit: Int):
+    state count: Int = 0
+
+    fn bump(_self: Self_) -> Int:
+        if _self.count < _self.limit:
+            _self.count = _self.count + 1
+        return _self.count
+
+    fn count_str(_self: Self_) -> String:
+        return str(_self.count)
+
+    fn limit_str(_self: Self_) -> String:
+        return str(_self.limit)
+
+    render <stack direction="horizontal">
+        <text value={count_str()} />
+        <text value="/" />
+        <text value={limit_str()} />
+    </stack>
+
+component TrafficLight():
+    state phase: Int = 0
+
+    fn advance(_self: Self_):
+        _self.phase = (_self.phase + 1) % 3
+
+    fn color(_self: Self_) -> String:
+        if _self.phase == 0:
+            return "RED"
+        elif _self.phase == 1:
+            return "YELLOW"
+        return "GREEN"
+
+    fn phase_label(_self: Self_) -> String:
+        return "phase " + str(_self.phase)
+
+    render <box>
+        <text value={color()} />
+        <text value={phase_label()} />
+    </box>
+
+component Thermometer(temp: Int, unit: String):
+    state is_celsius: Bool = unit == "C"
+    state display_temp: Int = temp
+    state warning: Bool = temp > 100
+
+    fn convert(_self: Self_):
+        if _self.is_celsius:
+            _self.display_temp = (_self.display_temp * 9 / 5) + 32
+        else:
+            _self.display_temp = (_self.display_temp - 32) * 5 / 9
+        _self.is_celsius = _self.is_celsius == false
+
+    fn status(_self: Self_) -> String:
+        if _self.warning:
+            return "HOT"
+        return "normal"
+
+    fn temp_str(_self: Self_) -> String:
+        return str(_self.display_temp)
+
+    render <stack direction="vertical">
+        <text value={temp_str()} />
+        <text value={status()} />
+    </stack>
+
+component ShadowDisplay(mirror_value: Int):
+    state display: Int = mirror_value
+
+    fn show(_self: Self_) -> String:
+        return str(_self.display)
+
+    render <text value={show()} />
+
+// ============================================================================
+//  S3 -- COMPUTATIONAL COMPONENTS
+// ============================================================================
+
+component Factorial(n: Int):
+    state result: Int = 1
+    state computed: Bool = false
+
+    fn compute(_self: Self_):
+        if _self.computed:
+            return
+        var i: Int = 1
+        var acc: Int = 1
+        while i <= _self.n:
+            acc = acc * i
+            i = i + 1
+        _self.result = acc
+        _self.computed = true
+
+    fn display(_self: Self_) -> String:
+        return str(_self.n) + "! = " + str(_self.result)
+
+    render <box>
+        <text value={display()} />
+    </box>
+
+component PrimeSieve(limit: Int):
+    state primes: Int = 0
+    state last_prime: Int = 0
+
+    fn sieve(_self: Self_):
+        var n: Int = 2
+        var found: Int = 0
+        while n <= _self.limit and found < 10:
+            var is_prime: Bool = true
+            var d: Int = 2
+            while d * d <= n:
+                if n % d == 0:
+                    is_prime = false
+                    break
+                d = d + 1
+            if is_prime:
+                _self.primes = _self.primes + 1
+                _self.last_prime = n
+                found = found + 1
+            n = n + 1
+
+    fn summary(_self: Self_) -> String:
+        return "primes <= " + str(_self.limit) + ": " + str(_self.primes)
+
+    fn last_str(_self: Self_) -> String:
+        return "last: " + str(_self.last_prime)
+
+    render <stack direction="vertical">
+        <text value={summary()} />
+        <text value={last_str()} />
+    </stack>
+
+component FibonacciSeq(count: Int):
+    state values: [Int] = []
+    state generated: Bool = false
+
+    fn generate(_self: Self_):
+        if _self.generated:
+            return
+        var i: Int = 0
+        var a: Int = 0
+        var b: Int = 1
+        while i < _self.count:
+            push(_self.values, a)
+            let next = a + b
+            a = b
+            b = next
+            i = i + 1
+        _self.generated = true
+
+    fn format_sequence(_self: Self_) -> String:
+        var text = ""
+        var i: Int = 0
+        while i < len(_self.values):
+            if i > 0:
+                text = text + ", "
+            text = text + str(_self.values[i])
+            i = i + 1
+        return text
+
+    render <box>
+        <text value={format_sequence()} />
+    </box>
+
+component DataPipe(input: [Int], multiplier: Int):
+    state transformed: [Int] = []
+    state checksum: Int = 0
+
+    fn transform(_self: Self_):
+        var i: Int = 0
+        var acc: Int = 0
+        while i < len(_self.input):
+            let val = _self.input[i] * _self.multiplier
+            push(_self.transformed, val)
+            acc = (acc + val) % FUZZ_MODULUS
+            i = i + 1
+        _self.checksum = acc
+
+    fn count_str(_self: Self_) -> String:
+        return str(len(_self.transformed))
+
+    fn checksum_str(_self: Self_) -> String:
+        return "checksum: " + str(_self.checksum)
+
+    render <stack direction="vertical">
+        <text value={"piped " + count_str() + " items"} />
+        <text value={checksum_str()} />
+    </stack>
+
+// ============================================================================
+//  S4 -- RECURSIVE COMPONENTS
+// ============================================================================
+
+component RecursiveTree(depth: Int, label: String):
+    state expanded: Bool = false
+
+    fn has_children(_self: Self_) -> Bool:
+        return _self.depth > 0
+
+    fn display_label(_self: Self_) -> String:
+        return _self.label + " (depth " + str(_self.depth) + ")"
+
+    fn child_label_l(_self: Self_) -> String:
+        return _self.label + ".L"
+
+    fn child_label_r(_self: Self_) -> String:
+        return _self.label + ".R"
+
+    fn child_depth(_self: Self_) -> Int:
+        return _self.depth - 1
+
+    render <stack direction="vertical">
+        <text value={display_label()} />
+        if has_children():
+            <RecursiveTree depth={child_depth()} label={child_label_l()} />
+            <RecursiveTree depth={child_depth()} label={child_label_r()} />
+        else:
+            <text value="LEAF" />
+    </stack>
+
+component StringList(items: [String]):
+    fn is_empty(_self: Self_) -> Bool:
+        return len(_self.items) == 0
+
+    fn render_all(_self: Self_) -> String:
+        var text = ""
+        var i: Int = 0
+        while i < len(_self.items):
+            text = text + _self.items[i] + " | "
+            i = i + 1
+        return text
+
+    render <stack direction="vertical">
+        <text value={render_all()} />
+        if is_empty():
+            <text value="(empty)" />
+    </stack>
+
+// ============================================================================
+//  S5 -- FRAGMENT FACTORIES
+// ============================================================================
+
+component PureComposition():
+    render <Fragment>
+        <Atom />
+        <Blank />
+        <ExprOnly value={42} />
+        <Toggle />
+        <BoundedCounter limit={5} />
+    </Fragment>
+
+component Card(title: String, body: String):
+    render <box>
+        <text value={title} />
+        <text value={body} />
+    </box>
+
+// CardGrid -- pre-computes the list since JSX for loops have limited scoping
+component CardGrid(card_a: String, card_b: String, card_c: String):
+    render <stack direction="vertical">
+        <Card title={card_a} body={"body of " + card_a} />
+        <Card title={card_b} body={"body of " + card_b} />
+        <Card title={card_c} body={"body of " + card_c} />
+    </stack>
+
+component LayoutInception(depth: Int):
+    fn has_depth(_self: Self_) -> Bool:
+        return _self.depth > 0
+
+    fn next_depth(_self: Self_) -> Int:
+        return _self.depth - 1
+
+    fn level_label(_self: Self_) -> String:
+        return "level " + str(_self.depth)
+
+    render <stack direction="vertical">
+        <text value={level_label()} />
+        if has_depth():
+            <LayoutInception depth={next_depth()} />
+        else:
+            <Atom />
+    </stack>
+
+// ============================================================================
+//  S6 -- POINTER-LADEN COMPONENTS
+// ============================================================================
+
+component MemoryWidget(cell_count: Int) with Unsafe:
+    state buffer: ptr<Int> = int_to_ptr(0, "Int")
+    state initialized: Bool = false
+    state checksum: Int = 0
+
+    fn alloc_buffer(_self: Self_) -> Int:
+        if _self.initialized:
+            return _self.checksum
+        _self.buffer = alloc_zeroed(_self.cell_count, "Int")
+        collapse _self.buffer:
+            var i: Int = 0
+            while i < _self.cell_count:
+                mem_store(ptr_offset(_self.buffer, i, "Int"), (i * 31 + 7) % FUZZ_MODULUS, "Int")
+                i = i + 1
+            0
+        let obs = observe _self.buffer:
+            var acc: Int = 0
+            var j: Int = 0
+            while j < _self.cell_count:
+                acc = (acc + mem_load(ptr_offset(_self.buffer, j, "Int"), "Int")) % FUZZ_MODULUS
+                j = j + 1
+            acc
+        _self.checksum = obs
+        _self.initialized = true
+        return obs
+
+    fn display_checksum(_self: Self_) -> String:
+        return "mem[" + str(_self.cell_count) + "] checksum: " + str(_self.checksum)
+
+    fn cell_count_str(_self: Self_) -> String:
+        return str(_self.cell_count)
+
+    render <box>
+        <text value={display_checksum()} />
+        <text value={cell_count_str() + " cells"} />
+    </box>
+
+component HotSlots(ratio: Int, max_ratio: Int):
+    fn display(_self: Self_) -> String:
+        return "hot: " + str(_self.ratio) + "/" + str(_self.max_ratio)
+
+    render <text value={display()} />
+
+// ============================================================================
+//  S7 -- ACTOR-AWARE COMPONENTS
+// ============================================================================
+
+actor ComponentActor:
+    state echo_count: Int = 0
+
+    on Echo(reply_to: P, message: Int):
+        self.echo_count = self.echo_count + 1
+        send reply_to.Reply(value = message + self.echo_count)
+
+component ActorWidget(signal: Int):
+    state last_reply: Int = 0
+    state spawned: Bool = false
+
+    fn reply_str(_self: Self_) -> String:
+        return str(_self.last_reply)
+
+    render <box>
+        <text value={"actor echo: " + reply_str()} />
+    </box>
+
+// ============================================================================
+//  S8 -- DEEPLY NESTED COMPOSITION
+// ============================================================================
+
+component Nest_L0():
+    render <box><text value="L0" /></box>
+
+component Nest_L1():
+    render <box><Nest_L0 /><text value="L1" /></box>
+
+component Nest_L2():
+    render <box><Nest_L1 /><text value="L2" /></box>
+
+component Nest_L3():
+    render <stack direction="vertical"><Nest_L2 /><text value="L3" /></stack>
+
+component Nest_L4():
+    render <stack direction="vertical"><Nest_L3 /><text value="L4" /></stack>
+
+component Nest_L5():
+    render <panel title="L5"><Nest_L4 /><text value="L5" /></panel>
+
+component Nest_L6():
+    render <panel title="L6"><Nest_L5 /><Toggle /></panel>
+
+component Nest_L7():
+    render <panel title="L7"><Nest_L6 /><BoundedCounter limit={7} /></panel>
+
+component Nest_L8():
+    render <panel title="L8"><Nest_L7 /><TrafficLight /></panel>
+
+component Nest_L9():
+    render <panel title="L9"><Nest_L8 /><Fragments /></panel>
+
+component Nest_L10():
+    render <panel title="L10 -- DEEPEST NEST">
+        <Nest_L9 />
+        <Atom />
+        <Blank />
+        <text value="bottom of the rabbit hole" />
+    </panel>
+
+// ============================================================================
+//  S9 -- WORLD-SURFACE ABUSE
+// ============================================================================
+
+component FuzzPanel():
+    render <panel title="Component Fuzz Dashboard" />
+
+world FuzzAuthority:
+    state signal: Int = 42
+    state epoch: Int = 0
+    state fuzz_score: Int = 0
+    surface native_ui => FuzzPanel
+
+world FuzzMirror:
+    state signal_copy: Int = 42
+    state epoch_copy: Int = 0
+    state fuzz_score_copy: Int = 0
+    surface web => FuzzPanel
+
+world FuzzRogue:
+    state rogue_val: Int = 999
+    state drift: Int = 0
+    surface web => FuzzPanel
+
+entangle FuzzAuthority.signal <-> FuzzMirror.signal_copy with single_writer
+entangle FuzzAuthority.epoch <-> FuzzMirror.epoch_copy with single_writer
+entangle FuzzAuthority.fuzz_score <-> FuzzMirror.fuzz_score_copy with single_writer
+
+law fuzz_score_valid(v: Int) -> Bool:
+    return v >= 0 and v < FUZZ_MODULUS
+
+patch fuzz_commit(authority: FuzzAuthority, value: Int) -> Int:
+    authority.fuzz_score = value
+    authority.epoch = authority.epoch + 1
+    return authority.fuzz_score
+
+pulse fuzz_beat every 100ms jitter 10ms:
+    FuzzAuthority.signal = (FuzzAuthority.signal + pulse_tick * 7) % FUZZ_MODULUS
+    FuzzAuthority.fuzz_score = (FuzzAuthority.fuzz_score + pulse_tick) % FUZZ_MODULUS
+
+// ============================================================================
+//  S10 -- THE COMPONENT SINGULARITY
+// ============================================================================
+
+component Singularity(name: String, phase: Int, data_a: Int, data_b: Int, data_c: Int):
+    state counter: Int = 0
+    state hot: Bool = false
+    state buffer_checksum: Int = 0
+    state ready: Bool = false
+
+    fn initialize(_self: Self_):
+        if _self.ready:
+            return
+        let cell_count = 4
+        let mut buf: ptr<Int> = alloc_zeroed(cell_count, "Int")
+        collapse buf:
+            var i: Int = 0
+            while i < cell_count:
+                mem_store(ptr_offset(buf, i, "Int"), (_self.phase + i * 13) % FUZZ_MODULUS, "Int")
+                i = i + 1
+            0
+        let obs = observe buf:
+            var acc: Int = 0
+            var j: Int = 0
+            while j < cell_count:
+                acc = (acc + mem_load(ptr_offset(buf, j, "Int"), "Int")) % FUZZ_MODULUS
+                j = j + 1
+            acc
+        _self.buffer_checksum = obs
+        decay buf
+        _self.ready = true
+
+    fn tick(_self: Self_):
+        _self.counter = _self.counter + 1
+        if _self.counter % 7 == 0:
+            _self.hot = _self.hot == false
+
+    fn status_text(_self: Self_) -> String:
+        if _self.hot:
+            return "SINGULARITY ACTIVE"
+        return "singularity dormant"
+
+    fn counter_str(_self: Self_) -> String:
+        return "counter=" + str(_self.counter)
+
+    fn phase_str(_self: Self_) -> String:
+        return "phase=" + str(_self.phase)
+
+    fn checksum_str(_self: Self_) -> String:
+        return "checksum=" + str(_self.buffer_checksum)
+
+    fn ready_str(_self: Self_) -> String:
+        return "ready=" + str(_self.ready)
+
+    fn depth_mod(_self: Self_) -> Int:
+        return _self.phase % 3
+
+    render <panel title={name}>
+        <stack direction="vertical">
+            <box>
+                <text value={status_text()} />
+                <text value={counter_str()} />
+                <text value={phase_str()} />
+            </box>
+
+            <DataPipe input={[data_a, data_b, data_c]} multiplier={3} />
+
+            <box>
+                <text value={checksum_str()} />
+                <text value={ready_str()} />
+            </box>
+
+            if hot:
+                <Fragment>
+                    <Thermometer temp={counter} unit="C" />
+                    <TrafficLight />
+                    <BoundedCounter limit={phase + 1} />
+                </Fragment>
+            else:
+                <box>
+                    <text value="cooling..." />
+                </box>
+
+            <RecursiveTree depth={depth_mod()} label={name} />
+
+            <Atom />
+            <Atom />
+            <Atom />
+        </stack>
+    </panel>
+
+// ============================================================================
+//  EXPORTED COMPONENT CATALOG -- The Zoo
+// ============================================================================
+
+component ComponentZoo():
+    render <panel title="Component Fuzz -- The Zoo">
+        <stack direction="vertical">
+            <box>
+                <text value="== S1 Naked ==" />
+                <Atom />
+                <Blank />
+                <Fragments />
+                <ExprOnly value={137} />
+                <LongText />
+            </box>
+
+            <box>
+                <text value="== S2 Stateful ==" />
+                <Toggle />
+                <BoundedCounter limit={10} />
+                <TrafficLight />
+                <Thermometer temp={98} unit="F" />
+                <ShadowDisplay mirror_value={42} />
+            </box>
+
+            <box>
+                <text value="== S3 Computational ==" />
+                <Factorial n={7} />
+                <PrimeSieve limit={100} />
+                <FibonacciSeq count={8} />
+                <DataPipe input={[1, 2, 3, 5, 8, 13, 21]} multiplier={2} />
+            </box>
+
+            <box>
+                <text value="== S4 Recursive ==" />
+                <RecursiveTree depth={2} label="root" />
+                <StringList items={["alpha", "beta", "gamma", "delta"]} />
+            </box>
+
+            <box>
+                <text value="== S5 Fragment Factories ==" />
+                <PureComposition />
+                <Card title="Important Card" body="This is a card body." />
+                <CardGrid card_a="A" card_b="B" card_c="C" />
+                <LayoutInception depth={3} />
+            </box>
+
+            <box>
+                <text value="== S6 Pointer-Laden ==" />
+                <MemoryWidget cell_count={8} />
+                <HotSlots ratio={12} max_ratio={32} />
+            </box>
+
+            <box>
+                <text value="== S7 Actor-Aware ==" />
+                <ActorWidget signal={42} />
+            </box>
+
+            <box>
+                <text value="== S8 Deep Nest (10 levels) ==" />
+                <Nest_L10 />
+            </box>
+
+            <box>
+                <text value="== S10 Singularity ==" />
+                <Singularity name="O M E G A" phase={3} data_a={7} data_b={11} data_c={13} />
+                <Singularity name="A L P H A" phase={1} data_a={2} data_b={0} data_c={0} />
+            </box>
+        </stack>
+    </panel>

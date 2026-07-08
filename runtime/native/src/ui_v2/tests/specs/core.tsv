@@ -1,0 +1,66 @@
+# Kaintana Core Smoke Tests — Phase A kernel validation suite
+# Backend: null (headless, in-memory framebuffer)
+# Format: name<tab>width<tab>height<tab>calls<tab>expect_cmds<tab>golden<tab>desc
+# expect_cmds: exact integer, ">=N", or "-" for non-render tests
+# golden: filename or "-" to skip pixel comparison
+# NOTE: All render tests MUST set explicit kt_width/kt_height on leaf elements
+#       because layout defaults to 0px for unspecified dimensions.
+name	width	height	calls	expect_cmds	golden	desc
+basic_fill	80	24	kt_init(); kt_make("test",80,24); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#FF0000"); kt_width(s,1,80.0); kt_height(s,1,24.0); kt_end_row(s); kt_end(s)	1	basic_fill.bin	Single 80x24 filled element produces exactly 1 draw command
+basic_empty	80	24	kt_init(); kt_make("test",80,24); kt_begin(s,16.0); kt_end(s)	0	-	Empty frame with no elements produces 0 draw commands
+fill_size	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#21D4A1"); kt_width(s,1,200.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	fill_size.bin	200x100 filled element at explicit size produces 1 draw command
+two_fills	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","parent"); kt_fill(s,1,"#FF0000"); kt_row(s,1,"box","a"); kt_fill(s,2,"#00FF00"); kt_width(s,2,100.0); kt_height(s,2,50.0); kt_end_row(s); kt_row(s,1,"box","b"); kt_fill(s,3,"#0000FF"); kt_width(s,3,100.0); kt_height(s,3,50.0); kt_end_row(s); kt_end_row(s); kt_end(s)	2	two_fills.bin	Two sibling elements with explicit 100x50 produce exactly 2 commands
+nested_box	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","parent"); kt_fill(s,1,"#3333CC"); kt_width(s,1,200.0); kt_height(s,1,200.0); kt_row(s,1,"box","child"); kt_fill(s,2,"#FF6600"); kt_width(s,2,100.0); kt_height(s,2,100.0); kt_end_row(s); kt_end_row(s); kt_end(s)	2	nested_box.bin	Parent 200x200 + child 100x100 nested; both produce draw commands
+opacity_set	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#FF0000"); kt_opacity(s,1,0.5); kt_width(s,1,200.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	opacity_set.bin	200x100 element at 50% opacity; alpha halved in framebuffer
+radius_set	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#3333CC"); kt_radius(s,1,4.0); kt_width(s,1,200.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	radius_set.bin	200x100 element with 4px corner radius
+pad_set	200	200	kt_init(); kt_make("test",200,200); kt_begin(s,16.0); kt_row(s,0,"box","parent"); kt_fill(s,1,"#FF0000"); kt_pad(s,1,8.0); kt_width(s,1,100.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	pad_set.bin	100x100 element with 8px padding
+stroke_set	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_stroke(s,1,"#FF0000",2.0); kt_width(s,1,200.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	stroke_set.bin	200x100 element with 2px red stroke
+direction_column	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","parent"); kt_fill(s,1,"#332211"); kt_width(s,1,300.0); kt_height(s,1,200.0); kt_direction(s,1,1); kt_row(s,1,"box","a"); kt_fill(s,2,"#FF0000"); kt_width(s,2,50.0); kt_height(s,2,50.0); kt_end_row(s); kt_row(s,1,"box","b"); kt_fill(s,3,"#00FF00"); kt_width(s,3,50.0); kt_height(s,3,50.0); kt_end_row(s); kt_end_row(s); kt_end(s)	3	direction_column.bin	Column direction: parent 300x200, two 50x50 children stacked vertically; all 3 produce commands
+font_size_set	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_font(s,1,14.0); kt_text(s,1,"Hello"); kt_width(s,1,200.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	-	Font size 14 with text content; element produces 1 draw command
+state_put_get	80	24	kt_init(); kt_make("test",80,24); kt_put(s,"counter",42); kt_get(s,"counter",-1)	-	-	Integer state round-trip via kt_put/kt_get persists correctly
+state_survives_frame	80	24	kt_init(); kt_make("test",80,24); kt_put(s,"x",1); kt_begin(s,16.0); kt_end(s); kt_get(s,"x",0)	0	-	State value persists across kt_begin/kt_end frame boundary
+kt_free_null	80	24	kt_init(); kt_free(NULL); kt_make("test",80,24)	-	-	kt_free(NULL) is a safe no-op; subsequent kt_make works
+kt_make_minimal	1	1	kt_init(); kt_make("tiny",1,1)	-	-	1x1 framebuffer allocation succeeds (boundary minimum)
+kt_make_zero	0	0	kt_init(); kt_make("zero",0,0)	-	-	0x0 framebuffer returns NULL (invalid)
+kt_make_extreme	4096	4096	kt_init(); kt_make("huge",4096,4096); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#0000FF"); kt_width(s,1,200.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	make_extreme.bin	4096x4096 framebuffer: single 200x100 fill renders correctly
+kt_should_close_null	80	24	kt_init(); kt_make("test",80,24); kt_should_close(s)	-	-	Null backend never signals close (returns 0)
+kt_cmd_count_one	80	24	kt_init(); kt_make("test",80,24); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#0000FF"); kt_width(s,1,80.0); kt_height(s,1,24.0); kt_end_row(s); kt_end(s)	1	cmd_count_one.bin	Single 80x24 fill produces exactly 1 draw command (exact count)
+kt_row_invalid_parent	80	24	kt_init(); kt_make("test",80,24); kt_begin(s,16.0); kt_row(s,999,"box","orphan"); kt_fill(s,1,"#FF0000"); kt_end_row(s); kt_end(s)	-	-	kt_row with invalid parent ID 999 does not crash; orphan not rendered
+kt_gap_between	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","parent"); kt_gap(s,1,8.0); kt_row(s,1,"box","a"); kt_fill(s,2,"#FF0000"); kt_width(s,2,100.0); kt_height(s,2,50.0); kt_end_row(s); kt_row(s,1,"box","b"); kt_fill(s,3,"#00FF00"); kt_width(s,3,100.0); kt_height(s,3,50.0); kt_end_row(s); kt_end_row(s); kt_end(s)	2	gap_between.bin	Two children with 8px gap and 100x50 each; exactly 2 commands
+kt_pad_xy_asymmetric	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","parent"); kt_pad_xy(s,1,10.0,20.0); kt_fill(s,1,"#FF0000"); kt_width(s,1,200.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	pad_xy_asymmetric.bin	200x100 element with asymmetric 10x20 padding
+kt_text_content	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_text(s,1,"Hello World"); kt_width(s,1,200.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	-	200x100 element with text content produces 1 fill command
+
+# ============================================================================
+# NEW TESTS (Phase B): DPI, State, Nesting, Stress, Hex Colors, Backend, Cmd Count
+# ============================================================================
+
+# ── DPI tests ─────────────────────────────────────────────────────────────
+dpi_set_native_scale	80	24	kt_init(); kt_make("test",80,24); kt_set_native_scale(s,1.5,1.5); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#0000FF"); kt_width(s,1,80.0); kt_height(s,1,24.0); kt_end_row(s); kt_end(s)	1	-	Set native scale to 1.5x; element still produces 1 command
+dpi_set_zoom	80	24	kt_init(); kt_make("test",80,24); kt_set_zoom(s,2.0); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#00FF00"); kt_width(s,1,80.0); kt_height(s,1,24.0); kt_end_row(s); kt_end(s)	1	-	Set zoom to 2.0x; element still produces 1 command
+dpi_scale_factor_read	80	24	kt_init(); kt_make("test",80,24); kt_set_native_scale(s,2.0,2.0); kt_scale_factor_x(s)	-	-	Read scale factor after setting native scale; no crash
+dpi_set_zoom_then_render	320	240	kt_init(); kt_make("test",320,240); kt_set_zoom(s,1.5); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#FF6600"); kt_width(s,1,160.0); kt_height(s,1,80.0); kt_end_row(s); kt_end(s)	1	-	Zoom 1.5x with 160x80 fill; produce 1 command
+
+# ── State persistence with multiple keys ──────────────────────────────────
+state_multi_key	80	24	kt_init(); kt_make("test",80,24); kt_put(s,"key_a",10); kt_put(s,"key_b",20); kt_put(s,"key_c",30); kt_begin(s,16.0); kt_end(s); kt_get(s,"key_a",0)	0	-	Three state keys persist across frame boundary; all retrievable
+state_overwrite	80	24	kt_init(); kt_make("test",80,24); kt_put(s,"counter",5); kt_put(s,"counter",42); kt_get(s,"counter",-1)	-	-	State key overwrite: second kt_put replaces first value
+
+# ── Nested layout (3+ levels) ─────────────────────────────────────────────
+nested_three_level	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","l1"); kt_fill(s,1,"#FF0000"); kt_width(s,1,300.0); kt_height(s,1,200.0); kt_row(s,1,"box","l2"); kt_fill(s,2,"#00FF00"); kt_width(s,2,200.0); kt_height(s,2,150.0); kt_row(s,2,"box","l3"); kt_fill(s,3,"#0000FF"); kt_width(s,3,100.0); kt_height(s,3,100.0); kt_end_row(s); kt_end_row(s); kt_end_row(s); kt_end(s)	3	nested_three_level.bin	Three levels of nesting (L1 red 300x200, L2 green 200x150, L3 blue 100x100); 3 commands
+nested_four_level	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","l1"); kt_fill(s,1,"#FF0000"); kt_width(s,1,300.0); kt_height(s,1,200.0); kt_row(s,1,"box","l2"); kt_fill(s,2,"#FF8800"); kt_width(s,2,250.0); kt_height(s,2,180.0); kt_row(s,2,"box","l3"); kt_fill(s,3,"#FFFF00"); kt_width(s,3,200.0); kt_height(s,3,120.0); kt_row(s,3,"box","l4"); kt_fill(s,4,"#00FF00"); kt_width(s,4,100.0); kt_height(s,4,80.0); kt_end_row(s); kt_end_row(s); kt_end_row(s); kt_end_row(s); kt_end(s)	4	nested_four_level.bin	Four levels of nesting; all 4 elements produce commands
+
+# ── Stress test with 30 elements ──────────────────────────────────────────
+stress_30_elements	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_row(s,1,"box","grid"); kt_row(s,2,"box","e0"); kt_fill(s,3,"#FF0000"); kt_width(s,3,30.0); kt_height(s,3,20.0); kt_end_row(s); kt_row(s,2,"box","e1"); kt_fill(s,4,"#00FF00"); kt_width(s,4,30.0); kt_height(s,4,20.0); kt_end_row(s); kt_row(s,2,"box","e2"); kt_fill(s,5,"#0000FF"); kt_width(s,5,30.0); kt_height(s,5,20.0); kt_end_row(s); kt_row(s,2,"box","e3"); kt_fill(s,6,"#FF4400"); kt_width(s,6,30.0); kt_height(s,6,20.0); kt_end_row(s); kt_row(s,2,"box","e4"); kt_fill(s,7,"#44FF00"); kt_width(s,7,30.0); kt_height(s,7,20.0); kt_end_row(s); kt_row(s,2,"box","e5"); kt_fill(s,8,"#4400FF"); kt_width(s,8,30.0); kt_height(s,8,20.0); kt_end_row(s); kt_row(s,2,"box","e6"); kt_fill(s,9,"#FF0088"); kt_width(s,9,30.0); kt_height(s,9,20.0); kt_end_row(s); kt_row(s,2,"box","e7"); kt_fill(s,10,"#88FF00"); kt_width(s,10,30.0); kt_height(s,10,20.0); kt_end_row(s); kt_row(s,2,"box","e8"); kt_fill(s,11,"#0088FF"); kt_width(s,11,30.0); kt_height(s,11,20.0); kt_end_row(s); kt_row(s,2,"box","e9"); kt_fill(s,12,"#FFAA00"); kt_width(s,12,30.0); kt_height(s,12,20.0); kt_end_row(s); kt_end_row(s); kt_end_row(s); kt_end(s)	10	-	10 elements with varied colors in a row grid; verify no crash under element count load
+
+# ── Fill colors with various hex formats ──────────────────────────────────
+fill_hex_rgb	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#F00"); kt_width(s,1,200.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	-	Fill color using #RGB short hex format (parses to FF0000)
+fill_hex_rrggbb	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#21D4A1"); kt_width(s,1,200.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	-	Fill color using #RRGGBB standard hex format
+fill_hex_rrggbbaa	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#FF000080"); kt_width(s,1,200.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	-	Fill color using #RRGGBBAA hex with alpha; color parsed (50% alpha)
+
+# ── Null backend registration and selection ───────────────────────────────
+backend_register_null	80	24	kt_init(); kt_make("test",80,24); kt_backend_register(s,"null"); kt_backend_probe(s)	-	-	Register null backend explicitly; probe succeeds
+backend_select_null	320	240	kt_init(); kt_make("test",320,240); kt_backend_register(s,"null"); kt_backend_select(s,"null"); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#00FF00"); kt_width(s,1,200.0); kt_height(s,1,100.0); kt_end_row(s); kt_end(s)	1	-	Register and select null backend; render still produces 1 command
+
+# ── kt_cmd_count accuracy ──────────────────────────────────────────────────
+cmd_count_exact_one	80	24	kt_init(); kt_make("test",80,24); kt_begin(s,16.0); kt_row(s,0,"box","root"); kt_fill(s,1,"#FF0000"); kt_width(s,1,80.0); kt_height(s,1,24.0); kt_end_row(s); kt_end(s)	1	-	Exact cmd count: 1 element with fill produces exactly 1 command
+cmd_count_two_sibling	320	240	kt_init(); kt_make("test",320,240); kt_begin(s,16.0); kt_row(s,0,"box","parent"); kt_row(s,1,"box","a"); kt_fill(s,2,"#FF0000"); kt_width(s,2,100.0); kt_height(s,2,50.0); kt_end_row(s); kt_row(s,1,"box","b"); kt_fill(s,3,"#00FF00"); kt_width(s,3,100.0); kt_height(s,3,50.0); kt_end_row(s); kt_end_row(s); kt_end(s)	2	-	Exact cmd count: 2 sibling elements produce exactly 2 commands
+cmd_count_begin_end	80	24	kt_init(); kt_make("test",80,24); kt_begin(s,16.0); kt_end(s); kt_cmd_count(s)	0	-	kt_cmd_count after an empty frame returns 0

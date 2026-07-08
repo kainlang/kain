@@ -1,0 +1,141 @@
+// ============================================================================
+//  widgets/Toggle.kn — Capsule-shaped toggle switch with animated thumb
+//  P2-013: Capsule shape = full corner radius (theme.radius_full ~ 999).
+//          Track fill: on = accent, off = border. Thumb animated via pulse
+//          spring physics toward target (1.0 or 0.0). Thumb x-position =
+//          lerp(2, track_width - thumb_size - 2, _anim_progress).
+//          on_toggle fires after each toggle.
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+// ============================================================================
+
+pub type KtSession   = Int
+pub type KtElementId = Int
+
+// ── Constants ────────────────────────────────────────────────────────────────
+// Track capsule dimensions
+const TOGGLE_WIDTH:  Float = 44.0
+const TOGGLE_HEIGHT: Float = 24.0
+const THUMB_SIZE:    Float = 20.0
+const THUMB_MARGIN:  Float = 2.0   // padding from track edge to thumb
+
+// ── @extern bindings (from core.kn) ──────────────────────────────────────────
+@extern fn kt_row(s: KtSession, parent: KtElementId, kind: String, key: String) -> KtElementId
+@extern fn kt_end_row(s: KtSession) -> Void
+@extern fn kt_text(s: KtSession, elem: KtElementId, text: String) -> Void
+@extern fn kt_hovered(s: KtSession, elem: KtElementId) -> Int
+@extern fn kt_clicked(s: KtSession, elem: KtElementId) -> Int
+@extern fn kt_active(s: KtSession, elem: KtElementId) -> Int
+@extern fn kt_fill(s: KtSession, elem: KtElementId, color: String) -> Void
+@extern fn kt_width(s: KtSession, elem: KtElementId, w: Float) -> Void
+@extern fn kt_height(s: KtSession, elem: KtElementId, h: Float) -> Void
+@extern fn kt_radius(s: KtSession, elem: KtElementId, r: Float) -> Void
+@extern fn kt_stroke(s: KtSession, elem: KtElementId, color: String, w: Float) -> Void
+@extern fn kt_opacity(s: KtSession, elem: KtElementId, a: Float) -> Void
+@extern fn kt_gap(s: KtSession, elem: KtElementId, gap: Float) -> Void
+
+// ── Widget trait (from Widget.kn) ─────────────────────────────────────────────
+pub trait Widget:
+    fn stable_key(_self: Self_) -> String:
+        return ""
+    fn kind(_self: Self_) -> String:
+        return "widget"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return
+
+// ============================================================================
+//  Component: Toggle
+// ============================================================================
+
+/// Capsule-shaped toggle switch with animated thumb circle.
+///
+/// Props:
+///   checked   — initial checked state (Bool)
+///   theme     — accent color hex string for on state (defaults to "#21D4A1")
+///   disabled  — if true, interaction is disabled (Bool)
+///   on_toggle — callback fired on click with new checked value (optional)
+///   key       — stable key for element reconciliation
+///
+/// State:
+///   _checked       — current checked state, toggled on click
+///   _anim_progress — 0.0 (off) to 1.0 (on), driven by pulse spring animation
+///
+/// Pulse:
+///   animate — spring toward target (1.0 if checked, 0.0 if unchecked)
+///             Uses lerp-based smoothing: _anim_progress += diff * 0.25
+component Toggle(
+    checked:   Bool = false,
+    theme:     String = "",
+    disabled:  Bool = false,
+    on_toggle  = none,
+    key:       String = "toggle",
+):
+    state _checked:       Bool = checked
+    state _anim_progress: Float = if checked: 1.0 else: 0.0
+    state _elem:          Int = -1
+
+    /// Resolve track fill color: accent when checked (or custom theme), border when unchecked.
+    fn track_fill(_self: Self_) -> String:
+        if _self.disabled:
+            return "#1A1A28"
+        if _self._checked:
+            if _self.theme != "":
+                return _self.theme
+            return "#21D4A1"
+        return "#2E2E4A"
+
+    /// Compute thumb horizontal offset: lerp between left and right positions.
+    /// Left  = THUMB_MARGIN (2px)
+    /// Right = TOGGLE_WIDTH - THUMB_SIZE - THUMB_MARGIN (44 - 20 - 2 = 22px)
+    fn thumb_offset(_self: Self_) -> Float:
+        let left  = THUMB_MARGIN
+        let right = TOGGLE_WIDTH - THUMB_SIZE - THUMB_MARGIN
+        return left + (right - left) * _self._anim_progress
+
+    /// Compute opacity: full opacity when enabled, 0.5 when disabled.
+    fn widget_opacity(_self: Self_) -> Float:
+        if _self.disabled:
+            return 0.5
+        return 1.0
+
+    /// Process click interaction. Toggles _checked and fires on_toggle.
+    fn process_interaction(_self: Self_, s: KtSession):
+        if _self.disabled:
+            return
+        if _self._elem < 0:
+            return
+        let clk = kt_clicked(s, _self._elem)
+        if clk != 0:
+            _self._checked = _self._checked == false
+            if _self.on_toggle != none:
+                _self.on_toggle(_self._checked)
+
+    // ── Spring animation pulse ──────────────────────────────────
+    // Smoothly animate _anim_progress toward target (1.0 or 0.0).
+    // Uses lerp-based spring with factor 0.25 for responsive feel.
+    pulse animate every 16ms jitter 2ms:
+        let target = if _checked: 1.0 else: 0.0
+        let diff = target - _anim_progress
+        if diff > 0.01 or diff < -0.01:
+            _anim_progress = _anim_progress + diff * 0.25
+        else:
+            _anim_progress = target
+
+    render <box kind="toggle" key={key} width={TOGGLE_WIDTH} height={TOGGLE_HEIGHT} fill={track_fill} radius={999} opacity={widget_opacity}>
+        <box kind="toggle_thumb" width={THUMB_SIZE} height={THUMB_SIZE} fill="#FFFFFF" radius={999} />
+    </box>
+
+// ============================================================================
+//  Widget trait implementation for Toggle
+// ============================================================================
+
+impl Widget for Toggle:
+    fn stable_key(_self: Self_) -> String:
+        return _self.key
+    fn kind(_self: Self_) -> String:
+        return "toggle"
+    fn element_id(_self: Self_) -> Int:
+        return _self._elem
+    fn tick_interaction(_self: Self_):
+        return

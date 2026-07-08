@@ -1,0 +1,298 @@
+// ============================================================================
+// draw_commands.kn — Test std::ui draw command ABI
+// ============================================================================
+// Tests frame-scoped draw commands emitted through the C renderer:
+//   - native_ui_draw_rect — filled rectangle with style string
+//   - native_ui_draw_text — text with font resource
+//   - native_ui_draw_resource — resource-backed draw (texture/canvas)
+//   - native_ui_draw_command_count — how many commands queued
+//   - native_ui_draw_command_kind / node / resource / x / y / w / h — inspect
+//   - native_ui_font_create — load a font for text drawing
+//   - native_ui_resource_create — general resource creation
+//
+// Draws a colorful UI: filled rects, rounded rects, borders, text.
+// Each call exercises a different style_string format.
+//
+// Layer: L0 (plain fn — @extern ABI calls via std::ui wrappers)
+// Usage: kain check draw_commands.kn
+// ============================================================================
+
+use std::runtime
+use std::ui
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const WIN_W: Int = 800
+const WIN_H: Int = 600
+
+// ============================================================================
+// TEST: Draw filled rectangles with various style strings
+// ============================================================================
+
+fn test_draw_rects() -> Int:
+    let session = ui_host_session_create(
+        "draw_test", "Draw Commands Test", WIN_W, WIN_H, "winit")
+
+    // Create a root panel node to own the draw commands
+    let root = native_ui_node_create(session, "panel")
+    let _rr = native_ui_node_set_rect(session, root, 0.0, 0.0, to_float(WIN_W), to_float(WIN_H))
+
+    // Begin frame — required before draw commands
+    let bf = native_ui_begin_frame(session, 16.0)
+    if bf < 0:
+        println("FAIL: begin_frame returned " + str(bf))
+        return 1
+
+    // Draw a filled red rectangle
+    let r1 = native_ui_draw_rect(session, root, 10.0, 10.0, 200.0, 100.0,
+        "fill=#FF4444 corner_radius=0.0")
+
+    // Draw a filled green rounded rectangle
+    let r2 = native_ui_draw_rect(session, root, 220.0, 10.0, 200.0, 100.0,
+        "fill=#44FF44 corner_radius=8.0")
+
+    // Draw a filled blue rectangle with border
+    let r3 = native_ui_draw_rect(session, root, 430.0, 10.0, 200.0, 100.0,
+        "fill=#4444FF border=#AAAAFF border_width=2.0")
+
+    // Draw a border-only rectangle (no fill)
+    let r4 = native_ui_draw_rect(session, root, 10.0, 120.0, 200.0, 100.0,
+        "fill=transparent border=#FFAA00 border_width=3.0")
+
+    // Draw with opacity
+    let r5 = native_ui_draw_rect(session, root, 220.0, 120.0, 200.0, 100.0,
+        "fill=#FF44AA corner_radius=12.0 opacity=0.5")
+
+    // Count draw commands
+    let cmd_count = native_ui_draw_command_count(session)
+    if cmd_count < 5:
+        println("FAIL: draw_command_count = " + str(cmd_count) + " expected 5+")
+        return 2
+
+    println("OK: " + str(cmd_count) + " draw commands emitted")
+
+    // Inspect first draw command
+    let kind = native_ui_draw_command_kind(session, 0)
+    let node = native_ui_draw_command_node(session, 0)
+    let dx   = native_ui_draw_command_x(session, 0)
+    let dy   = native_ui_draw_command_y(session, 0)
+    let dw   = native_ui_draw_command_width(session, 0)
+    let dh   = native_ui_draw_command_height(session, 0)
+    let style = native_ui_draw_command_style(session, 0)
+
+    println("  cmd[0]: kind=" + kind + " node=" + str(node) +
+            " pos=(" + str(dx) + "," + str(dy) + ")" +
+            " size=" + str(dw) + "x" + str(dh) +
+            " style='" + style + "'")
+
+    // End frame
+    let ef = native_ui_end_frame(session)
+    if ef < 0:
+        println("FAIL: end_frame returned " + str(ef))
+        return 3
+
+    let _ds = native_ui_session_destroy(session)
+    return 0
+
+// ============================================================================
+// TEST: Draw text with loaded font
+// ============================================================================
+
+fn test_draw_text() -> Int:
+    let session = ui_host_session_create(
+        "text_draw", "Text Draw Test", WIN_W, WIN_H, "winit")
+
+    // Load a font (try Segoe UI, fall back to default)
+    let font_id = native_ui_font_create(session, "body", "Segoe UI", 14.0)
+    if font_id <= 0:
+        // Fallback: use default font name
+        let font_id = native_ui_font_create(session, "body", "Arial", 14.0)
+        if font_id <= 0:
+            println("WARN: font_create returned " + str(font_id) + " — text may not render")
+            font_id = 0
+
+    println("OK: font loaded (id=" + str(font_id) + ")")
+
+    let root = native_ui_node_create(session, "text")
+    let _rr = native_ui_node_set_rect(session, root, 0.0, 0.0, to_float(WIN_W), to_float(WIN_H))
+
+    let bf = native_ui_begin_frame(session, 16.0)
+    if bf < 0:
+        println("FAIL: begin_frame")
+        return 1
+
+    // Draw text with font and style
+    let t1 = native_ui_draw_text(session, root, font_id,
+        50.0, 50.0,
+        "Hello from std::ui draw commands!",
+        "color=#21D4A1 size=24.0")
+
+    let t2 = native_ui_draw_text(session, root, font_id,
+        50.0, 90.0,
+        "Drawing text through the ABI bridge works!",
+        "color=#E8E8F0 size=16.0")
+
+    let t3 = native_ui_draw_text(session, root, font_id,
+        50.0, 130.0,
+        "Font resource: " + str(font_id),
+        "color=#8888A0 size=12.0")
+
+    let cmd_count = native_ui_draw_command_count(session)
+    println("OK: " + str(cmd_count) + " draw commands (including text)")
+
+    // Inspect a text command
+    if cmd_count > 0:
+        let tkind  = native_ui_draw_command_kind(session, cmd_count - 1)
+        let ttext  = native_ui_draw_command_text(session, cmd_count - 1)
+        let tfont  = native_ui_draw_command_font(session, cmd_count - 1)
+        println("  last cmd: kind=" + tkind + " text='" + ttext + "' font=" + str(tfont))
+
+    let ef = native_ui_end_frame(session)
+    let _ds = native_ui_session_destroy(session)
+    return 0
+
+// ============================================================================
+// TEST: Draw commands with multiple nodes
+// ============================================================================
+
+fn test_multi_node_draws() -> Int:
+    let session = ui_host_session_create(
+        "multi_draw", "Multi-Node Draw", WIN_W, WIN_H, "winit")
+
+    // Create a node tree: panel → box1, box2, label
+    let panel = native_ui_node_create(session, "panel")
+    let box1  = native_ui_node_create(session, "box")
+    let box2  = native_ui_node_create(session, "box")
+    let label = native_ui_node_create(session, "text")
+
+    let _pp1 = native_ui_node_set_parent(session, box1, panel)
+    let _pp2 = native_ui_node_set_parent(session, box2, panel)
+    let _pl  = native_ui_node_set_parent(session, label, panel)
+
+    let _rp = native_ui_node_set_rect(session, panel, 0.0, 0.0, 800.0, 600.0)
+    let _rb1 = native_ui_node_set_rect(session, box1, 10.0, 10.0, 380.0, 280.0)
+    let _rb2 = native_ui_node_set_rect(session, box2, 410.0, 10.0, 380.0, 280.0)
+    let _rl = native_ui_node_set_rect(session, label, 10.0, 300.0, 780.0, 30.0)
+
+    let bf = native_ui_begin_frame(session, 16.0)
+
+    // Draw on box1 — warm colors
+    let _d1 = native_ui_draw_rect(session, box1, 0.0, 0.0, 380.0, 280.0,
+        "fill=#FF6633 corner_radius=6.0")
+    let _d2 = native_ui_draw_rect(session, box1, 20.0, 20.0, 340.0, 40.0,
+        "fill=#FF9944 corner_radius=4.0")
+    let _d3 = native_ui_draw_rect(session, box1, 20.0, 80.0, 340.0, 40.0,
+        "fill=#FFCC55 corner_radius=4.0")
+    let _d4 = native_ui_draw_rect(session, box1, 20.0, 140.0, 340.0, 40.0,
+        "fill=#FFEE66 corner_radius=4.0")
+
+    // Draw on box2 — cool colors
+    let _d5 = native_ui_draw_rect(session, box2, 0.0, 0.0, 380.0, 280.0,
+        "fill=#3366FF corner_radius=6.0")
+    let _d6 = native_ui_draw_rect(session, box2, 20.0, 20.0, 340.0, 40.0,
+        "fill=#4488CC corner_radius=4.0")
+    let _d7 = native_ui_draw_rect(session, box2, 20.0, 80.0, 340.0, 40.0,
+        "fill=#55AACC corner_radius=4.0")
+    let _d8 = native_ui_draw_rect(session, box2, 20.0, 140.0, 340.0, 40.0,
+        "fill=#66CCCC corner_radius=4.0")
+
+    // Draw on label — bordered text area
+    let _d9 = native_ui_draw_rect(session, label, 0.0, 0.0, 780.0, 30.0,
+        "fill=#1A1A2E border=#3A3A5C border_width=1.0 corner_radius=4.0")
+
+    let cmd_count = native_ui_draw_command_count(session)
+    println("OK: " + str(cmd_count) + " draw commands across 4 nodes")
+
+    // Quick audit: count commands per node
+    var i: Int = 0
+    var panel_cmds: Int = 0
+    var box1_cmds: Int = 0
+    var box2_cmds: Int = 0
+    var label_cmds: Int = 0
+
+    while i < cmd_count:
+        let n = native_ui_draw_command_node(session, i)
+        if n == panel: panel_cmds = panel_cmds + 1
+        if n == box1:  box1_cmds = box1_cmds + 1
+        if n == box2:  box2_cmds = box2_cmds + 1
+        if n == label: label_cmds = label_cmds + 1
+        i = i + 1
+
+    println("  panel=" + str(panel_cmds) + " box1=" + str(box1_cmds) +
+            " box2=" + str(box2_cmds) + " label=" + str(label_cmds))
+
+    let ef = native_ui_end_frame(session)
+    let _ds = native_ui_session_destroy(session)
+    return 0
+
+// ============================================================================
+// TEST: Resource-backed draw (canvas)
+// ============================================================================
+
+fn test_resource_draw() -> Int:
+    let session = ui_host_session_create(
+        "res_draw", "Resource Draw Test", WIN_W, WIN_H, "winit")
+
+    // Create a canvas resource
+    let canvas = native_ui_canvas_create(session, "test-canvas", 100, 100)
+    if canvas > 0:
+        let ctype = native_ui_resource_type(session, canvas)
+        let ckey  = native_ui_resource_key(session, canvas)
+        let cw    = native_ui_resource_width(session, canvas)
+        let ch    = native_ui_resource_height(session, canvas)
+        let clen  = native_ui_resource_byte_length(session, canvas)
+        println("OK: canvas resource created (id=" + str(canvas) +
+                " type=" + ctype + " key=" + ckey +
+                " size=" + str(cw) + "x" + str(ch) +
+                " bytes=" + str(clen) + ")")
+
+        // Create a node and draw the resource
+        let node = native_ui_node_create(session, "box")
+        let _rr = native_ui_node_set_rect(session, node, 0.0, 0.0, 100.0, 100.0)
+
+        let bf = native_ui_begin_frame(session, 16.0)
+        let dr = native_ui_draw_resource(session, node, canvas,
+            0.0, 0.0, 100.0, 100.0, "")
+        println("OK: draw_resource returned " + str(dr))
+        let _ef = native_ui_end_frame(session)
+    else:
+        println("WARN: canvas_create returned " + str(canvas))
+
+    let _ds = native_ui_session_destroy(session)
+    return 0
+
+// ============================================================================
+// MAIN — run all draw command tests
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    println("=== draw_commands.kn ===")
+    var failures: Int = 0
+
+    let r1 = test_draw_rects()
+    if r1 != 0: failures = failures + 1
+
+    let r2 = test_draw_text()
+    if r2 != 0: failures = failures + 1
+
+    let r3 = test_multi_node_draws()
+    if r3 != 0: failures = failures + 1
+
+    let r4 = test_resource_draw()
+    if r4 != 0: failures = failures + 1
+
+    if failures > 0:
+        println("RESULT: " + str(failures) + " test(s) FAILED")
+    else:
+        println("RESULT: all draw command tests PASSED")
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return failures

@@ -1,0 +1,215 @@
+// ============================================================================
+// session_lifecycle.kn — Test std::ui session lifecycle ABI
+// ============================================================================
+// Tests:
+//   - ui_host_session_create()  — convenience: session + window open + host attach
+//   - native_ui_session_create/destroy — raw session alloc/teardown
+//   - native_ui_session_count() — how many sessions exist
+//   - native_ui_window_open/close — OS window lifecycle
+//   - native_ui_host_attach — backend binding (winit)
+//   - native_ui_host_pump / native_ui_host_should_close — message pump + exit flag
+//   - native_ui_begin_frame / native_ui_end_frame / native_ui_present — frame loop
+//   - native_ui_reset() — global UI teardown
+//
+// Layer: L0 (plain fn + IO effect — all @extern ABI calls return Ints)
+// Usage: kain check session_lifecycle.kn
+// ============================================================================
+
+use std::runtime
+use std::ui
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const WIN_W: Int = 800
+const WIN_H: Int = 600
+const MAX_FRAMES: Int = 3
+
+// ============================================================================
+// TEST: Raw session alloc + window open via convenience helper
+// ============================================================================
+
+fn test_convenience_session() -> Int:
+    // ui_host_session_create does three things:
+    //   1. native_ui_session_create(name, w, h)
+    //   2. native_ui_window_open(sid, title, w, h)
+    //   3. native_ui_host_attach(sid, "winit")
+    let session = ui_host_session_create(
+        "session_test", "Session Lifecycle Test", WIN_W, WIN_H, "winit")
+    if session <= 0:
+        println("FAIL: ui_host_session_create returned " + str(session))
+        return 1
+
+    // Verify a session exists
+    let count = native_ui_session_count()
+    if count < 1:
+        println("FAIL: session_count = " + str(count) + " after create")
+        return 2
+
+    println("OK: session created (id=" + str(session) + ", count=" + str(count) + ")")
+
+    // Destroy it
+    let d = native_ui_session_destroy(session)
+    let count_after = native_ui_session_count()
+    println("OK: session destroyed (result=" + str(d) + ", count=" + str(count_after) + ")")
+    return 0
+
+// ============================================================================
+// TEST: Multiple sessions parallel
+// ============================================================================
+
+fn test_multiple_sessions() -> Int:
+    let s1 = ui_host_session_create("alpha", "Alpha", 400, 300, "winit")
+    let s2 = ui_host_session_create("beta",  "Beta",  400, 300, "winit")
+    let s3 = ui_host_session_create("gamma", "Gamma", 400, 300, "winit")
+
+    let count = native_ui_session_count()
+    if count < 3:
+        println("FAIL: expected 3+ sessions, got " + str(count))
+        return 1
+
+    println("OK: " + str(count) + " sessions alive")
+
+    // Destroy in reverse
+    let _d3 = native_ui_session_destroy(s3)
+    let _d2 = native_ui_session_destroy(s2)
+    let _d1 = native_ui_session_destroy(s1)
+
+    let final_count = native_ui_session_count()
+    println("OK: all sessions destroyed, remaining: " + str(final_count))
+    return 0
+
+// ============================================================================
+// TEST: Mini frame loop — pump + begin/end/present
+// ============================================================================
+
+fn test_mini_frame_loop() -> Int:
+    let session = ui_host_session_create(
+        "frame_test", "Frame Loop Test", 320, 240, "winit")
+
+    var frame: Int = 0
+    while frame < MAX_FRAMES:
+        // Pump platform events
+        let _pump = native_ui_host_pump(session)
+
+        // Check should_close — 0 means still running
+        let closing = native_ui_host_should_close(session)
+        if closing != 0:
+            println("INFO: window close requested at frame " + str(frame))
+            break
+
+        // Begin frame
+        let bf = native_ui_begin_frame(session, 16.0)
+        if bf < 0:
+            println("FAIL: begin_frame returned " + str(bf))
+            return 1
+
+        // End frame
+        let ef = native_ui_end_frame(session)
+        if ef < 0:
+            println("FAIL: end_frame returned " + str(ef))
+            return 2
+
+        // Present to screen
+        let pr = native_ui_present(session)
+        if pr < 0:
+            println("FAIL: present returned " + str(pr))
+            return 3
+
+        frame = frame + 1
+
+    println("OK: frame loop completed " + str(frame) + " frames")
+
+    let _ds = native_ui_session_destroy(session)
+    return 0
+
+// ============================================================================
+// TEST: Window open/close explicit
+// ============================================================================
+
+fn test_window_explicit() -> Int:
+    let session = native_ui_session_create("win_test", 256, 256)
+    if session <= 0:
+        println("FAIL: session_create")
+        return 1
+
+    // Open window
+    let w = native_ui_window_open(session, "Explicit Window Test", 256, 256)
+    if w < 0:
+        println("FAIL: window_open returned " + str(w))
+        let _ds = native_ui_session_destroy(session)
+        return 2
+
+    println("OK: window opened (result=" + str(w) + ")")
+
+    // Attach host
+    let h = native_ui_host_attach(session, "winit")
+    if h < 0:
+        println("FAIL: host_attach returned " + str(h))
+        let _ds = native_ui_session_destroy(session)
+        return 3
+
+    println("OK: host attached (result=" + str(h) + ")")
+
+    // Pump once to make the window real
+    let _pump = native_ui_host_pump(session)
+
+    // Close window
+    let wc = native_ui_window_close(session)
+    println("OK: window closed (result=" + str(wc) + ")")
+
+    let _ds = native_ui_session_destroy(session)
+    return 0
+
+// ============================================================================
+// TEST: Global reset
+// ============================================================================
+
+fn test_reset() -> Int:
+    // Create and immediately destroy a session to ensure
+    // the runtime has something to reset
+    let session = ui_host_session_create("reset_test", "Reset Test", 128, 128, "winit")
+    let _ds = native_ui_session_destroy(session)
+
+    // Reset the entire UI subsystem
+    let r = native_ui_reset()
+    println("OK: UI reset (result=" + str(r) + ")")
+    return 0
+
+// ============================================================================
+// MAIN — run all session lifecycle tests
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    println("=== session_lifecycle.kn ===")
+    var failures: Int = 0
+
+    let r1 = test_convenience_session()
+    if r1 != 0: failures = failures + 1
+
+    let r2 = test_multiple_sessions()
+    if r2 != 0: failures = failures + 1
+
+    let r3 = test_window_explicit()
+    if r3 != 0: failures = failures + 1
+
+    let r4 = test_reset()
+    if r4 != 0: failures = failures + 1
+
+    let r5 = test_mini_frame_loop()
+    if r5 != 0: failures = failures + 1
+
+    if failures > 0:
+        println("RESULT: " + str(failures) + " test(s) FAILED")
+    else:
+        println("RESULT: all session lifecycle tests PASSED")
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return failures

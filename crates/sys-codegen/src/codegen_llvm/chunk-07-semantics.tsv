@@ -1,0 +1,29 @@
+function_name	kain_concept	llvm_ir_pattern	llvm_c_api	status	lines
+compile_actor	actor	define i32 @Actor_turn(): actor mailbox switch dispatch + handler bodies	LLVMBuildCall/BuildSwitch	needs-review	864-1149
+emit_runtime_abi_types	runtime/types	%KainActorRef/%KainActorMessage/%KainReplyPort/%KainActorSpawnConfig/%KainCrashEntry	LLVMStructCreateNamed	needs-review	1151-1163
+emit_runtime	runtime	Placeholder comment only	—	mapped	1165-1167
+emit_externs	runtime/FFI	declare void/1648 @print*/@str_*/@kain_*/@py_*/@abi_*/@__kain_*	—	mapped	1169-1395
+emit_stdlib_externs	stdlib	declare for each stdlib function not in skiplist	—	mapped	1397-1423
+emit_struct_destructors	ownership/RC	define void @dtor_StructName(i8*): field RC release loop	—	needs-review	1425-1478
+compile_component	component	Delegates to compile_component_render	—	mapped	1480-1482
+compile_impl	impl	Dispatch to compile_impl_method per method	—	mapped	1484-1495
+compile_impl_method	impl/method	define void @Target_method(): entry alloca self store + arg stores + block compile	LLVMBuildCall	needs-review	1497-1644
+find_shader_by_name	shader	Recursive search for TypedShader by name	—	mapped	1646-1659
+collect_shader_spirv_hexes	shader/SPIR-V	Compile fragment shader to SPIR-V hex via gpu::compile_fragment_to_spirv_hex	—	needs-review	1661-1686
+emit_shader_spirv_globals	shader/SPIR-V	@__kain_spirv_{name} = private unnamed_addr constant [...]	LLVMAddGlobal	needs-review	1688-1715
+compile_entangle_registration_function	entangle	define void @__kain_register_entanglements(): call @abi_entangle_register per binding	LLVMBuildCall	needs-review	1717-1751
+should_force_inline_callable	fn/inline	Check body size and loop absence for alwaysinline	—	mapped	1753-1762
+compile_named_callable	fn (generic)	define void @name(): entry allocas + params + block compile + debug metadata + crash table	LLVMBuildCall/BuildAlloca	needs-review	1764-2084
+compile_patch	patch	Wrap compile_named_callable with abi_patch_begin/commit	LLVMBuildCall @abi_patch_*/abi_patch_commit	needs-review	2086-2099
+resonance_context_params	resonate	Build Param list: resonate_old_i64, resonate_new_i64, resonate_fired	—	mapped	2101-2135
+compile_resonate	resonate	compile_named_callable for __kain_resonate_{name}(old, new, fired)	LLVMBuildCall	needs-review	2137-2158
+compile_law	law	compile_named_callable for law(params) -> Bool	LLVMBuildCall	needs-review	2160-2170
+compile_axiom	axiom	define i64 @__kain_axiom_{name}(): call @kain_machine_axiom_accept with target/arch/capability	LLVMBuildCall	needs-review	2172-2230
+compile_pulse	pulse	define void @body(tick, dt, missed); define void @fire() with pulse_snapshot + pulse_start	LLVMBuildCall @kain_machine_pulse_*	needs-review	2232-2364
+compile_converge	converge	spec+fast lanes as separate callables; switch dispatch with abi_converge_select_lane_for_key + cached lane global	LLVMBuildSwitch/BuildCall	needs-review	2366-2676
+compile_world_initializer	world	define void @__kain_init_world_{name}(): lazy init guard + field initializers + surface frame loop	LLVMBuildStore/BuildCall	needs-review	2678-2787
+compile_orchestrate	orchestrate	compile_named_callable with orchestrate barrier JSON metadata	LLVMBuildCall	needs-review	2789-2807
+emit_machine_stones_entry_preamble	axiom/pulse	Emit axiom accept calls + pulse start calls in main preamble	LLVMBuildCall @kain_machine_*/@kain_machine_pulse_start	needs-review	2809-2832
+compile_shader	shader	compile_named_callable for shader body as function	LLVMBuildCall	needs-review	2834-2849
+compile_function	fn	Dispatch extern → compile_extern_function or compile_named_callable	LLVMBuildCall	needs-review	2851-2864
+compile_extern_function	fn/extern	declare void @name(params) with callconv/link_name	—	mapped	2866-2922

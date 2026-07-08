@@ -1,0 +1,488 @@
+// ============================================================================
+//  cosmic_forge.kn — CLOCKWORK ORRERY: Mechanical Gear-Planet Simulation
+// ============================================================================
+//
+//  WHAT:        A brass-and-gold mechanical orrery. An icosahedron sun with
+//               warm orange emissive sits at center. Four gear-like planets
+//               (torus/torusKnot) orbit at different radii with mechanical
+//               arm lines connecting each to the sun. Dust particles in the
+//               orbital plane. Spark particles erupt near the sun. Three
+//               warm-toned point lights orbit at different speeds.
+//
+//               Everything pulses with a slow, majestic mechanical rhythm.
+//               Keyboard controls let you change tempo and toggle fog.
+//
+//  KEYS:        1 = slow speed, 2 = medium speed, 3 = fast speed
+//               F = toggle fog, R = toggle auto-rotate
+//
+//  LAYERS:      L0 (fn, let, var, while), L1 (world state), L5 (pulse 16ms)
+//               electron_bridge + electron_extras + electron_interact
+//
+//  COLOR PALETTE: Warm industrial — gold, brass, copper, bronze, dark sepia
+//  GEOMETRY:      icosahedron (sun), torus ×3 (planets), torusKnot ×1 (gear)
+//                 lines ×4 (orbital arms), particles ×2 (dust + sparks)
+//                 lights ×3 (amber, gold, copper)
+//
+//  COMPILE:     cd X:/blades/web/electron
+//               kain build demos/cosmic_forge.kn --target llvm
+//
+//  RUN:         npm start (or cosmic_forge.exe directly)
+// ============================================================================
+
+use std::runtime
+use std::math
+use std::time
+use electron_bridge
+use electron_extras
+use electron_interact
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+// Planet count
+const PLANET_N: Int = 4
+
+// Particle counts
+const DUST_N:   Int = 200
+const SPARK_N:  Int = 60
+
+// Orbit radii
+const SUN_RADIUS:   Float = 1.2
+const MERCURY_R:    Float = 2.2
+const VENUS_R:      Float = 3.5
+const EARTH_R:      Float = 4.8
+const MARS_R:       Float = 3.0
+
+// Planet sizes
+const MERCURY_S:    Float = 0.35
+const VENUS_S:      Float = 0.50
+const EARTH_S:      Float = 0.45
+const MARS_S:       Float = 0.40
+
+// Orbit speeds (base)
+const MERCURY_SPD:  Float = 0.50
+const VENUS_SPD:    Float = 0.35
+const EARTH_SPD:    Float = 0.25
+const MARS_SPD:     Float = 0.42
+
+// Planet self-rotation speeds (gear teeth feel)
+const MERCURY_SELF: Float = 1.8
+const VENUS_SELF:   Float = 1.2
+const EARTH_SELF:   Float = 0.9
+const MARS_SELF:    Float = 2.5
+
+// Colors
+const SUN_GLOW:     Float = 3.0
+
+// ============================================================================
+//  LAYER 1: STATE AUTHORITY — world for toggle state + speed control
+// ============================================================================
+
+world OrreryState:
+    state ready:     Int = 0
+    state fog_on:    Int = 1
+    state rotate_on: Int = 1
+    state speed:     Int = 1      // 1=slow, 2=medium, 3=fast
+    state frame:     Int = 0
+
+// ============================================================================
+//  LAYER 5: TEMPORAL — 16ms pulse drives the entire orrery
+// ============================================================================
+
+pulse orrery_clock every 16 ms:
+    if OrreryState.ready == 0:
+        return
+
+    let tick: Int = pulse_tick
+    let t: Float = tick * 0.04       // slow, majestic timebase
+    OrreryState.frame = tick
+
+    let speed_mult: Float = 1.0
+    if OrreryState.speed == 0: speed_mult = 0.3
+    if OrreryState.speed == 1: speed_mult = 1.0
+    if OrreryState.speed == 2: speed_mult = 2.0
+    let st: Float = t * speed_mult
+
+    // ── INTERACTION POLL ───────────────────────────────────────────────
+    interact_poll()
+
+    // ── KEYBOARD HANDLING ──────────────────────────────────────────────
+    if key_just_pressed("f"):
+        if OrreryState.fog_on == 1:
+            OrreryState.fog_on = 0
+            set_fog("#0d0800", 999.0, 1000.0)
+        else:
+            OrreryState.fog_on = 1
+            set_fog("#0d0800", 6.0, 30.0)
+
+    if key_just_pressed("r"):
+        if OrreryState.rotate_on == 1:
+            OrreryState.rotate_on = 0
+        else:
+            OrreryState.rotate_on = 1
+
+    if key_just_pressed("1"):
+        OrreryState.speed = 0
+    if key_just_pressed("2"):
+        OrreryState.speed = 1
+    if key_just_pressed("3"):
+        OrreryState.speed = 2
+
+    // ── INTERACT CLEAR ──────────────────────────────────────────────
+    interact_clear()
+
+    // ════════════════════════════════════════════════════════════════════
+    //  SUN — central icosahedron with pulsing warm emissive
+    // ════════════════════════════════════════════════════════════════════
+
+    let sun_rot: Float = st * 0.15
+    let sun_scale: Float = SUN_RADIUS + sin(st * 0.5) * 0.04
+    update_transform_r("sun_core", 0.0, 0.0, 0.0,
+        sun_rot, sun_rot * 0.7, 0.0,
+        sun_scale, sun_scale, sun_scale)
+
+    let sun_glow: Float = SUN_GLOW + sin(st * 1.2) * 0.6 + cos(st * 2.7) * 0.3
+    update_emissive("sun_core", "#ff7722", sun_glow)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  PLANETS — 4 orbiting gear-like planets
+    //  Each updates its position + self-rotation each tick
+    // ════════════════════════════════════════════════════════════════════
+
+    // Planet 1: Mercury — innermost, fast orbit, brass/gold
+    let p1_a: Float = st * MERCURY_SPD
+    let p1_x: Float = cos(p1_a) * MERCURY_R
+    let p1_z: Float = sin(p1_a) * MERCURY_R
+    let p1_tilt: Float = sin(st * 0.3) * 0.08
+    update_transform_r("planet_0", p1_x, p1_tilt, p1_z,
+        st * MERCURY_SELF, st * MERCURY_SELF * 0.5, 0.0,
+        MERCURY_S, MERCURY_S, MERCURY_S)
+    let p1_glow: Float = 0.3 + sin(st * 2.0 + 0.0) * 0.15
+    update_emissive("planet_0", "#C0A060", p1_glow)
+
+    // Planet 2: Venus — medium orbit, reverse spin, dark gold/brass
+    let p2_a: Float = st * VENUS_SPD + 1.5
+    let p2_x: Float = cos(p2_a) * VENUS_R
+    let p2_z: Float = sin(p2_a) * VENUS_R
+    let p2_tilt: Float = sin(st * 0.25 + 1.0) * 0.1
+    update_transform_r("planet_1", p2_x, p2_tilt, p2_z,
+        st * -VENUS_SELF, 0.0, st * VENUS_SELF * 0.3,
+        VENUS_S, VENUS_S, VENUS_S)
+    let p2_glow: Float = 0.25 + sin(st * 1.5 + 2.0) * 0.12
+    update_emissive("planet_1", "#B8860B", p2_glow)
+
+    // Planet 3: Earth — furthest, slowest, copper/bronze
+    let p3_a: Float = st * EARTH_SPD + 3.0
+    let p3_x: Float = cos(p3_a) * EARTH_R
+    let p3_z: Float = sin(p3_a) * EARTH_R
+    let p3_tilt: Float = cos(st * 0.2 + 0.5) * 0.12
+    update_transform_r("planet_2", p3_x, p3_tilt, p3_z,
+        st * EARTH_SELF * 0.7, st * EARTH_SELF, 0.0,
+        EARTH_S, EARTH_S, EARTH_S)
+    let p3_glow: Float = 0.2 + sin(st * 1.8 + 4.0) * 0.1
+    update_emissive("planet_2", "#CD853F", p3_glow)
+
+    // Planet 4: Mars/Gear — tilted orbit, torusKnot, silver/bronze
+    let p4_a: Float = st * MARS_SPD + 0.5
+    let p4_x: Float = cos(p4_a) * MARS_R
+    let p4_z: Float = sin(p4_a) * MARS_R
+    let p4_y: Float = sin(p4_a * 2.0) * 0.5
+    update_transform_r("planet_3", p4_x, p4_y, p4_z,
+        st * MARS_SELF, st * MARS_SELF * 1.2, st * 0.5,
+        MARS_S, MARS_S, MARS_S)
+    let p4_glow: Float = 0.35 + sin(st * 2.5 + 1.5) * 0.18
+    update_emissive("planet_3", "#A0A0A0", p4_glow)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  ORBITAL ARMS — mechanical lines from sun to each planet
+    //  Each arm is a line with 2 points: center → planet position
+    // ════════════════════════════════════════════════════════════════════
+
+    // Arm 1: to Mercury
+    var arm0_json: String = "{\"cmd\":\"update\",\"id\":\"arm_0\",\"points\":["
+    arm0_json = arm0_json + "{\"x\":0,\"y\":0,\"z\":0},"
+    arm0_json = arm0_json + "{\"x\":" + str(p1_x) + ",\"y\":" + str(p1_tilt) + ",\"z\":" + str(p1_z) + "}]}"
+    println(arm0_json)
+
+    // Arm 2: to Venus
+    var arm1_json: String = "{\"cmd\":\"update\",\"id\":\"arm_1\",\"points\":["
+    arm1_json = arm1_json + "{\"x\":0,\"y\":0,\"z\":0},"
+    arm1_json = arm1_json + "{\"x\":" + str(p2_x) + ",\"y\":" + str(p2_tilt) + ",\"z\":" + str(p2_z) + "}]}"
+    println(arm1_json)
+
+    // Arm 3: to Earth
+    var arm2_json: String = "{\"cmd\":\"update\",\"id\":\"arm_2\",\"points\":["
+    arm2_json = arm2_json + "{\"x\":0,\"y\":0,\"z\":0},"
+    arm2_json = arm2_json + "{\"x\":" + str(p3_x) + ",\"y\":" + str(p3_tilt) + ",\"z\":" + str(p3_z) + "}]}"
+    println(arm2_json)
+
+    // Arm 4: to Mars
+    var arm3_json: String = "{\"cmd\":\"update\",\"id\":\"arm_3\",\"points\":["
+    arm3_json = arm3_json + "{\"x\":0,\"y\":0,\"z\":0},"
+    arm3_json = arm3_json + "{\"x\":" + str(p4_x) + ",\"y\":" + str(p4_y) + ",\"z\":" + str(p4_z) + "}]}"
+    println(arm3_json)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  DUST PARTICLES — 200 particles in the orbital plane
+    //  Rotating dust field with small vertical variation
+    // ════════════════════════════════════════════════════════════════════
+
+    var dust_json: String = "{\"cmd\":\"update\",\"id\":\"dust_field\",\"flat\":["
+    var d: Int = 0
+    while d < DUST_N:
+        if d > 0:
+            dust_json = dust_json + ","
+        let base_angle: Float = d * 0.0314
+        let orbit_r: Float = 1.5 + (d * 4.2) / DUST_N
+        let angle: Float = base_angle + st * (0.3 + d * 0.002)
+        let height: Float = sin(base_angle * 3.0 + st * 0.4) * 0.2 * (orbit_r / 5.0)
+        dust_json = dust_json + str(cos(angle) * orbit_r)
+        dust_json = dust_json + ","
+        dust_json = dust_json + str(height)
+        dust_json = dust_json + ","
+        dust_json = dust_json + str(sin(angle) * orbit_r)
+        d = d + 1
+    dust_json = dust_json + "]}"
+    println(dust_json)
+
+    let dust_size: Float = 0.03 + sin(st * 0.8) * 0.015
+    update_particle_size("dust_field", dust_size)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  SPARK PARTICLES — 60 energetic particles near the sun
+    //  Bursting outward in random directions
+    // ════════════════════════════════════════════════════════════════════
+
+    var spark_json: String = "{\"cmd\":\"update\",\"id\":\"sparks\",\"flat\":["
+    var s: Int = 0
+    while s < SPARK_N:
+        if s > 0:
+            spark_json = spark_json + ","
+        let seed: Float = s * 0.1047
+        let burst_r: Float = 0.3 + sin(seed * 7.0 + st * 3.0) * 0.5 + 0.5
+        let burst_angle: Float = seed + st * 1.5
+        let burst_vert: Float = sin(seed * 5.0 + st * 2.0) * burst_r * 0.6
+        spark_json = spark_json + str(cos(burst_angle) * burst_r)
+        spark_json = spark_json + ","
+        spark_json = spark_json + str(burst_vert)
+        spark_json = spark_json + ","
+        spark_json = spark_json + str(sin(burst_angle) * burst_r)
+        s = s + 1
+    spark_json = spark_json + "]}"
+    println(spark_json)
+
+    let spark_size: Float = 0.06 + sin(st * 4.0) * 0.03
+    update_particle_size("sparks", spark_size)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  ORBITING LIGHTS — 3 warm-toned point lights at different radii
+    // ════════════════════════════════════════════════════════════════════
+
+    // Light A: warm amber, outer orbit
+    let la_a: Float = st * 0.25
+    update_light_position("light_amber",
+        cos(la_a) * 7.0,
+        sin(la_a * 1.3) * 2.0 + 1.5,
+        sin(la_a) * 7.0)
+    let la_i: Float = 2.0 + sin(st * 1.1) * 0.4
+    update_light("light_amber", "#ff8833", la_i)
+
+    // Light B: gold accent, mid orbit
+    let lb_a: Float = st * 0.35 + 2.0
+    update_light_position("light_gold",
+        cos(lb_a) * 5.5,
+        sin(lb_a * 1.1) * 1.5 - 0.5,
+        sin(lb_a) * 5.5)
+    let lb_i: Float = 1.5 + sin(st * 1.4 + 1.0) * 0.4
+    update_light("light_gold", "#CCAA44", lb_i)
+
+    // Light C: copper fill, inner orbit
+    let lc_a: Float = st * 0.50 + 4.0
+    update_light_position("light_copper",
+        cos(lc_a) * 4.0,
+        sin(lc_a * 1.6) * 1.8 + 0.5,
+        sin(lc_a) * 4.0)
+    let lc_i: Float = 1.2 + sin(st * 1.8 + 2.0) * 0.3
+    update_light("light_copper", "#CC7744", lc_i)
+
+    // ════════════════════════════════════════════════════════════════════
+    //  TELEMETRY
+    // ════════════════════════════════════════════════════════════════════
+
+    telemetry("tick", tick)
+    telemetry_float("sun_glow", sun_glow)
+    telemetry("dust_count", DUST_N)
+    telemetry("spark_count", SPARK_N)
+    telemetry("speed_mode", OrreryState.speed)
+
+// ============================================================================
+//  MAIN — scene setup, then keep-alive loop
+// ============================================================================
+
+fn main() -> Int with IO:
+    let init: Int = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // ── CAMERA ────────────────────────────────────────────────────────────
+    // Positioned above and at an angle for the best orrery view
+    camera_look_at(0.0, 4.5, 14.0, 0.0, 0.0, 0.0)
+
+    // ── SCENE ATMOSPHERE ──────────────────────────────────────────────────
+    // Dark sepia — warm, industrial, mechanical feel
+    set_background("#0d0800")
+    set_fog("#0d0800", 6.0, 30.0)
+    set_ambient("#332211", 0.3)
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SUN — icosahedron at center, warm orange emissive
+    // ═══════════════════════════════════════════════════════════════════════
+
+    create_mesh("sun_core", "icosahedron", "#ff4400")
+    update_emissive("sun_core", "#ff7722", SUN_GLOW)
+    update_transform("sun_core", 0.0, 0.0, 0.0,
+        SUN_RADIUS, SUN_RADIUS, SUN_RADIUS)
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PLANETS — 4 gear-like orbiting bodies
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Mercury: brass/gold, tight orbit, fast — torus
+    //  Venus: dark gold/brass, medium orbit — torus
+    //  Earth: copper/bronze, wide orbit — torus
+    //  Mars: silver/bronze, tilted orbit — torusKnot (gear)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    create_mesh("planet_0", "torus", "#C0A060")
+    update_emissive("planet_0", "#C0A060", 0.3)
+    update_transform("planet_0", MERCURY_R, 0.0, 0.0,
+        MERCURY_S, MERCURY_S, MERCURY_S)
+
+    create_mesh("planet_1", "torus", "#B8860B")
+    update_emissive("planet_1", "#B8860B", 0.25)
+    update_transform("planet_1", 0.0, 0.0, VENUS_R,
+        VENUS_S, VENUS_S, VENUS_S)
+
+    create_mesh("planet_2", "torus", "#CD853F")
+    update_emissive("planet_2", "#CD853F", 0.2)
+    update_transform("planet_2", EARTH_R, 0.0, 0.0,
+        EARTH_S, EARTH_S, EARTH_S)
+
+    create_mesh("planet_3", "torusKnot", "#A0A0A0")
+    update_emissive("planet_3", "#A0A0A0", 0.35)
+    update_transform("planet_3", MARS_R, 0.0, 0.0,
+        MARS_S, MARS_S, MARS_S)
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  ORBITAL ARMS — mechanical line connections from sun to each planet
+    //  4 lines, each from center (0,0,0) to planet position
+    // ═══════════════════════════════════════════════════════════════════════
+
+    create_lines("arm_0", "#D4A017")
+    create_lines("arm_1", "#B8860B")
+    create_lines("arm_2", "#CD853F")
+    create_lines("arm_3", "#A0A0A0")
+
+    // Initialize arms with straight-line paths
+    let arm0_pts: JsonArray = json_array()
+    json_array_push_object(arm0_pts, point(0.0, 0.0, 0.0))
+    json_array_push_object(arm0_pts, point(MERCURY_R, 0.0, 0.0))
+    update_line_points("arm_0", arm0_pts)
+
+    let arm1_pts: JsonArray = json_array()
+    json_array_push_object(arm1_pts, point(0.0, 0.0, 0.0))
+    json_array_push_object(arm1_pts, point(0.0, 0.0, VENUS_R))
+    update_line_points("arm_1", arm1_pts)
+
+    let arm2_pts: JsonArray = json_array()
+    json_array_push_object(arm2_pts, point(0.0, 0.0, 0.0))
+    json_array_push_object(arm2_pts, point(EARTH_R, 0.0, 0.0))
+    update_line_points("arm_2", arm2_pts)
+
+    let arm3_pts: JsonArray = json_array()
+    json_array_push_object(arm3_pts, point(0.0, 0.0, 0.0))
+    json_array_push_object(arm3_pts, point(MARS_R, 0.0, 0.0))
+    update_line_points("arm_3", arm3_pts)
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  PARTICLES — dust + sparks
+    // ═══════════════════════════════════════════════════════════════════════
+
+    create_particles("dust_field", DUST_N, "#D4A017")
+    update_particle_size("dust_field", 0.03)
+
+    create_particles("sparks", SPARK_N, "#ffaa44")
+    update_particle_size("sparks", 0.06)
+
+    // Initialize spark positions — burst outward
+    var init_spark: String = "{\"cmd\":\"update\",\"id\":\"sparks\",\"flat\":["
+    var si: Int = 0
+    while si < SPARK_N:
+        if si > 0:
+            init_spark = init_spark + ","
+        let seed: Float = si * 0.1047
+        let r: Float = 0.3 + sin(seed * 7.0) * 0.5 + 0.5
+        let a: Float = seed
+        let v: Float = sin(seed * 5.0) * r * 0.6
+        init_spark = init_spark + str(cos(a) * r)
+        init_spark = init_spark + ","
+        init_spark = init_spark + str(v)
+        init_spark = init_spark + ","
+        init_spark = init_spark + str(sin(a) * r)
+        si = si + 1
+    init_spark = init_spark + "]}"
+    println(init_spark)
+
+    // Initialize dust positions — orbital ring
+    var init_dust: String = "{\"cmd\":\"update\",\"id\":\"dust_field\",\"flat\":["
+    var di: Int = 0
+    while di < DUST_N:
+        if di > 0:
+            init_dust = init_dust + ","
+        let angle: Float = di * 0.0314
+        let orbit_r: Float = 1.5 + (di * 4.2) / DUST_N
+        let h: Float = sin(di * 3.0) * 0.2 * (orbit_r / 5.0)
+        init_dust = init_dust + str(cos(angle) * orbit_r)
+        init_dust = init_dust + ","
+        init_dust = init_dust + str(h)
+        init_dust = init_dust + ","
+        init_dust = init_dust + str(sin(angle) * orbit_r)
+        di = di + 1
+    init_dust = init_dust + "]}"
+    println(init_dust)
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  DYNAMIC LIGHTS — 3 warm-toned point lights
+    // ═══════════════════════════════════════════════════════════════════════
+
+    create_light("light_amber", "point", "#ff8833", 2.0, 7.0, 1.5, 0.0)
+    create_light("light_gold", "point", "#CCAA44", 1.5, 0.0, -0.5, 5.5)
+    create_light("light_copper", "point", "#CC7744", 1.2, 4.0, 0.5, 0.0)
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  HUD
+    // ═══════════════════════════════════════════════════════════════════════
+
+    telemetry_string("status", "CLOCKWORK ORRERY: 16ms")
+    telemetry("planets", PLANET_N)
+    telemetry("dust", DUST_N)
+    telemetry("sparks", SPARK_N)
+    telemetry_float("sun_glow", SUN_GLOW)
+
+    // ── READY — pulse starts firing ──────────────────────────────────────
+    OrreryState.ready = 1
+
+    // ── KEEP-ALIVE ────────────────────────────────────────────────────────
+    var tick: Int = 0
+    while tick < 999999:
+        let _ = sleep_millis(1000)
+        tick = tick + 1
+
+    let sd: Int = runtime_shutdown()
+    if sd != 0:
+        return 200 + sd
+    return 0
+
+// ============================================================================
+//  END cosmic_forge.kn — Clockwork Orrery
+// ============================================================================

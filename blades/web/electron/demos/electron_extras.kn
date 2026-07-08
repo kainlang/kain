@@ -1,0 +1,291 @@
+// ============================================================================
+//  electron_extras.kn — Kain → Electron Visual Effects Layer
+// ============================================================================
+//
+//  WHAT:      Visual effects on top of the core bridge protocol. Background
+//             color, fog, emissive glow, particle sizing, lights, auto-rotate.
+//             Import alongside electron_bridge for full scene control.
+//
+//  IMPORT:    use electron_bridge  (or use electron_extras alone — it flushes
+//                                    directly via electron_bridge's pub flush)
+//             use electron_extras
+//
+//  DESIGN:    electron_bridge owns the protocol core (object lifecycle,
+//             transforms, camera, telemetry).
+//             electron_extras owns visual effects (emissive, fog, bg, lights).
+//             No circular dependency — extras imports bridge, never reverse.
+//
+//  SEMANTIC LAYER: L0 (plain code — fn, let, use)
+//  STDLIB:         std::json
+//  DEPENDS:        electron_bridge (for flush)
+// ============================================================================
+
+use std::json
+use electron_bridge
+
+// ============================================================================
+//  SCENE ATMOSPHERE
+// ============================================================================
+
+// set_background: change the scene's background color.
+// color_hex: "#000000" to "#ffffff" — any valid hex color.
+pub fn set_background(color_hex: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "background")
+    json_object_set_string(cmd, "color", color_hex)
+    flush(cmd)
+
+// set_fog: add exponential fog for depth atmosphere.
+// color_hex: fog color (match to background for best effect)
+// near: distance where fog starts (0.1 = close, 50 = far)
+// far: distance where fog is fully opaque (10 = short, 100 = long)
+pub fn set_fog(color_hex: String, near: Float, far: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "fog")
+    json_object_set_string(cmd, "color", color_hex)
+    json_object_set_float(cmd, "near", near)
+    json_object_set_float(cmd, "far", far)
+    flush(cmd)
+
+// ============================================================================
+//  MATERIAL EFFECTS
+// ============================================================================
+
+// update_emissive: make an object GLOW from within.
+// id: object identifier from create_mesh / create_instanced
+// color_hex: emissive color (e.g. "#ff4400" for orange glow)
+// intensity: 0.0 (off) to 5.0+ (blinding). Try 1.0-2.5.
+pub fn update_emissive(id: String, color_hex: String, intensity: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "update")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "emissive", color_hex)
+    json_object_set_float(cmd, "emissive_intensity", intensity)
+    flush(cmd)
+
+// update_particle_size: change particle size for a particle system.
+// id: particle system identifier from create_particles
+// size: 0.01 (tiny dust) to 1.0+ (glowing orbs). Default 0.08.
+pub fn update_particle_size(id: String, size: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "update")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_float(cmd, "size", size)
+    flush(cmd)
+
+// update_rotation: convenience — rotation-only update for an object.
+// Leaves position and scale unchanged.
+// id: object identifier
+// rx, ry, rz: Euler angles in radians
+pub fn update_rotation(id: String, rx: Float, ry: Float, rz: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "update")
+    json_object_set_string(cmd, "id", id)
+    let rot = json_object()
+    json_object_set_float(rot, "x", rx)
+    json_object_set_float(rot, "y", ry)
+    json_object_set_float(rot, "z", rz)
+    json_object_set_object(cmd, "rot", rot)
+    flush(cmd)
+
+// ============================================================================
+//  CAMERA CONTROLS
+// ============================================================================
+
+pub fn set_auto_rotate(enabled: Bool, speed: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "auto_rotate")
+    json_object_set_bool(cmd, "enabled", enabled)
+    json_object_set_float(cmd, "speed", speed)
+    flush(cmd)
+
+// ============================================================================
+//  LIGHTS
+// ============================================================================
+
+// create_light: add a dynamic light source to the scene.
+// id: unique identifier for this light
+// type: "ambient", "directional", "point", "spot"
+// color_hex: light color
+// intensity: 0.0 to 10.0+ (try 1.0 for fill, 3.0+ for key)
+// x, y, z: position in world space (ignored for ambient lights)
+pub fn create_light(id: String, light_type: String, color_hex: String,
+    intensity: Float, x: Float, y: Float, z: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "light")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "type", "create")
+    json_object_set_string(cmd, "light_type", light_type)
+    json_object_set_string(cmd, "color", color_hex)
+    json_object_set_float(cmd, "intensity", intensity)
+    let pos = json_object()
+    json_object_set_float(pos, "x", x)
+    json_object_set_float(pos, "y", y)
+    json_object_set_float(pos, "z", z)
+    json_object_set_object(cmd, "pos", pos)
+    flush(cmd)
+
+// update_light: change an existing light's color and intensity.
+pub fn update_light(id: String, color_hex: String, intensity: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "light")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "type", "update")
+    json_object_set_string(cmd, "color", color_hex)
+    json_object_set_float(cmd, "intensity", intensity)
+    flush(cmd)
+
+// update_light_position: move an existing light.
+pub fn update_light_position(id: String, x: Float, y: Float, z: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "light")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "type", "update")
+    let pos = json_object()
+    json_object_set_float(pos, "x", x)
+    json_object_set_float(pos, "y", y)
+    json_object_set_float(pos, "z", z)
+    json_object_set_object(cmd, "pos", pos)
+    flush(cmd)
+
+// remove_light: delete a light from the scene.
+pub fn remove_light(id: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "light")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "type", "remove")
+    flush(cmd)
+
+// set_ambient: replace the scene's ambient light color and intensity.
+// This overrides the default ambient (0x404060, 0.6).
+pub fn set_ambient(color_hex: String, intensity: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "ambient")
+    json_object_set_string(cmd, "color", color_hex)
+    json_object_set_float(cmd, "intensity", intensity)
+    flush(cmd)
+
+// ============================================================================
+//  LABELS — 3D text labels in the scene via Sprite + canvas texture
+// ============================================================================
+
+// create_label: place a 3D text label at a world-space position.
+// id: unique identifier for this label
+// text: the label text to display
+// x, y, z: world-space position
+// color_hex: text color (e.g. "#ffffff" for white, "#ff4444" for red)
+// size: sprite size multiplier (try 1.0-5.0)
+pub fn create_label(id: String, text: String, x: Float, y: Float, z: Float, color_hex: String, size: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "label")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "text", text)
+    json_object_set_float(cmd, "x", x)
+    json_object_set_float(cmd, "y", y)
+    json_object_set_float(cmd, "z", z)
+    json_object_set_string(cmd, "color", color_hex)
+    json_object_set_float(cmd, "size", size)
+    flush(cmd)
+
+// ============================================================================
+//  MATERIAL & QUALITY
+// ============================================================================
+
+// set_material: control PBR material properties on any mesh.
+// roughness: 0.0 (mirror) to 1.0 (matte). Default 0.4.
+// metalness: 0.0 (dielectric) to 1.0 (metallic). Default 0.5.
+// opacity: 0.0 (invisible) to 1.0 (solid). Default 1.0.
+pub fn set_material(id: String, roughness: Float, metalness: Float, opacity: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "material")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_float(cmd, "roughness", roughness)
+    json_object_set_float(cmd, "metalness", metalness)
+    json_object_set_float(cmd, "opacity", opacity)
+    flush(cmd)
+
+// set_wireframe: toggle wireframe rendering on any mesh.
+pub fn set_wireframe(id: String, enabled: Bool):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "material")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_bool(cmd, "wireframe", enabled)
+    flush(cmd)
+
+// set_flat_shading: toggle flat (low-poly look) vs smooth shading.
+pub fn set_flat_shading(id: String, enabled: Bool):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "material")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_bool(cmd, "flat_shading", enabled)
+    flush(cmd)
+
+// ============================================================================
+//  VISIBILITY
+// ============================================================================
+
+// set_visible: show or hide any object by id.
+// Works on meshes, instanced, particles, lines, labels, and trails.
+pub fn set_visible(id: String, visible: Bool):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "visible")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_bool(cmd, "visible", visible)
+    flush(cmd)
+
+// ============================================================================
+//  TRAILS
+// ============================================================================
+
+// create_trail: create a smooth trail that follows a target object.
+// id: unique identifier for this trail
+// target_id: the object this trail follows
+// max_points: how many historical positions to keep (try 30-200)
+// color_hex: trail color (e.g. "#ff8844" for orange, "#44aaff" for blue)
+// width: trail line width (1.0 = thin, 4.0 = thick)
+pub fn create_trail(id: String, target_id: String, max_points: Int, color_hex: String, width: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "trail")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "target_id", target_id)
+    json_object_set_int(cmd, "max_points", max_points)
+    json_object_set_string(cmd, "color", color_hex)
+    json_object_set_float(cmd, "width", width)
+    flush(cmd)
+
+// ============================================================================
+//  SELECTION
+// ============================================================================
+
+// enable_selection: make an object click-to-select.
+// When enabled, clicking this object in the renderer:
+//   - Applies an emissive glow highlight
+//   - Sends a 'select' event via the bridge backchannel
+//   - get_selected_id() returns the selected object's id
+// When disabled, the object is no longer selectable.
+pub fn enable_selection(id: String, enabled: Bool):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "selection")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_bool(cmd, "enabled", enabled)
+    flush(cmd)
+
+// ============================================================================
+//  SELECTION STATE — compiler-owned world for selected object tracking
+// ============================================================================
+// Updated when 'select' bridge-events arrive via interact_poll.
+
+world __Extras:
+    state selected_id: String = ""
+
+// get_selected_id: returns the id of the currently selected object, "" if none.
+pub fn get_selected_id() -> String:
+    return __Extras.selected_id
+
+// _on_select: internal — called by interact_poll when a 'select' bridge-event arrives.
+pub fn _on_select(id: String):
+    __Extras.selected_id = id
+
+// ============================================================================
+//  END electron_extras.kn
+// ============================================================================

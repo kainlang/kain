@@ -1,0 +1,260 @@
+// ============================================================================
+//  pong.kn — Classic Pong for the Kain Electron Playground
+// ============================================================================
+//
+//  WHAT:      Single-player Pong (vs AI) demonstrating the new std::input-based
+//             interact system. Left paddle: W/S or ArrowUp/Down. Right paddle:
+//             AI (follows the ball). Ball bounces, score tracks, telemetry
+//             updates every frame.
+//
+//  LAYERS:    L1 (world for game state), L5 (pulse 20ms = 50fps game loop),
+//             L0 (fn, let, while), electron_interact (std::input-backed),
+//             electron_bridge, electron_extras
+//
+//  INPUT:     Uses the new interact API:
+//               interact_action_down("up") / interact_action_down("down")
+//               interact_action_pressed("reset") for R key
+//               interact_action_pressed("pause") for P key
+//
+//  COMPILE:   cd X:/blades/web/electron
+//             kain build demos/pong.kn --target llvm
+// ============================================================================
+
+use std::runtime
+use std::math
+use std::time
+use electron_bridge
+use electron_extras
+use electron_interact
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const COURT_WIDTH:  Float = 12.0
+const COURT_HEIGHT: Float = 7.0
+const PADDLE_W:     Float = 0.3
+const PADDLE_H:     Float = 1.2
+const BALL_RADIUS:  Float = 0.2
+const HALF_CW:      Float = COURT_WIDTH * 0.5
+const HALF_CH:      Float = COURT_HEIGHT * 0.5
+const PADDLE_SPEED: Float = 4.0
+const BALL_SPEED:   Float = 3.5
+
+// ============================================================================
+//  WORLD — game state
+// ============================================================================
+
+world PongGame:
+    state ready: Int = 0
+    state left_y:  Float = 0.0
+    state right_y: Float = 0.0
+    state ball_x: Float = 0.0
+    state ball_y: Float = 0.0
+    state ball_vx: Float = BALL_SPEED
+    state ball_vy: Float = 0.5
+    state left_score:  Int = 0
+    state right_score: Int = 0
+    state paused: Int = 0
+
+// ============================================================================
+//  GAME LOGIC
+// ============================================================================
+
+fn reset_ball():
+    PongGame.ball_x = 0.0
+    PongGame.ball_y = 0.0
+    PongGame.ball_vx = BALL_SPEED * 0.8
+    PongGame.ball_vy = 0.0
+
+fn reset_game():
+    PongGame.left_y = 0.0
+    PongGame.right_y = 0.0
+    PongGame.left_score = 0
+    PongGame.right_score = 0
+    PongGame.paused = 0
+    reset_ball()
+
+fn tick_game(dt: Float):
+    let dt_f: Float = dt / 1000.0
+    let half_ph: Float = PADDLE_H * 0.5
+
+    // Pause / Reset
+    if interact_action_pressed("pause") != 0:
+        PongGame.paused = 1 - PongGame.paused
+    if interact_action_pressed("reset") != 0:
+        reset_game()
+    if PongGame.paused != 0:
+        return
+
+    // Left paddle (human)
+    let left_dir: Float = 0.0
+    if interact_action_down("up") != 0:
+        left_dir = left_dir + 1.0
+    if interact_action_down("down") != 0:
+        left_dir = left_dir - 1.0
+    PongGame.left_y = PongGame.left_y + left_dir * PADDLE_SPEED * dt_f
+    if PongGame.left_y > HALF_CH - half_ph:
+        PongGame.left_y = HALF_CH - half_ph
+    if PongGame.left_y < -HALF_CH + half_ph:
+        PongGame.left_y = -HALF_CH + half_ph
+
+    // Right paddle (AI)
+    let ai_diff: Float = PongGame.ball_y - PongGame.right_y
+    let ai_move: Float = ai_diff * 3.0 * dt_f
+    if ai_move < -PADDLE_SPEED * dt_f:
+        ai_move = -PADDLE_SPEED * dt_f
+    if ai_move > PADDLE_SPEED * dt_f:
+        ai_move = PADDLE_SPEED * dt_f
+    PongGame.right_y = PongGame.right_y + ai_move
+    if PongGame.right_y > HALF_CH - half_ph:
+        PongGame.right_y = HALF_CH - half_ph
+    if PongGame.right_y < -HALF_CH + half_ph:
+        PongGame.right_y = -HALF_CH + half_ph
+
+    // Ball movement
+    PongGame.ball_x = PongGame.ball_x + PongGame.ball_vx * dt_f
+    PongGame.ball_y = PongGame.ball_y + PongGame.ball_vy * dt_f
+
+    // Ball vs top/bottom walls
+    if PongGame.ball_y > HALF_CH - BALL_RADIUS:
+        PongGame.ball_y = HALF_CH - BALL_RADIUS
+        PongGame.ball_vy = -PongGame.ball_vy
+    if PongGame.ball_y < -HALF_CH + BALL_RADIUS:
+        PongGame.ball_y = -HALF_CH + BALL_RADIUS
+        PongGame.ball_vy = -PongGame.ball_vy
+
+    // Ball vs left paddle
+    let lpy: Float = PongGame.left_y
+    if (PongGame.ball_x - BALL_RADIUS < -HALF_CW + PADDLE_W
+        and PongGame.ball_vx < 0.0
+        and PongGame.ball_y > lpy - half_ph - BALL_RADIUS
+        and PongGame.ball_y < lpy + half_ph + BALL_RADIUS):
+        PongGame.ball_vx = -PongGame.ball_vx * 1.02
+        let bounce_off: Float = (PongGame.ball_y - lpy) / half_ph
+        PongGame.ball_vy = PongGame.ball_vy + bounce_off * 0.5
+
+    // Ball vs right paddle
+    let rpy: Float = PongGame.right_y
+    if (PongGame.ball_x + BALL_RADIUS > HALF_CW - PADDLE_W
+        and PongGame.ball_vx > 0.0
+        and PongGame.ball_y > rpy - half_ph - BALL_RADIUS
+        and PongGame.ball_y < rpy + half_ph + BALL_RADIUS):
+        PongGame.ball_vx = -PongGame.ball_vx * 1.02
+        let bounce_off: Float = (PongGame.ball_y - rpy) / half_ph
+        PongGame.ball_vy = PongGame.ball_vy + bounce_off * 0.5
+
+    // Clamp ball speed
+    if PongGame.ball_vx > BALL_SPEED * 1.8:
+        PongGame.ball_vx = BALL_SPEED * 1.8
+    if PongGame.ball_vy > BALL_SPEED * 1.5:
+        PongGame.ball_vy = BALL_SPEED * 1.5
+    if PongGame.ball_vy < -BALL_SPEED * 1.5:
+        PongGame.ball_vy = -BALL_SPEED * 1.5
+
+    // Scoring
+    if PongGame.ball_x > HALF_CW + 1.0:
+        PongGame.left_score = PongGame.left_score + 1
+        reset_ball()
+    if PongGame.ball_x < -HALF_CW - 1.0:
+        PongGame.right_score = PongGame.right_score + 1
+        reset_ball()
+
+// ============================================================================
+//  RENDERING
+// ============================================================================
+
+fn render_scene():
+    update_transform("wall_top", 0.0, HALF_CH + 0.2, 0.0, COURT_WIDTH + 1.0, 0.1, 0.1)
+    update_transform("wall_bot", 0.0, -HALF_CH - 0.2, 0.0, COURT_WIDTH + 1.0, 0.1, 0.1)
+    update_transform("center_line", 0.0, 0.0, 0.0, 0.05, COURT_HEIGHT, 0.05)
+
+    let left_x: Float = -HALF_CW + PADDLE_W * 0.5
+    update_transform("paddle_left", left_x, PongGame.left_y, 0.0, PADDLE_W, PADDLE_H, 0.1)
+
+    let right_x: Float = HALF_CW - PADDLE_W * 0.5
+    update_transform("paddle_right", right_x, PongGame.right_y, 0.0, PADDLE_W, PADDLE_H, 0.1)
+
+    update_transform("ball", PongGame.ball_x, PongGame.ball_y, 0.0,
+        BALL_RADIUS * 2.0, BALL_RADIUS * 2.0, BALL_RADIUS * 2.0)
+
+    telemetry("left_score", PongGame.left_score)
+    telemetry("right_score", PongGame.right_score)
+
+fn setup_scene():
+    camera_look_at(0.0, 0.0, 16.0, 0.0, 0.0, 0.0)
+    set_background("#0a0a1e")
+    set_fog("#0a0a1e", 15.0, 35.0)
+    set_ambient("#404060", 0.6)
+
+    create_mesh("wall_top", "box", "#334466")
+    create_mesh("wall_bot", "box", "#334466")
+    create_mesh("center_line", "box", "#224488")
+
+    create_mesh("paddle_left", "box", "#44aaff")
+    create_mesh("paddle_right", "box", "#ff6644")
+    update_emissive("paddle_left", "#224466", 0.5)
+    update_emissive("paddle_right", "#663322", 0.5)
+
+    create_mesh("ball", "sphere", "#ffffff")
+    update_emissive("ball", "#ffffff", 0.8)
+
+    create_light("key_light", "directional", "#ffffff", 2.0, 0.0, 5.0, 8.0)
+    create_light("fill_light", "point", "#4488ff", 1.5, -4.0, 0.0, 4.0)
+
+    telemetry_string("status", "PONG — W/S or Arrows to move. P=pause, R=reset")
+    telemetry("left_score", 0)
+    telemetry("right_score", 0)
+
+// ============================================================================
+//  PULSE — game loop at ~50fps
+// ============================================================================
+
+pulse game_tick every 20 ms:
+    if PongGame.ready == 0:
+        return
+
+    // Poll one event from stdin, push into std::input
+    interact_poll()
+
+    // Process events for this frame
+    interact_begin_frame(20.0)
+
+    // Update game state and render
+    tick_game(20.0)
+    render_scene()
+    telemetry("tick", pulse_tick)
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int with IO:
+    let init: Int = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let sid: Int = interact_init()
+    if sid < 0:
+        telemetry_string("status", "interact_init failed")
+        let _ = runtime_shutdown()
+        return 200 + sid
+
+    setup_scene()
+    telemetry_string("status", "PONG ready — W/S or Arrows to play")
+
+    PongGame.ready = 1
+
+    var tick: Int = 0
+    while tick < 999999:
+        let _ = sleep_millis(1000)
+        tick = tick + 1
+
+    let sd: Int = runtime_shutdown()
+    if sd != 0:
+        return 200 + sd
+    return 0
+
+// ============================================================================
+//  END pong.kn
+// ============================================================================

@@ -1,0 +1,20 @@
+include native/minimal.h as min
+
+use std::runtime
+
+fn main() -> Int with Unsafe:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let sum = min_add(3, 4)
+    if sum != 7:
+        return 1
+
+    let ver = min_version()
+    let len = len(ver)
+    if len < 3:
+        return 2
+
+    let shutdown = runtime_shutdown()
+    return if shutdown != 0: 200 + shutdown else: 0

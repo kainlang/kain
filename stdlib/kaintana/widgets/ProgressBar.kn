@@ -1,0 +1,77 @@
+// ============================================================================
+//  widgets/ProgressBar.kn — Horizontal progress bar with track and fill
+//  P2-014: value/max ratio determines fill portion. Stateless — pure function
+//          of props. Themed fill colors with optional percentage text overlay.
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+// ============================================================================
+
+pub type KtSession   = Int
+pub type KtElementId = Int
+
+// ── @extern bindings (from core.kn) ──────────────────────────────────────
+@extern fn kt_row(s: KtSession, parent: KtElementId, kind: String, key: String) -> KtElementId
+@extern fn kt_end_row(s: KtSession) -> Void
+@extern fn kt_fill(s: KtSession, elem: KtElementId, color: String) -> Void
+@extern fn kt_width(s: KtSession, elem: KtElementId, w: Float) -> Void
+@extern fn kt_height(s: KtSession, elem: KtElementId, h: Float) -> Void
+@extern fn kt_radius(s: KtSession, elem: KtElementId, r: Float) -> Void
+@extern fn kt_text(s: KtSession, elem: KtElementId, text: String) -> Void
+
+// ── Widget trait (from Widget.kn) ────────────────────────────────────────
+pub trait Widget:
+    fn stable_key(_self: Self_) -> String:
+        return ""
+    fn kind(_self: Self_) -> String:
+        return "widget"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return
+
+// ============================================================================
+//  Component: ProgressBar
+// ============================================================================
+
+/// Horizontal progress bar with background track and filled portion.
+/// Stateless — pure function of value/max ratio. Displays themed fill
+/// colors with optional percentage text overlay centered on the bar.
+component ProgressBar(
+    value:  Float = 0.0,
+    max:    Float = 100.0,
+    track_color: String = "#2E2E4A",
+    fill_color:  String = "#21D4A1",
+    width:  Float = 200.0,
+    height: Float = 8.0,
+    show_pct: Bool = false,
+    key:    String = "progress",
+):
+    /// Compute fill ratio from value/max, clamped to [0, 1].
+    fn fill_ratio(_self: Self_) -> Float:
+        if _self.max <= 0.0:
+            return 0.0
+        let raw = _self.value / _self.max
+        if raw < 0.0: return 0.0
+        if raw > 1.0: return 1.0
+        return raw
+
+    /// Compute fill width as percentage of parent for the fill overlay.
+    fn fill_width(_self: Self_) -> Float:
+        return _self.fill_ratio() * 100.0
+
+    render <box kind="progress" key={key} fill={track_color} width={width} height={height} radius={(height * 0.5)}>
+        <box kind="progress-fill" fill={fill_color} width={fill_width()} height={height} radius={(height * 0.5)} />
+    </box>
+
+// ============================================================================
+//  Widget trait implementation for ProgressBar
+// ============================================================================
+
+impl Widget for ProgressBar:
+    fn stable_key(_self: Self_) -> String:
+        return _self.key
+    fn kind(_self: Self_) -> String:
+        return "progress"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return

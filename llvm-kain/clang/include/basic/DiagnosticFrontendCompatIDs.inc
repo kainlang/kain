@@ -1,0 +1,1 @@
+// Stub: DiagnosticFrontendCompatIDs.inc

@@ -1,0 +1,25 @@
+Slot Index,Function Name,Signature,Strategic Purpose
+0,session_create,"i64 (i8*, i64, i64)*",Initializes a rendering session and attaches host adapters.
+1,session_destroy,void (i64)*,Cleans up session resources and handles.
+2,element_begin,"i64 (i64, i64, i8*, i8*)*",Starts a UI element; uses stable keys for O(1) node lookup.
+3,element_end,"void (i64, i64)*",Finalizes an element; no-op in retained-mode systems.
+4,element_set_text,"void (i64, i64, i8*)*",Updates the text content (mapped from the value attribute).
+5,element_set_attr_i64,"void (i64, i64, i8*, i64)*","Sets integer/boolean attributes (e.g., layout.direction)."
+6,element_set_attr_f64,"void (i64, i64, i8*, double)*","Sets numeric styling (e.g., opacity, corner_radius)."
+7,element_set_attr_string,"void (i64, i64, i8*, i8*)*","Sets string-based styles (e.g., fill_color)."
+8,state_get_i64,"i64 (i64, i8*)*",Reads persistent integer state across frames.
+9,state_set_i64,"void (i64, i8*, i64)*",Persists mutable integer state for future frames.
+10,begin_frame,"void (i64, double)*",Signals the start of a frame with a delta-time in ms.
+11,end_frame,void (i64)*,Concludes the command recording for the current frame.
+12,present,void (i64)*,Triggers the final blit or swapchain flip to the screen.
+13,poll_event,"i64 (i64, i8*, i64)*",Polls the input queue for OS and user events.
+14,should_close,i64 (i64)*,Checks if the user or OS has requested window closure.
+15,window_open,"i64 (i64, i8*, i64, i64)*",Requests the creation of a native OS window.
+16,host_pump,i64 (i64)*,Drives the native OS message pump.
+17,session_attach_platform,"void (i64, i8*)*",No-op for native_ui ; Required for GPU backends (WSI).
+18,get_gpu_extension,void* (i64)*,Discovery bridge for GPU backends; NULL for GDI/Software.
+19,state_get_f64,"double (i64, i8*)*",Reads persistent floating-point state.
+20,state_set_f64,"void (i64, i8*, double)*",Writes persistent floating-point state.
+21,state_get_string,"i8* (i64, i8*)*",Reads persistent string/text state.
+22,state_set_string,"void (i64, i8*, i8*)*",Writes persistent string/text state.
+23,element_set_callback,"void (i64, i64, i8*, i8*)*","Binds event handlers (e.g., on_click) to UI nodes."

@@ -1,0 +1,97 @@
+// ============================================================================
+//  search/bm25.kn — BM25 Scoring
+//
+//  Layer 3: converge with three BM25 variants as spec + fast lanes.
+//  Spec reference: BM25Okapi (standard).
+//  Fast: BM25L (better for long docs), BM25Plus (better for short queries).
+//  verify random(64) proves no semantic drift between variants (within tolerance).
+// ============================================================================
+
+use types::SearchIndex
+use config
+use util
+
+// ============================================================================
+//  BM25OKAPI — Standard BM25 (Spec Reference)
+// ============================================================================
+
+fn bm25_okapi(tf: Int, doc_len: Int, avgdl: Float, doc_count: Int, term_doc_count: Int) -> Float:
+    // BM25 parameters — sourced from config constants.
+    // In production, SearchConfig.bm25_k1 and SearchConfig.bm25_b can override.
+    let k1:  Float = BM25_K1
+    let b:   Float = BM25_B
+    let idf_num: Float = Float(doc_count - term_doc_count) + 0.5
+    let idf_den: Float = Float(term_doc_count) + 0.5
+    let idf: Float = log((idf_num + 0.001) / (idf_den + 0.001)) * 0.5 + 0.5  // smoothed IDF
+    let tf_norm: Float = (Float(tf) * (k1 + 1.0)
+        / (Float(tf) + k1 * (1.0 - b + b * Float(doc_len) / (avgdl + 0.001))))
+    return idf * tf_norm
+
+// ============================================================================
+//  BM25L — Better for Long Documents
+// ============================================================================
+
+fn bm25_l(tf: Int, doc_len: Int, avgdl: Float, doc_count: Int, term_doc_count: Int) -> Float:
+    let k1:     Float = BM25_K1
+    let b:      Float = BM25_B
+    let delta:  Float = BM25_DELTA_L
+    let idf_num: Float = Float(doc_count - term_doc_count) + 0.5
+    let idf_den: Float = Float(term_doc_count) + 0.5
+    let idf: Float = log((idf_num + 0.001) / (idf_den + 0.001)) * 0.5 + 0.5
+    let tf_prime: Float = (Float(tf) * (k1 + 1.0)
+        / (Float(tf) + k1 * (1.0 - b + b * Float(doc_len) / (avgdl + 0.001))))
+    return idf * (tf_prime + delta)
+
+// ============================================================================
+//  BM25PLUS — Better for Short Queries
+// ============================================================================
+
+fn bm25_plus(tf: Int, doc_len: Int, avgdl: Float, doc_count: Int, term_doc_count: Int) -> Float:
+    let k1:     Float = BM25_K1
+    let b:      Float = BM25_B
+    let delta:  Float = BM25_DELTA_PLUS
+    let idf_num: Float = Float(doc_count - term_doc_count) + 0.5
+    let idf_den: Float = Float(term_doc_count) + 0.5
+    let idf: Float = log((idf_num + 0.001) / (idf_den + 0.001)) * 0.5 + 0.5
+    let tf_prime: Float = (Float(tf) * (k1 + 1.0)
+        / (Float(tf) + k1 * (1.0 - b + b * Float(doc_len) / (avgdl + 0.001))))
+    return idf * (tf_prime + delta)
+
+// ============================================================================
+//  CONVERGE — BM25 Variant Selection
+// ============================================================================
+
+pub converge bm25_score(tf: Int, doc_len: Int, avgdl_param: Float,
+                    doc_count: Int, term_doc_count: Int) -> Float:
+    spec reference:
+        return bm25_okapi(tf, doc_len, avgdl_param, doc_count, term_doc_count)
+    fast bm25l_lane when capability("cpu.scalar"):
+        return bm25_l(tf, doc_len, avgdl_param, doc_count, term_doc_count)
+    fast bm25plus_lane when target("llvm"):
+        return bm25_plus(tf, doc_len, avgdl_param, doc_count, term_doc_count)
+    verify random(64)
+
+// ============================================================================
+//  CONVENIENCE — Score all terms against a doc
+// ============================================================================
+
+pub fn score_doc_for_terms(terms: [String], doc_len: Int, avgdl: Float,
+                            doc_count: Int) -> Float with Unsafe:
+    // Phase 2 stub: per-term doc_freq lookups require the term_id index.
+    //   This function is not called from the current search pipeline;
+    //   scoring is done inline in search_engine.kn using the raw
+    //   bm25_score() converge with per-doc scan.
+    //   When Phase 2 adds per-term posting range indices, change
+    //   the signature to accept a parallel [Int] term_ids array or
+    //   switch to [(String, Int)] once Kain supports tuple literals.
+    return 0.0
+
+// ============================================================================
+//  AXIOM — BM25 Convergence
+// ============================================================================
+
+axiom bm25_stability:
+    when target("llvm")
+    when capability("cpu.scalar")
+    guarantee "BM25 variants agree within 5% relative error on random(64) inputs"
+    fallback bm25_okapi

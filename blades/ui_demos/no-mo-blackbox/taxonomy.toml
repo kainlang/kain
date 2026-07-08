@@ -1,0 +1,361 @@
+# ============================================================================
+# no-mo-blackbox Test Taxonomy — Data-Driven Test Case Registry
+# ============================================================================
+# Every test case is data. No hardcoded paths in the tools. The tools read
+# this file to know what to test, how to test it, and what failure signatures
+# to look for.
+#
+# Categories:
+#   SEGFAULT          — Access violation (0xc0000005), null deref, wild pointer
+#   BLANK             — Window spawns but renders solid-color background (no content)
+#   HANG              — Process exceeds timeout, suspected infinite loop
+#   ACCESS_VIOLATION  — Read/write to unmapped or protected memory
+#   LINK_FAILURE      — DLL symbol not found, missing runtime dependency
+#   RENDERING         — Success case: window renders expected content
+#   STACK_OVERFLOW    — Recursion or large stack allocation exhausts stack
+#   GPU_CRASH         — GPU shader or dispatch fails
+#   STATE_CORRUPTION  — World state fails law validation
+#
+# Vtable slots (0-23) from KainComponentSurface:
+#   0  = session_create(name, width, height) -> session_id
+#   1  = session_destroy(session_id)
+#   2  = element_begin(session_id, parent_id, kind, stable_key) -> element_id
+#   3  = element_end(session_id, element_id)
+#   4  = element_set_text(session_id, element_id, text)
+#   5  = element_set_attr_i64(session_id, element_id, key, value)
+#   6  = element_set_attr_f64(session_id, element_id, key, value)
+#   7  = element_set_attr_string(session_id, element_id, key, value)
+#   8  = state_get_i64(session_id, key) -> value
+#   9  = state_set_i64(session_id, key, value)
+#   10 = begin_frame(session_id, delta_ms)
+#   11 = end_frame(session_id)
+#   12 = present(session_id)
+#   13 = poll_event(session_id, out_event, max_size) -> event_count
+#   14 = should_close(session_id) -> bool
+#   15 = window_open(session_id, title, width, height) -> result
+#   16 = host_pump(session_id) -> result
+#   17 = session_attach_platform(session_id, platform_handle)
+#   18 = get_gpu_extension(session_id) -> KainGpuSurfaceExtension*
+#   19 = state_get_f64(session_id, key) -> value
+#   20 = state_set_f64(session_id, key, value)
+#   21 = state_get_string(session_id, key) -> string
+#   22 = state_set_string(session_id, key, value)
+#   23 = element_set_callback(session_id, element_id, event_name, callback_fn)
+# ============================================================================
+
+[metadata]
+name = "no-mo-blackbox"
+version = "1.0.0"
+description = "Test taxonomy for the Kain UI component debugging kit"
+based_on = "KainComponentSurface vtable (component_surface.h, 24 slots)"
+target_platform = "windows-x64"
+default_timeout_ms = 15000
+default_capture_wait_ms = 3000
+
+# ── Global defaults ──────────────────────────────────────────────
+[defaults]
+kain_binary = "kain"
+build_target = "llvm"
+frame_wait_ms = 3000
+ghost_alpha = 1
+blank_threshold_pct = 95.0       # >95% same color = BLANK
+partial_threshold_pct = 50.0     # 50-95% same color = PARTIAL
+hang_timeout_ms = 15000
+crash_check_interval_ms = 100
+stack_sample_count = 10          # number of stack samples during hang
+trace_output_format = "json+md"  # json, md, or json+md
+
+# ── Component test case templates ────────────────────────────────
+[component_roots]
+# Where to find component .kn source files
+paths = [
+    "X:/blades/ui_demos/test_ui/1_component_ui/",
+    "X:/blades/ui_demos/test_ui/2a_std_ui/",
+    "X:/blades/ui_demos/test_ui/2b_std_ui_widgets/",
+    "X:/blades/ui_demos/test_ui/3_vtable/",
+    "X:/blades/ui_demos/test_ui/4_shader_ui/",
+    "X:/blades/ui_demos/test_ui/7_demos/",
+]
+
+# ── Vtable call expectations per component type ──────────────────
+# Used by vtable_tracer and blank_analyzer to verify expected calls.
+[vtable_profiles.basic_component]
+description = "A minimal component with text label"
+expected_min_calls = [
+    { slot = 0,  name = "session_create",       min_count = 1 },
+    { slot = 15, name = "window_open",           min_count = 1 },
+    { slot = 10, name = "begin_frame",           min_count = 1 },
+    { slot = 2,  name = "element_begin",         min_count = 1 },
+    { slot = 4,  name = "element_set_text",      min_count = 1 },
+    { slot = 11, name = "end_frame",             min_count = 1 },
+    { slot = 12, name = "present",               min_count = 1 },
+]
+forbidden_slots = [18]  # No GPU extension for basic GDI surface
+
+[vtable_profiles.nested_components]
+description = "Components calling other components"
+expected_min_calls = [
+    { slot = 0,  name = "session_create",       min_count = 1 },
+    { slot = 15, name = "window_open",           min_count = 1 },
+    { slot = 10, name = "begin_frame",           min_count = 1 },
+    { slot = 2,  name = "element_begin",         min_count = 3 }, # parent + 2 children
+    { slot = 4,  name = "element_set_text",      min_count = 2 },
+    { slot = 7,  name = "element_set_attr_string", min_count = 1 },
+    { slot = 11, name = "end_frame",             min_count = 1 },
+    { slot = 12, name = "present",               min_count = 1 },
+]
+
+[vtable_profiles.state_persistence]
+description = "Component with i64/f64/String state fields"
+expected_min_calls = [
+    { slot = 0,  name = "session_create",       min_count = 1 },
+    { slot = 8,  name = "state_get_i64",         min_count = 1 },
+    { slot = 9,  name = "state_set_i64",         min_count = 1 },
+    { slot = 19, name = "state_get_f64",         min_count = 1 },
+    { slot = 20, name = "state_set_f64",         min_count = 1 },
+    { slot = 21, name = "state_get_string",      min_count = 1 },
+    { slot = 22, name = "state_set_string",      min_count = 1 },
+    { slot = 12, name = "present",               min_count = 1 },
+]
+
+[vtable_profiles.event_callbacks]
+description = "Component with on_click/on_change callbacks"
+expected_min_calls = [
+    { slot = 0,  name = "session_create",       min_count = 1 },
+    { slot = 23, name = "element_set_callback",  min_count = 1 },
+    { slot = 12, name = "present",               min_count = 1 },
+]
+
+[vtable_profiles.pulse_animation]
+description = "Component with inline pulse clock"
+expected_min_calls = [
+    { slot = 0,  name = "session_create",       min_count = 1 },
+    { slot = 10, name = "begin_frame",           min_count = 3 }, # multiple frames
+    { slot = 12, name = "present",               min_count = 3 },
+]
+
+[vtable_profiles.shader_ui]
+description = "Component with GPU shader support"
+expected_min_calls = [
+    { slot = 0,  name = "session_create",       min_count = 1 },
+    { slot = 18, name = "get_gpu_extension",     min_count = 1 },
+    { slot = 12, name = "present",               min_count = 1 },
+]
+
+# ── Blank background color signatures ────────────────────────────
+# Known blank colors from different failure modes.
+[blank_colors]
+gdi_default    = { hex = "0xFFFFFF", name = "White (GDI default clear)" }
+vulkan_blank   = { hex = "0x000000", name = "Black (Vulkan no-draw)" }
+d3d12_blank    = { hex = "0x000000", name = "Black (D3D12 no-draw)" }
+dwm_uninit     = { hex = "0x000000", name = "Black (DWM not composited)" }
+null_fb        = { hex = "0xCDCDCD", name = "Gray (uninitialized heap)" }
+crash_corner   = { hex = "0xC00000", name = "Dark red (crash handler)" }
+
+# ── Crash fault type taxonomy ────────────────────────────────────
+[crash_types]
+"0xc0000005" = { name = "ACCESS_VIOLATION", description = "Read/write to invalid memory address" }
+"0xc00000fd" = { name = "STACK_OVERFLOW", description = "Stack exhausted (recursion or large alloca)" }
+"0xc000001d" = { name = "ILLEGAL_INSTRUCTION", description = "Executed invalid CPU instruction" }
+"0xc000008c" = { name = "ARRAY_BOUNDS_EXCEEDED", description = "Out-of-bounds array access" }
+"0xc000008d" = { name = "FLOAT_DENORMAL_OPERAND", description = "Floating-point denormal operand" }
+"0xc000008e" = { name = "FLOAT_DIVIDE_BY_ZERO", description = "Floating-point division by zero" }
+"0xc000008f" = { name = "FLOAT_INEXACT_RESULT", description = "Floating-point inexact result" }
+"0xc0000090" = { name = "FLOAT_INVALID_OPERATION", description = "Invalid floating-point operation" }
+"0xc0000091" = { name = "FLOAT_OVERFLOW", description = "Floating-point overflow" }
+"0xc0000092" = { name = "FLOAT_UNDERFLOW", description = "Floating-point underflow" }
+"0xc0000093" = { name = "FLOAT_STACK_CHECK", description = "Floating-point stack check" }
+"0xc0000094" = { name = "INTEGER_DIVIDE_BY_ZERO", description = "Integer division by zero" }
+"0xc0000095" = { name = "INTEGER_OVERFLOW", description = "Integer overflow" }
+"0xc0000096" = { name = "PRIVILEGED_INSTRUCTION", description = "Privileged instruction in user mode" }
+"0xc0000142" = { name = "DLL_NOT_FOUND", description = "Required DLL missing at launch" }
+"0xc0000135" = { name = "DLL_INIT_FAILED", description = "DLL initialization failed" }
+"0xc0000138" = { name = "ORDINAL_NOT_FOUND", description = "DLL ordinal export not found" }
+"0xc0000139" = { name = "ENTRYPOINT_NOT_FOUND", description = "DLL procedure entry not found" }
+
+# ── Hang analysis patterns ──────────────────────────────────────
+[hang_patterns]
+surface_loop = { name = "Surface frame loop deadlock", symbols = ["kain_ui_runtime_pump", "surface_frame_loop", "native_ui_surface_present"], description = "Main surface frame loop is not returning — likely deadlock in render path" }
+actor_mailbox = { name = "Actor mailbox stall", symbols = ["kain_actor_poll", "kain_mailbox_wait"], description = "Actor is waiting on a mailbox that will never deliver" }
+gpu_sync     = { name = "GPU sync deadlock", symbols = ["vkQueueWaitIdle", "vkWaitForFences", "kain_gpu_sync"], description = "GPU fence/queue wait is blocking indefinitely" }
+spin_loop    = { name = "Busy-wait spin loop", symbols = [], description = "No known blocking symbol — likely an unbounded while/for loop in user code" }
+async_await  = { name = "Async future deadlock", symbols = ["kain_future_wait", "kain_task_block_on"], description = "Future is blocked on a task that never completes" }
+
+# ============================================================================
+# TEST CASES
+# ============================================================================
+
+[[test_cases]]
+id = "basic_component"
+category = "RENDERING"
+source = "X:/blades/ui_demos/test_ui/1_component_ui/src/basic_component.kn"
+description = "Minimal component with text rendering"
+expected_verdict = "RENDERING"
+vtable_profile = "basic_component"
+visual_expectation = "Window has visible text content on a dark background"
+timeout_ms = 10000
+allow_fail = false
+
+[[test_cases]]
+id = "nested_components"
+category = "RENDERING"
+source = "X:/blades/ui_demos/test_ui/1_component_ui/src/nested_components.kn"
+description = "Parent component containing child components"
+expected_verdict = "RENDERING"
+vtable_profile = "nested_components"
+visual_expectation = "Multiple nested boxes with distinct colors"
+timeout_ms = 10000
+allow_fail = false
+
+[[test_cases]]
+id = "state_persistence"
+category = "RENDERING"
+source = "X:/blades/ui_demos/test_ui/1_component_ui/src/state_persistence.kn"
+description = "Component state survives across frames"
+expected_verdict = "RENDERING"
+vtable_profile = "state_persistence"
+visual_expectation = "Counter or stateful value updating"
+timeout_ms = 10000
+allow_fail = false
+
+[[test_cases]]
+id = "event_callbacks"
+category = "RENDERING"
+source = "X:/blades/ui_demos/test_ui/1_component_ui/src/event_callbacks.kn"
+description = "Component with onClick callbacks bound via slot 23"
+expected_verdict = "RENDERING"
+vtable_profile = "event_callbacks"
+visual_expectation = "Button-like element visible"
+timeout_ms = 10000
+allow_fail = false
+
+[[test_cases]]
+id = "pulse_animation"
+category = "RENDERING"
+source = "X:/blades/ui_demos/test_ui/1_component_ui/src/pulse_animation.kn"
+description = "Component with inline pulse clock for animation"
+expected_verdict = "RENDERING"
+vtable_profile = "pulse_animation"
+visual_expectation = "Animating element with color or position changes"
+timeout_ms = 15000  # needs extra time for animation frames
+allow_fail = false
+
+[[test_cases]]
+id = "resonate_binding"
+category = "RENDERING"
+source = "X:/blades/ui_demos/test_ui/1_component_ui/src/resonate_binding.kn"
+description = "Component reacting to world state changes via resonate"
+expected_verdict = "RENDERING"
+vtable_profile = "basic_component"
+visual_expectation = "UI updates in response to reactive state changes"
+timeout_ms = 10000
+allow_fail = false
+
+[[test_cases]]
+id = "widget_showcase"
+category = "RENDERING"
+source = "X:/blades/ui_demos/test_ui/2b_std_ui_widgets/widget_showcase.kn"
+description = "Full widget showcase — all std::ui widgets"
+expected_verdict = "RENDERING"
+vtable_profile = "nested_components"
+visual_expectation = "Multiple widget types (button, slider, text, checkbox) visible"
+timeout_ms = 10000
+allow_fail = false
+
+[[test_cases]]
+id = "button_test"
+category = "RENDERING"
+source = "X:/blades/ui_demos/test_ui/2b_std_ui_widgets/button_test.kn"
+description = "Button widget with state and styling"
+expected_verdict = "RENDERING"
+vtable_profile = "event_callbacks"
+visual_expectation = "Styled button visible with text label"
+timeout_ms = 10000
+allow_fail = false
+
+[[test_cases]]
+id = "slider_test"
+category = "RENDERING"
+source = "X:/blades/ui_demos/test_ui/2b_std_ui_widgets/slider_test.kn"
+description = "Slider widget with f64 state"
+expected_verdict = "RENDERING"
+vtable_profile = "state_persistence"
+visual_expectation = "Slider track and thumb visible"
+timeout_ms = 10000
+allow_fail = false
+
+[[test_cases]]
+id = "layout_test"
+category = "RENDERING"
+source = "X:/blades/ui_demos/test_ui/2b_std_ui_widgets/layout_test.kn"
+description = "HStack/VStack/ZStack layout containers"
+expected_verdict = "RENDERING"
+vtable_profile = "nested_components"
+visual_expectation = "Multiple elements arranged in horizontal/vertical stacks"
+timeout_ms = 10000
+allow_fail = false
+
+[[test_cases]]
+id = "null_deref_segfault"
+category = "SEGFAULT"
+source = "X:/blades/ui_demos/test_ui/1_component_ui/src/event_callbacks.kn"
+description = "Force a null-pointer deref to test crash forensics (SELF-TEST)"
+expected_verdict = "CRASHED"
+failure_mode = "ACCESS_VIOLATION"
+failure_code = "0xc0000005"
+visual_expectation = "Process terminates — no window or crash window"
+timeout_ms = 5000
+allow_fail = true  # This test intentionally crashes
+exe_only = true    # Use pre-built exe, don't rebuild
+
+[[test_cases]]
+id = "hang_timeout"
+category = "HANG"
+source = "X:/blades/ui_demos/test_ui/1_component_ui/src/pulse_animation.kn"
+description = "Infinite loop in pulse handler (SELF-TEST)"
+expected_verdict = "HANG"
+failure_mode = "HANG"
+visual_expectation = "Window appears but never renders additional frames"
+timeout_ms = 5000
+allow_fail = true  # This test intentionally hangs
+exe_only = true
+
+[[test_cases]]
+id = "blank_window"
+category = "BLANK"
+source = "X:/blades/ui_demos/test_ui/1_component_ui/src/basic_component.kn"
+description = "Component that spawns but fails to emit draw calls (SELF-TEST)"
+expected_verdict = "BLANK"
+visual_expectation = "Solid white/black window with no drawn content"
+timeout_ms = 5000
+allow_fail = true
+exe_only = true
+
+# ── Batch suites ─────────────────────────────────────────────────
+[[suites]]
+name = "smoke"
+description = "Quick smoke test — all rendering cases"
+cases = [
+    "basic_component", "nested_components", "state_persistence",
+    "event_callbacks", "widget_showcase", "button_test",
+]
+
+[[suites]]
+name = "full"
+description = "Full test suite — every test case"
+cases = [
+    "basic_component", "nested_components", "state_persistence",
+    "event_callbacks", "pulse_animation", "resonate_binding",
+    "widget_showcase", "button_test", "slider_test", "layout_test",
+]
+
+[[suites]]
+name = "forensics"
+description = "Crash/hang/blank detection validation"
+cases = ["null_deref_segfault", "hang_timeout", "blank_window"]
+
+[[suites]]
+name = "vtable"
+description = "Vtable tracing validation"
+cases = ["basic_component", "nested_components", "state_persistence",
+         "event_callbacks", "pulse_animation"]

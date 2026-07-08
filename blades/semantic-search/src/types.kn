@@ -1,0 +1,252 @@
+// ============================================================================
+//  types.kn — Shared Types for the Semantic Search Engine
+//
+//  All core data structures live here. The hot-path inverted index uses
+//  shatter struct (SoA layout) for cache-friendly sequential scanning.
+//  Metadata and results use plain struct for simplicity.
+//
+//  World SearchIndex is the compiler-owned state vault holding everything.
+// ============================================================================
+
+// ============================================================================
+//  ENUMS
+// ============================================================================
+
+pub enum DomainKind:
+    Crate      // crates/ — Rust bootstrap compiler
+    Runtime    // runtime/native/ — C native runtime
+    Stdlib     // stdlib/ — Kain stdlib modules
+
+pub enum LangKind:
+    Rust       // .rs
+    C          // .c / .h
+    Kain       // .kn
+
+pub enum EdgeKind:
+    Use        // Rust module import (use std::sync)
+    Include    // C header include (#include <entangle.h>)
+    Import     // Kain import (use std::intent)
+    Define     // Symbol definition (fn, struct, pub fn, etc.)
+    Calls      // Function call / FFI call
+    Depends    // Build/crate dependency
+
+// ============================================================================
+//  SHATTER STRUCTS — SoA Layout for Hot Paths
+// ============================================================================
+
+// One term occurrence in one document.
+// shatter struct ensures SoA layout: term_ids, doc_ids, term_freqs, and positions
+// live in separate contiguous arrays for perfect cache-coherent scanning.
+struct Posting:
+    term_id:     Int      // Term ID (index into term storage)
+    doc_id:      Int      // Document ID (index into doc_store)
+    term_freq:   Int      // Term frequency in this document
+    positions:   ptr<Int> // Raw pointer to positions array (byte offsets)
+
+// One node in the dictionary FST trie.
+// Stored as separate ptr<Int> arrays (field-level access for LLVM codegen compat).
+struct FSTNode:
+    char_code:   Int      // Character for this transition (UInt8 range)
+    sibling:     Int      // Index of next sibling (-1 = none)
+    child:       Int      // Index of first child (-1 = none)
+    is_final:    Bool     // True = this node completes a valid term
+    doc_freq:    Int      // Document frequency for completed terms
+    term_id:     Int      // Unique term ID (valid only if is_final)
+
+// ============================================================================
+//  PLAIN STRUCTS — Metadata, Results, Configuration
+// ============================================================================
+
+pub struct DocMeta:
+    path:        String   // File path relative to repo root
+    domain:      String   // "crates" | "runtime" | "stdlib"
+    subsys:      String   // "core", "actor", "ownership", etc.
+    lines:       Int      // Line count
+    lang:        String   // "rust" | "c" | "kain"
+    chunk_index: Int      // For chunked files, which chunk (0 = whole file)
+    checksum:    String   // Simple content hash for incremental updates
+
+pub struct ScoredDoc:
+    doc_id:      Int
+    score:       Float
+    meta:        DocMeta
+
+pub struct Connection:
+    symbol:       String  // The symbol/concept being connected
+    target_path:  String  // Path to the connected file
+    target_subsys: String // Subsystem of the connected file
+    edge_kind:    String  // "use" | "include" | "import" | "define" | "calls" | "depends"
+
+pub struct SearchResult:
+    doc:          ScoredDoc
+    connections:  [Connection]
+    matched_terms: [String]
+
+// ============================================================================
+//  INDEX CAPACITY CONSTANTS
+// ============================================================================
+
+pub const MAX_TERMS:       Int = 500000
+pub const MAX_POSTINGS:    Int = 5000000
+pub const MAX_DOCS:        Int = 20000
+pub const MAX_CONNECTIONS: Int = 100000
+pub const MAX_POSITIONS:   Int = 5000000
+pub const HASH_TABLE_SIZE: Int = 1048576  // 2^20 — power of 2 for fast bucket
+pub const MAX_TERM_LEN:    Int = 128
+pub const MAX_RESULTS:     Int = 25
+
+// ============================================================================
+//  STRIDE CONSTANTS — Field offsets for hot-path struct arrays
+//  Used with ptr<Int> arrays for LLVM codegen compatibility.
+// ============================================================================
+
+// Posting fields (stored in separate ptr<Int> arrays)
+pub const POSTING_STRIDE: Int = 1  // one Int per element per array
+
+// FSTNode fields (stored in separate ptr<Int> arrays)
+pub const FST_CHAR_CODE: Int = 0
+pub const FST_SIBLING: Int = 1
+pub const FST_CHILD: Int = 2
+pub const FST_IS_FINAL: Int = 3
+pub const FST_DOC_FREQ: Int = 4
+pub const FST_TERM_ID: Int = 5
+
+// ============================================================================
+//  SEARCH INDEX — Compiler-Owned State Vault
+// ============================================================================
+//
+//  This world holds the entire inverted index in compiler-tracked memory.
+//  Every field is compiler-visible: mutations via patch are journaled,
+//  invariants via law are checked, and resize triggers can use resonate.
+
+world SearchIndex:
+    // ── Inverted index postings (separate ptr<Int> arrays per field) ──
+    state posting_term_ids:   ptr<Int> = int_to_ptr(0, "Int")
+    state posting_doc_ids:    ptr<Int> = int_to_ptr(0, "Int")
+    state posting_term_freqs: ptr<Int> = int_to_ptr(0, "Int")
+    state postings_cap:       Int = 0
+    state postings_count:     Int = 0
+
+    // ── FST dictionary trie (separate ptr<Int> arrays per field) ──────
+    state fst_char_codes:    ptr<Int> = int_to_ptr(0, "Int")
+    state fst_siblings:      ptr<Int> = int_to_ptr(0, "Int")
+    state fst_children:      ptr<Int> = int_to_ptr(0, "Int")
+    state fst_is_finals:     ptr<Int> = int_to_ptr(0, "Int")
+    state fst_doc_freqs:     ptr<Int> = int_to_ptr(0, "Int")
+    state fst_term_ids:      ptr<Int> = int_to_ptr(0, "Int")
+    state fst_cap:           Int = 0
+    state fst_count:         Int = 0
+
+    // ── Term hash index (open addressing, term_hash -> term_id) ────────
+    state term_hash_slots:  ptr<Int> = int_to_ptr(0, "Int")  // hash bucket
+    state term_id_slots:    ptr<Int> = int_to_ptr(0, "Int")  // term_id per bucket
+
+    // ── Term string storage (arena-allocated contiguous block) ─────────
+    state term_strings:     ptr<Int> = int_to_ptr(0, "Int")  // raw term bytes
+    state term_strings_pos: ptr<Int> = int_to_ptr(0, "Int")  // start pos per term_id
+    state term_strings_len: Int = 0
+
+    // ── Term metadata ─────────────────────────────────────────────────
+    state term_count:       Int = 0
+    state term_doc_freqs:   ptr<Int> = int_to_ptr(0, "Int")
+
+    // ── Document store (Kain dynamic array for safe struct storage) ───
+    state doc_store:        [DocMeta] = []
+    state doc_count:        Int = 0
+
+    // ── Per-term posting ranges (start/end indexes into postings array) ──
+    state postings_start:    ptr<Int> = int_to_ptr(0, "Int")
+    state postings_end:      ptr<Int> = int_to_ptr(0, "Int")
+
+    // ── Aggregate statistics ──────────────────────────────────────────
+    state total_terms_in_docs: Int = 0   // sum of all term freqs across all docs
+    state total_files:         Int = 0
+    state total_chunks:        Int = 0
+    state avg_doc_len:         Float = 0.0
+
+    // ── Connection graph (Kain dynamic array for safe struct storage) ──
+    state connections:        [Connection] = []
+    state conn_count:         Int = 0
+
+    // ── Index state ───────────────────────────────────────────────────
+    state last_updated:      Int = 0    // timestamp of last index update
+    state is_dirty:          Bool = false
+    state index_version:     Int = 0    // bump on every full rebuild
+
+// ============================================================================
+//  DERIVED HELPERS
+// ============================================================================
+
+// Safe modulus for positive values
+pub fn safe_mod(v: Int, m: Int) -> Int:
+    if v < 0:
+        return m - ((-v) % m)
+    return v % m
+
+// Compute average document length from totals
+pub fn compute_avgdl() -> Float:
+    let dc = SearchIndex.doc_count
+    if dc <= 0:
+        return 0.0
+    return to_float(SearchIndex.total_terms_in_docs) / to_float(dc)
+
+// ============================================================================
+//  INIT INDEX — Allocate all world buffers
+// ============================================================================
+
+pub fn init_index() -> Int with Unsafe:
+    SearchIndex.posting_term_ids = alloc_zeroed(MAX_POSTINGS, "Int")
+    SearchIndex.posting_doc_ids = alloc_zeroed(MAX_POSTINGS, "Int")
+    SearchIndex.posting_term_freqs = alloc_zeroed(MAX_POSTINGS, "Int")
+    SearchIndex.postings_cap = MAX_POSTINGS
+    SearchIndex.postings_count = 0
+
+    SearchIndex.fst_char_codes = alloc_zeroed(MAX_TERMS, "Int")
+    SearchIndex.fst_siblings = alloc_zeroed(MAX_TERMS, "Int")
+    SearchIndex.fst_children = alloc_zeroed(MAX_TERMS, "Int")
+    SearchIndex.fst_is_finals = alloc_zeroed(MAX_TERMS, "Int")
+    SearchIndex.fst_doc_freqs = alloc_zeroed(MAX_TERMS, "Int")
+    SearchIndex.fst_term_ids = alloc_zeroed(MAX_TERMS, "Int")
+    SearchIndex.fst_cap = MAX_TERMS
+    SearchIndex.fst_count = 0
+
+    SearchIndex.term_hash_slots = alloc_zeroed(HASH_TABLE_SIZE, "Int")
+    SearchIndex.term_id_slots = alloc_zeroed(HASH_TABLE_SIZE, "Int")
+
+    SearchIndex.term_strings = alloc_zeroed(MAX_TERMS * MAX_TERM_LEN, "Int")
+    SearchIndex.term_strings_pos = alloc_zeroed(MAX_TERMS, "Int")
+    SearchIndex.term_strings_len = 0
+    SearchIndex.term_count = 0
+
+    SearchIndex.term_doc_freqs = alloc_zeroed(MAX_TERMS, "Int")
+
+    SearchIndex.doc_store = []
+    SearchIndex.doc_count = 0
+    SearchIndex.total_terms_in_docs = 0
+    SearchIndex.total_files = 0
+    SearchIndex.total_chunks = 0
+
+    SearchIndex.connections = []
+    SearchIndex.conn_count = 0
+
+    SearchIndex.avg_doc_len = 0.0
+    SearchIndex.last_updated = 0
+    SearchIndex.is_dirty = false
+    SearchIndex.index_version = 1
+    return 0
+
+// ============================================================================
+//  LAWS — Index Invariants
+// ============================================================================
+
+law doc_id_in_bounds(doc_id: Int) -> Bool:
+    return doc_id >= 0 and doc_id < SearchIndex.doc_count
+
+law term_id_in_bounds(term_id: Int) -> Bool:
+    return term_id >= 0 and term_id < SearchIndex.term_count
+
+law postings_count_valid(count: Int) -> Bool:
+    return count >= 0 and count <= SearchIndex.postings_cap
+
+law fst_node_id_valid(node_id: Int) -> Bool:
+    return node_id >= -1 and node_id < SearchIndex.fst_count

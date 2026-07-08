@@ -1,0 +1,211 @@
+// ============================================================================
+//  examples/dashboard.kn — Themed Dashboard Example
+//  §15.4: Stat panels, progress bars, animated stats, data table chart.
+//  Full app with world, native_ui surface, win32 backend, session loop.
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+// ============================================================================
+
+// ── Direct imports from stdlib modules (NO `::` in JSX) ──────────────────────
+
+use std::kaintana::core as core
+use std::kaintana::theme as theme
+use std::kaintana::layout as layout
+use std::kaintana::widgets::Button as Button
+use std::kaintana::widgets::Label as Label
+use std::kaintana::widgets::ProgressBar as ProgressBar
+use std::kaintana::layout::VStack as VStack
+use std::kaintana::layout::HStack as HStack
+use std::kaintana::layout::Spacer as Spacer
+
+// ── Dark theme hex constants (for JSX attr values that don't support ::) ─────
+
+pub const DASH_BG:        String = "#1A1A24"
+pub const DASH_SURFACE:   String = "#232339"
+pub const DASH_ACCENT:    String = "#21D4A1"
+pub const DASH_ACCENT2:   String = "#7C3AED"
+pub const DASH_ACCENT3:   String = "#F59E0B"
+pub const DASH_ACCENT4:   String = "#EF4444"
+pub const DASH_TEXT:      String = "#F1F1F6"
+pub const DASH_TEXT_DIM:  String = "#6B6B80"
+pub const DASH_BORDER:    String = "#2E2E4A"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  LOCAL @EXTERN BINDINGS (for session lifecycle + backend registration)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+type KtSession   = Int
+type KtElementId = Int
+
+@extern fn kt_init() -> Void
+@extern fn kt_make(name: String, w: Int, h: Int) -> KtSession
+@extern fn kt_free(s: KtSession) -> Void
+@extern fn kt_begin(s: KtSession, delta_ms: Float) -> Void
+@extern fn kt_end(s: KtSession) -> Void
+@extern fn kt_present(s: KtSession) -> Void
+@extern fn kt_should_close(s: KtSession) -> Int
+@extern fn kt_host_pump(s: KtSession) -> Int
+@extern fn kt_backend_register(s: KtSession, name: String, vtable: Int) -> Int
+@extern fn kt_backend_select(s: KtSession, name: String) -> Int
+@extern fn kt_backend_probe(s: KtSession) -> Int
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  LOCAL SESSION HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn session_running(s: KtSession) -> Bool:
+    return kt_should_close(s) == 0
+
+fn make_session(title: String, w: Int, h: Int) -> KtSession:
+    kt_init()
+    return kt_make(title, w, h)
+
+fn destroy_session(s: KtSession):
+    kt_free(s)
+
+fn begin_frame(s: KtSession, delta_ms: Float):
+    kt_begin(s, delta_ms)
+
+fn end_frame(s: KtSession):
+    kt_end(s)
+
+fn present_frame(s: KtSession):
+    kt_present(s)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  STAT PANEL — Label + Value + ProgressBar
+// ═══════════════════════════════════════════════════════════════════════════════
+
+component StatPanel(label_txt: String, value_txt: String, pct: Float = 0.0, pct_max: Float = 100.0):
+    render <VStack spacing={4} padding={12} width={180} height={120}>
+        <Label value={label_txt} font_size={12} color={DASH_TEXT_DIM} />
+        <Label value={value_txt} font_size={28} color={DASH_ACCENT} />
+        <ProgressBar value={pct} max={pct_max} width={156} height={6} fill_color={DASH_ACCENT} track_color={DASH_BORDER} />
+    </VStack>
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CHART — Simple bar chart with colored boxes
+// ═══════════════════════════════════════════════════════════════════════════════
+
+component ChartBar(value: Float, max_val: Float = 100.0, bar_color: String = DASH_ACCENT, label_txt: String = ""):
+    fn bar_pct(_self: Self_) -> Float:
+        if _self.max_val > 0:
+            return (_self.value / _self.max_val) * 100.0
+        return 0.0
+
+    render <VStack spacing={2} width={40} height={120} alignment="end">
+        <box kind="chart-bar-fill" key={label_txt} width={28} height={bar_pct()} fill={bar_color} radius={2} />
+        <Label value={label_txt} font_size={10} color={DASH_TEXT_DIM} />
+    </VStack>
+
+component ChartPanel():
+    render <HStack spacing={8} padding={12} width={580} height={160}>
+        <ChartBar value={85.0} max_val={100.0} bar_color={DASH_ACCENT} label_txt="Mon" />
+        <ChartBar value={62.0} max_val={100.0} bar_color={DASH_ACCENT2} label_txt="Tue" />
+        <ChartBar value={94.0} max_val={100.0} bar_color={DASH_ACCENT} label_txt="Wed" />
+        <ChartBar value={78.0} max_val={100.0} bar_color={DASH_ACCENT3} label_txt="Thu" />
+        <ChartBar value={55.0} max_val={100.0} bar_color={DASH_ACCENT2} label_txt="Fri" />
+        <ChartBar value={88.0} max_val={100.0} bar_color={DASH_ACCENT4} label_txt="Sat" />
+    </HStack>
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DATA TABLE — Simple row-based data display
+// ═══════════════════════════════════════════════════════════════════════════════
+
+component DataRow(col1: String, col2: String, col3: String, is_header: Bool = false):
+    fn txt_color(_self: Self_) -> String:
+        if _self.is_header:
+            return DASH_TEXT
+        return DASH_TEXT_DIM
+
+    fn bg_color(_self: Self_) -> String:
+        if _self.is_header:
+            return DASH_SURFACE
+        return "#00000000"
+
+    render <HStack spacing={0} padding={6} width={580} height={28} fill={bg_color()}>
+        <Label value={col1} font_size={12} color={txt_color()} width={180} />
+        <Label value={col2} font_size={12} color={txt_color()} width={200} />
+        <Label value={col3} font_size={12} color={txt_color()} width={200} />
+    </HStack>
+
+component DataTable():
+    render <VStack spacing={0} padding={8} width={580} height={200}>
+        <DataRow col1="Metric" col2="Current" col3="Change" is_header={true} />
+        <DataRow col1="CPU Usage" col2="34%" col3="-2%" />
+        <DataRow col1="Memory" col2="1.2 GB" col3="+5%" />
+        <DataRow col1="Network" col2="42 Mbps" col3="+12%" />
+        <DataRow col1="Disk I/O" col2="85 MB/s" col3="-8%" />
+    </VStack>
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  STAT ROW — Horizontal row of 4 StatPanels
+// ═══════════════════════════════════════════════════════════════════════════════
+
+component StatRow():
+    render <HStack spacing={12} padding={8}>
+        <StatPanel label_txt="Revenue" value_txt="$48,290" pct={76.0} />
+        <StatPanel label_txt="Users" value_txt="12,847" pct={62.0} />
+        <StatPanel label_txt="Sessions" value_txt="8,401" pct={91.0} />
+        <StatPanel label_txt="Conversion" value_txt="3.2%" pct={45.0} />
+    </HStack>
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DASHBOARD — Top-level app layout
+// ═══════════════════════════════════════════════════════════════════════════════
+
+component Dashboard():
+    state frame_count: Int = 0
+
+    fn on_refresh(_self: Self_):
+        _self.frame_count = _self.frame_count + 1
+
+    render <VStack spacing={0} padding={16} width={1280} height={720} fill={DASH_BG}>
+        <Label value="Kaintana Dashboard" font_size={24} color={DASH_TEXT} />
+        <Spacer min_size={8} />
+        <StatRow />
+        <Spacer min_size={12} />
+        <Label value="Weekly Activity" font_size={16} color={DASH_TEXT} />
+        <ChartPanel />
+        <Spacer min_size={12} />
+        <Label value="System Metrics" font_size={16} color={DASH_TEXT} />
+        <DataTable />
+        <Spacer />
+        <HStack spacing={8}>
+            <Button label="Refresh" variant="primary" on_click={on_refresh} />
+            <Button label="Settings" variant="ghost" />
+        </HStack>
+    </VStack>
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  WORLD with native_ui surface
+// ═══════════════════════════════════════════════════════════════════════════════
+
+world DashboardWorld:
+    surface native_ui => Dashboard
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  MAIN — Register backend, run session loop
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn main() -> Int:
+    let sid = make_session("Kaintana Dashboard", 1280, 720)
+    if sid == -1:
+        return 1
+
+    let reg = kt_backend_probe(sid)
+    if reg == 0:
+        kt_free(sid)
+        return 2
+
+    while session_running(sid):
+        let _ = kt_host_pump(sid)
+        begin_frame(sid, 16.0)
+        end_frame(sid)
+        present_frame(sid)
+
+    destroy_session(sid)
+    return 0
+
+// ============================================================================
+//  END — examples/dashboard.kn
+// ============================================================================

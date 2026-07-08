@@ -1,0 +1,1 @@
+// Stub: DiagnosticDriverCompatIDs.inc

@@ -1,0 +1,446 @@
+// ============================================================================
+//  aurora.kn — AURORA: Animated Light Visualization
+// ============================================================================
+//  A creative animated visualization using ONLY framebuffer pixel writes
+//  and raw native_ui ABI calls. NO widget system.
+//
+//  Features:
+//    - 5 animated aurora borealis bands with color cycling
+//    - 200+ twinkling stars on a deep night sky
+//    - Connecting lines between nearby drifting particles
+//    - Ambient particle field with organic motion
+//    - Pure framebuffer pixel art
+//
+//  Usage: kain run blades/ui_demos/aurora.kn --target llvm
+// ============================================================================
+
+use std::ui
+use std::math
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const WIN_W: Int = 1280
+const WIN_H: Int = 720
+const NUM_STARS: Int = 200
+const NUM_PARTICLES: Int = 80
+const AURORA_BANDS: Int = 5
+const CONNECT_DIST: Float = 90.0
+
+// ── Color palette (0xAABBGGRR) ────────────────────────────────────────
+// Read right-to-left: R, G, B, A
+
+const C_GREEN:   Int = 0xFF64FF32    // R=50,  G=255, B=100
+const C_TEAL:    Int = 0xFFC8FF00    // R=0,   G=255, B=200
+const C_CYAN:    Int = 0xFFFFFF00    // R=0,   G=255, B=255
+const C_BLUE:    Int = 0xFFFF0000    // R=0,   G=0,   B=255
+const C_PURPLE:  Int = 0xFF00FFFF    // R=255, G=0,   B=255
+const C_AMBER:   Int = 0xFF32C8FF    // R=255, G=200, B=50
+const C_WHITE:   Int = 0xFFFFFFFF
+const C_BLACK:   Int = 0xFF000000
+
+// ── Aurora band config ────────────────────────────────────────────────
+struct AuroraBand:
+    y: Float
+    amp: Float
+    speed: Float
+    phase: Float
+
+// ── State ─────────────────────────────────────────────────────────────
+struct AuroraState:
+    frame: Int
+    time: Float
+    bands: Array<AuroraBand>
+    star_x: [Float]
+    star_y: [Float]
+    star_z: [Float]
+    star_tp: [Float]
+    // Particle fields as separate arrays (codegen limitation: can't do parts[i].x)
+    part_x: [Float]
+    part_y: [Float]
+    part_vx: [Float]
+    part_vy: [Float]
+    part_phase: [Float]
+    part_glow: [Float]
+
+fn init_state() -> AuroraState:
+    // Aurora bands
+    var bands: Array<AuroraBand> = []
+    push(bands, AuroraBand { y: 100.0, amp: 55.0, speed: 0.3,  phase: 0.0 })
+    push(bands, AuroraBand { y: 180.0, amp: 70.0, speed: 0.4,  phase: 1.5 })
+    push(bands, AuroraBand { y: 260.0, amp: 45.0, speed: 0.25, phase: 0.8 })
+    push(bands, AuroraBand { y: 140.0, amp: 35.0, speed: 0.35, phase: 2.2 })
+    push(bands, AuroraBand { y: 320.0, amp: 30.0, speed: 0.20, phase: 3.0 })
+
+    // Stars (separate arrays, same as retrowave_lite pattern)
+    var sx: [Float] = []
+    var sy: [Float] = []
+    var sz: [Float] = []
+    var stp: [Float] = []
+    var i = 0
+    while i < NUM_STARS:
+        push(sx, to_float(i * 17 % WIN_W))
+        push(sy, to_float(i * 31 % (WIN_H / 3)))
+        push(sz, 0.5 + to_float(i % 4) * 0.3)
+        push(stp, to_float(i) * 1.7)
+        i = i + 1
+
+    // Particles (separate arrays for codegen)
+    var px: [Float] = []
+    var py: [Float] = []
+    var pvx: [Float] = []
+    var pvy: [Float] = []
+    var pp: [Float] = []
+    var pg: [Float] = []
+    i = 0
+    while i < NUM_PARTICLES:
+        push(px, to_float(i * 29 % WIN_W))
+        push(py, to_float(60 + i * 43 % (WIN_H - 120)))
+        push(pvx, (to_float(i % 5) - 2.0) * 0.2)
+        push(pvy, (to_float((i * 3) % 7) - 3.0) * 0.15)
+        push(pp, to_float(i) * 0.9)
+        push(pg, 0.3 + to_float(i % 5) * 0.15)
+        i = i + 1
+
+    return AuroraState {
+        frame: 0, time: 0.0,
+        bands: bands,
+        star_x: sx, star_y: sy, star_z: sz, star_tp: stp,
+        part_x: px, part_y: py, part_vx: pvx, part_vy: pvy,
+        part_phase: pp, part_glow: pg,
+    }
+
+// ============================================================================
+//  MATH HELPERS
+// ============================================================================
+
+fn lerpf(a: Float, b: Float, t: Float) -> Float:
+    return a + (b - a) * t
+
+fn clampf(v: Float, lo: Float, hi: Float) -> Float:
+    if v < lo: return lo
+    if v > hi: return hi
+    return v
+
+fn color_pack(r: Float, g: Float, b: Float, a: Float) -> Int:
+    var ri = to_int(r * 255.0)
+    var gi = to_int(g * 255.0)
+    var bi = to_int(b * 255.0)
+    var ai = to_int(a * 255.0)
+    if ri < 0: ri = 0
+    if ri > 255: ri = 255
+    if gi < 0: gi = 0
+    if gi > 255: gi = 255
+    if bi < 0: bi = 0
+    if bi > 255: bi = 255
+    if ai < 0: ai = 0
+    if ai > 255: ai = 255
+    return bi | (gi << 8) | (ri << 16) | (ai << 24)
+
+// ============================================================================
+//  FB HELPERS (with Unsafe)
+// ============================================================================
+
+fn fb_px(fb: ptr<Int>, s: Int, x: Int, y: Int, w: Int, h: Int, c: Int) with Unsafe:
+    if x < 0 or x >= w: return
+    if y < 0 or y >= h: return
+    mem_store(ptr_offset(fb, y * s + x, "Int"), c, "Int")
+
+fn fb_clear(fb: ptr<Int>, s: Int, w: Int, h: Int, c: Int) with Unsafe:
+    var y = 0
+    while y < h:
+        var x = 0
+        while x < w:
+            mem_store(ptr_offset(fb, y * s + x, "Int"), c, "Int")
+            x = x + 1
+        y = y + 1
+
+fn fb_line(fb: ptr<Int>, s: Int, x1: Int, y1: Int, x2: Int, y2: Int, w: Int, h: Int, c: Int) with Unsafe:
+    var x = x1
+    var y = y1
+    let dx = if x2 > x1: x2 - x1 else: x1 - x2
+    let sx = if x1 < x2: 1 else: -1
+    let dy = if y2 > y1: -(y2 - y1) else: -(y1 - y2)
+    let sy = if y1 < y2: 1 else: -1
+    var err = dx + dy
+    loop:
+        fb_px(fb, s, x, y, w, h, c)
+        if x == x2 and y == y2: break
+        let e2 = err * 2
+        if e2 >= dy:
+            err = err + dy
+            x = x + sx
+        if e2 <= dx:
+            err = err + dx
+            y = y + sy
+
+fn fb_blend_px(fb: ptr<Int>, s: Int, x: Int, y: Int, w: Int, h: Int,
+               r: Float, g: Float, b: Float, a: Float) with Unsafe:
+    if a <= 0.001: return
+    if x < 0 or x >= w or y < 0 or y >= h: return
+    let existing = mem_load(ptr_offset(fb, y * s + x, "Int"), "Int")
+    let e_b = existing & 0xFF
+    let e_g = (existing >> 8) & 0xFF
+    let e_r = (existing >> 16) & 0xFF
+
+    let col_ri = to_int(r * 255.0)
+    let col_gi = to_int(g * 255.0)
+    let col_bi = to_int(b * 255.0)
+
+    let t = clampf(a, 0.0, 1.0)
+    let blend_r = to_int(to_float(e_r) * (1.0 - t) + to_float(col_ri) * t)
+    let blend_g = to_int(to_float(e_g) * (1.0 - t) + to_float(col_gi) * t)
+    let blend_b = to_int(to_float(e_b) * (1.0 - t) + to_float(col_bi) * t)
+
+    let blended = (blend_b & 0xFF) | ((blend_g & 0xFF) << 8) | ((blend_r & 0xFF) << 16) | 0xFF000000
+    mem_store(ptr_offset(fb, y * s + x, "Int"), blended, "Int")
+
+// ============================================================================
+//  RENDERERS (with Unsafe)
+// ============================================================================
+
+fn render_sky(fb: ptr<Int>, s: Int, w: Int, h: Int) with Unsafe:
+    var y = 0
+    while y < h:
+        let t = to_float(y) / to_float(h)
+        // Gradient: deep midnight at top → dark green-black at bottom
+        let r = (1.0 - t) * 8.0 + t * 2.0
+        let g = (1.0 - t) * 3.0 + t * 8.0
+        let b = (1.0 - t) * 12.0 + t * 3.0
+        let c = color_pack(r / 255.0, g / 255.0, b / 255.0, 1.0)
+        var x = 0
+        while x < w:
+            mem_store(ptr_offset(fb, y * s + x, "Int"), c, "Int")
+            x = x + 1
+        y = y + 1
+
+fn render_aurora(fb: ptr<Int>, s: Int, w: Int, h: Int, bands: Array<AuroraBand>, time: Float) with Unsafe:
+    var bi = 0
+    while bi < len(bands):
+        let band = bands[bi]
+
+        // Band colors cycle based on band index and time
+        let hue_shift = sin(time * 0.05 + to_float(bi) * 1.2)
+        let hue_center = to_float(bi) / to_float(len(bands))
+        let r1 = 0.0 + hue_center * 0.5
+        let g1 = 0.8 - hue_center * 0.3
+        let b1 = 0.4 + hue_center * 0.6
+        let r2 = 0.3 + hue_center * 0.3
+        let g2 = 0.5 - hue_center * 0.2
+        let b2 = 0.6 + hue_center * 0.4
+
+        // Draw vertical strip
+        var dy = -to_int(band.amp) - 8
+        while dy <= to_int(band.amp) + 8:
+            let ay = to_int(band.y) + dy
+            if ay >= 0 and ay < h:
+                var px = 0
+                while px < w:
+                    // Multi-layer sine wave for organic wavy shape
+                    let wave1 = sin(to_float(px) * 0.007 + time * band.speed + band.phase)
+                    let wave2 = sin(to_float(px) * 0.013 + time * band.speed * 1.3 + band.phase * 2.0 + 0.5)
+                    let wave3 = sin(to_float(px) * 0.003 + time * band.speed * 0.6 + 1.2)
+
+                    // Vertical intensity (gaussian falloff from center)
+                    let vdist = to_float(dy) / band.amp
+                    let vf = 1.0 - vdist * vdist
+                    if vf < 0.0:
+                        px = px + 1
+                        continue
+
+                    // Horizontal intensity
+                    let hi = wave1 * 0.45 + wave2 * 0.3 + wave3 * 0.25
+                    let intensity = clampf(hi * 0.5 + 0.5, 0.0, 1.0) * vf
+
+                    // Only render if bright enough
+                    if intensity > 0.04:
+                        // Horizontal color blend
+                        let hp = to_float(px) / to_float(w)
+                        let lt = (sin(hp * 3.14 + time * 0.08 + band.phase) * 0.5 + 0.5)
+                        let r = lerpf(r1, r2, lt) * intensity * 0.7
+                        let g = lerpf(g1, g2, lt) * intensity * 0.7
+                        let bv = lerpf(b1, b2, lt) * intensity * 0.7
+
+                        let alpha = clampf(intensity * 0.25, 0.0, 0.6)
+                        fb_blend_px(fb, s, px, ay, w, h, r, g, bv, alpha)
+
+                    px = px + 1
+            dy = dy + 2  // Step by 2 for performance
+        bi = bi + 1
+
+fn render_stars(fb: ptr<Int>, s: Int, w: Int, h: Int,
+                sx: [Float], sy: [Float], sz: [Float], stp: [Float], time: Float) with Unsafe:
+    var i = 0
+    while i < len(sx):
+        let twinkle = sin(time * 2.0 + stp[i])
+        let brightness = 0.3 + 0.7 * (twinkle * 0.5 + 0.5)
+        let alpha = to_int(brightness * 200.0)
+        let size = to_int(sz[i] * 1.5)
+
+        let ix = to_int(sx[i])
+        let iy = to_int(sy[i])
+
+        if ix >= 0 and ix < w and iy >= 0 and iy < h:
+            let star_color = (alpha << 24) | 0x00FFFFFF
+            // Core pixel
+            fb_px(fb, s, ix, iy, w, h, star_color)
+            // Glow cross for bright stars
+            if brightness > 0.6 and size > 0:
+                let glow_a = to_int(alpha / 3)
+                let glow = (glow_a << 24) | 0x00FFFFFF
+                fb_px(fb, s, ix - 1, iy, w, h, glow)
+                fb_px(fb, s, ix + 1, iy, w, h, glow)
+                fb_px(fb, s, ix, iy - 1, w, h, glow)
+                fb_px(fb, s, ix, iy + 1, w, h, glow)
+        i = i + 1
+
+fn render_lines(fb: ptr<Int>, s: Int, w: Int, h: Int,
+                p_x: [Float], p_y: [Float]) with Unsafe:
+    var i = 0
+    while i < len(p_x):
+        var j = i + 1
+        while j < len(p_x):
+            let dx = p_x[i] - p_x[j]
+            let dy = p_y[i] - p_y[j]
+            let dist2 = dx * dx + dy * dy
+            let max_dist2 = CONNECT_DIST * CONNECT_DIST
+            if dist2 < max_dist2:
+                let alpha_f = (1.0 - dist2 / max_dist2) * 0.15
+                let alpha = to_int(alpha_f * 255.0)
+                if alpha > 5:
+                    let line_c = (alpha << 24) | 0x0060C040
+                    fb_line(fb, s, to_int(p_x[i]), to_int(p_y[i]),
+                            to_int(p_x[j]), to_int(p_y[j]),
+                            w, h, line_c)
+            j = j + 1
+        i = i + 1
+
+fn render_particles(fb: ptr<Int>, s: Int, w: Int, h: Int,
+                    p_x: [Float], p_y: [Float], p_phase: [Float], p_glow: [Float],
+                    time: Float) with Unsafe:
+    var i = 0
+    while i < len(p_x):
+        let ix = to_int(p_x[i])
+        let iy = to_int(p_y[i])
+        if ix >= 0 and ix < w and iy >= 0 and iy < h:
+            let glow_mod = sin(time * 0.5 + p_phase[i]) * 0.25 + 0.75
+            let bright = to_int(p_glow[i] * 220.0 * glow_mod)
+            let use_warm = (to_int(p_phase[i] * 10.0) % 2) == 0
+            let base = if use_warm: 0xFFA0D050 else: 0xFFD0A030
+
+            let col = (bright << 24) | (base & 0x00FFFFFF)
+            // Glow ring
+            let glow_a = to_int(bright / 3)
+            let glow_c = (glow_a << 24) | (base & 0x00FFFFFF)
+            fb_px(fb, s, ix - 1, iy, w, h, glow_c)
+            fb_px(fb, s, ix + 1, iy, w, h, glow_c)
+            fb_px(fb, s, ix, iy - 1, w, h, glow_c)
+            fb_px(fb, s, ix, iy + 1, w, h, glow_c)
+            // Core
+            fb_px(fb, s, ix, iy, w, h, col)
+        i = i + 1
+
+// ============================================================================
+//  ANIMATE
+// ============================================================================
+
+fn animate_state(st: AuroraState) -> AuroraState:
+    st.frame = st.frame + 1
+    st.time = st.time + 0.016
+
+    var i = 0
+    while i < len(st.part_x):
+        st.part_x[i] = st.part_x[i] + st.part_vx[i]
+        st.part_y[i] = st.part_y[i] + st.part_vy[i]
+
+        // Wrap around screen edges
+        if st.part_x[i] < -10.0: st.part_x[i] = to_float(WIN_W + 10)
+        if st.part_x[i] > to_float(WIN_W + 10): st.part_x[i] = -10.0
+        if st.part_y[i] < 10.0: st.part_y[i] = to_float(WIN_H - 10)
+        if st.part_y[i] > to_float(WIN_H - 10): st.part_y[i] = 10.0
+
+        // Random drift
+        st.part_vx[i] = st.part_vx[i] + (to_float(i % 3) - 1.0) * 0.012
+        st.part_vy[i] = st.part_vy[i] + (to_float((i * 2) % 7) - 3.0) * 0.006
+
+        // Clamp speed
+        if st.part_vx[i] > 0.7: st.part_vx[i] = 0.7
+        if st.part_vx[i] < -0.7: st.part_vx[i] = -0.7
+        if st.part_vy[i] > 0.7: st.part_vy[i] = 0.7
+        if st.part_vy[i] < -0.7: st.part_vy[i] = -0.7
+
+        i = i + 1
+
+    return st
+
+// ============================================================================
+//  MAIN RENDER LOOP
+// ============================================================================
+
+fn render_all(raw_ptr: Int, fs: Int, fw: Int, fh: Int, st: AuroraState) with Unsafe:
+    if raw_ptr == 0: return
+    let fb: ptr<Int> = int_to_ptr(raw_ptr, "Int")
+
+    // 1. Sky gradient
+    render_sky(fb, fs, fw, fh)
+
+    // 2. Aurora borealis bands
+    render_aurora(fb, fs, fw, fh, st.bands, st.time)
+
+    // 3. Stars
+    render_stars(fb, fs, fw, fh, st.star_x, st.star_y, st.star_z, st.star_tp, st.time)
+
+    // 4. Particle connection web
+    render_lines(fb, fs, fw, fh, st.part_x, st.part_y)
+
+    // 5. Particles
+    render_particles(fb, fs, fw, fh, st.part_x, st.part_y, st.part_phase, st.part_glow, st.time)
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+pub fn main() -> Int with Unsafe:
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("Aurora", WIN_W, WIN_H)
+    if session <= 0: return 1
+
+    let _win = native_ui_window_open(session, "AURORA  --  Animated Light Visualization", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    let font_status = native_ui_font_create(session, "status", "Consolas", 11.0)
+
+    var st = init_state()
+
+    while native_ui_host_should_close(session) == 0:
+        let _pump = native_ui_host_pump(session)
+
+        // ── FRAMEBUFFER PASS ────────────────────────────────────────
+        let fbp = native_ui_framebuffer_ptr(session)
+        let fw  = native_ui_framebuffer_width(session)
+        let fh  = native_ui_framebuffer_height(session)
+        let fs  = native_ui_framebuffer_stride(session) / 4
+        render_all(fbp, fs, fw, fh, st)
+
+        // ── ABI NODE PASS ───────────────────────────────────────────
+        let _bf = native_ui_begin_frame(session, 16.0)
+
+        // Bottom status bar
+        let status = native_ui_node_create(session, "status")
+        native_ui_node_set_rect(session, status, 0.0, to_float(WIN_H - 28), to_float(WIN_W), 28.0)
+        native_ui_node_set_style_i64(session, status, "fill-color", 0xCC000000)
+        let _sr = native_ui_draw_rect(session, status, 0.0, to_float(WIN_H - 28), to_float(WIN_W), 28.0, "fill")
+
+        let info = "AURORA  |  Frame: " + str(st.frame) + "  |  Particles: " + str(NUM_PARTICLES) + "  |  Stars: " + str(NUM_STARS) + "  |  Bands: " + str(AURORA_BANDS)
+        let _st = native_ui_draw_text(session, status, font_status, 12.0, 4.0, info, "si")
+
+        // ── ANIMATE ─────────────────────────────────────────────────
+        st = animate_state(st)
+
+        // ── END FRAME ───────────────────────────────────────────────
+        let _fe = native_ui_end_frame(session)
+        let _pr = native_ui_invalidate_window(session)
+
+    let _ds = native_ui_session_destroy(session)
+    return 0

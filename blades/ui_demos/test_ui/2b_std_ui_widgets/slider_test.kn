@@ -1,0 +1,87 @@
+// ============================================================================
+//  slider_test.kn — Slider Visual Test (self-contained, native elements only)
+//
+//  Demonstrates slider-like visual elements using native <box> and <text>.
+//  No imported components.
+//
+//  Usage: kain build slider_test.kn --target llvm
+// ============================================================================
+
+use std::runtime
+
+component SliderTestApp(width=700, height=560):
+    render <panel title="Slider Test" fill_color="bg">
+        <text value="SLIDER TEST — Drag the thumbs" font_size={20} fill_color="accent" />
+
+        <text value="" font_size={8} />
+
+        // ── Default range (0.0 – 1.0) ─────────────────────────────────
+        <text value="DEFAULT RANGE [0.0, 1.0]" font_size={14} fill_color="text" />
+
+        <text value="Volume: 75%" font_size={13} fill_color="accent2" />
+        <stack direction="vertical" spacing={0}>
+            <box fill_color="slider_track" width={200} height={6} />
+            <box fill_color="slider_fill" width={150} height={6} />
+        </stack>
+
+        <text value="" font_size={6} />
+
+        <text value="Brightness: 50%" font_size={13} fill_color="accent2" />
+        <stack direction="vertical" spacing={0}>
+            <box fill_color="slider_track" width={200} height={6} />
+            <box fill_color="slider_fill" width={100} height={6} />
+        </stack>
+
+        <text value="" font_size={6} />
+
+        <text value="Speed: 30%" font_size={13} fill_color="accent2" />
+        <stack direction="vertical" spacing={0}>
+            <box fill_color="slider_track" width={200} height={6} />
+            <box fill_color="slider_fill" width={60} height={6} />
+        </stack>
+
+        <text value="" font_size={8} />
+
+        // ── Custom ranges ──────────────────────────────────────────────
+        <text value="CUSTOM RANGES" font_size={14} fill_color="text" />
+
+        <text value="Opacity: 100%" font_size={13} fill_color="accent3" />
+        <stack direction="vertical" spacing={0}>
+            <box fill_color="slider_track" width={200} height={6} />
+            <box fill_color="slider_fill" width={200} height={6} />
+        </stack>
+
+        <text value="" font_size={6} />
+
+        <text value="Zoom: 1.2x" font_size={13} fill_color="accent3" />
+        <stack direction="vertical" spacing={0}>
+            <box fill_color="slider_track" width={200} height={6} />
+            <box fill_color="slider_fill" width={40} height={6} />
+        </stack>
+
+        <text value="" font_size={8} />
+
+        // ── Stepped sliders ────────────────────────────────────────────
+        <text value="STEPPED SLIDERS (discrete)" font_size={14} fill_color="text" />
+
+        <text value="Stepped: 2 (step=1.0, max=10)" font_size={13} fill_color="accent4" />
+        <stack direction="vertical" spacing={0}>
+            <box fill_color="slider_track" width={200} height={6} />
+            <box fill_color="slider_fill" width={40} height={6} />
+        </stack>
+
+        <text value="" font_size={8} />
+
+        <text value="SLIDER INFO" font_size={14} fill_color="text" />
+        <text value="Track: 200x6 px | Fill: proportional width | Colors: slider_track/slider_fill" font_size={12} fill_color="text_dim" />
+        <text value="Drag thumb horizontally to change value. Step snaps to nearest increment." font_size={12} fill_color="text_dim" />
+    </panel>
+
+world SliderTestWorld:
+    surface native_ui => SliderTestApp
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

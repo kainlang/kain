@@ -1,0 +1,107 @@
+// ============================================================================
+//  search/postings_reader.kn — Postings List Iteration
+//
+//  Layer 7 (collapse/observe/decay): sequential scan of postings lists
+//  with raw pointer access for cache-friendly iteration. 
+//  The shatter struct layout means doc_id, term_freq, and positions
+//  lanes are contiguous in memory — perfect for prefetcher.
+// ============================================================================
+
+use types::Posting
+use types::ScoredDoc
+use types::DocMeta
+use types::SearchIndex
+use types::FST_CHAR_CODE
+use types::FST_SIBLING
+use types::FST_CHILD
+use types::FST_IS_FINAL
+use types::FST_DOC_FREQ
+use types::FST_TERM_ID
+
+// ============================================================================
+//  POSTINGS ITERATOR
+// ============================================================================
+
+pub struct PostingsIterator:
+    tid_ptr:       ptr<Int>
+    did_ptr:       ptr<Int>
+    tf_ptr:        ptr<Int>
+    start_index:   Int
+    end_index:     Int
+    current:       Int
+
+// Open an iterator over postings for a given term
+pub fn open_postings(term_id: Int) -> PostingsIterator with Unsafe:
+    let tids: ptr<Int> = SearchIndex.posting_term_ids
+    let dids: ptr<Int> = SearchIndex.posting_doc_ids
+    let tfs: ptr<Int> = SearchIndex.posting_term_freqs
+    let count: Int = SearchIndex.postings_count
+
+    let iter = PostingsIterator {
+        tid_ptr: tids,
+        did_ptr: dids,
+        tf_ptr: tfs,
+        start_index: 0,
+        end_index: count,
+        current: 0,
+    }
+    return iter
+
+pub fn iter_has_next(iter: PostingsIterator) -> Bool:
+    return iter.current < iter.end_index
+
+pub fn iter_next(iter: PostingsIterator) -> Posting with Unsafe:
+    let tid: Int = mem_load(ptr_offset(iter.tid_ptr, iter.current, "Int"), "Int")
+    let did: Int = mem_load(ptr_offset(iter.did_ptr, iter.current, "Int"), "Int")
+    let tf: Int = mem_load(ptr_offset(iter.tf_ptr, iter.current, "Int"), "Int")
+    iter.current = iter.current + 1
+    return Posting { term_id: tid, doc_id: did, term_freq: tf, positions: int_to_ptr(0, "Int") }
+
+// ============================================================================
+//  SCAN POSTINGS — sequential scan with observe
+// ============================================================================
+
+// Scan all postings, collect matching doc_ids and scores.
+// This is the hot path: cache-coherent sequential scan of separate Int arrays.
+pub fn scan_postings(term_id: Int, term: String) -> [ScoredDoc] with Unsafe:
+    var results: [ScoredDoc] = []
+    let dids: ptr<Int> = SearchIndex.posting_doc_ids
+    let count: Int = SearchIndex.postings_count
+    let doc_count: Int = SearchIndex.doc_count
+    let avgdl: Float = SearchIndex.avg_doc_len
+
+    if count <= 0 or doc_count <= 0:
+        return results
+
+    // Use observe for read-only scan
+    let scanned: Int = observe dids:
+        var i: Int = 0
+        while i < count:
+            let doc_id: Int = mem_load(ptr_offset(dids, i, "Int"), "Int")
+            if doc_id >= 0 and doc_id < doc_count:
+                let meta: DocMeta = SearchIndex.doc_store[doc_id]
+                let doc_len: Int = meta.lines  // approximate doc length by lines
+
+                let sc: ScoredDoc = ScoredDoc {
+                    doc_id: doc_id,
+                    score: 0.0,  // BM25 score computed in search_engine
+                    meta: meta,
+                }
+                push(results, sc)
+            i = i + 1
+        len(results)
+
+    return results
+
+// ============================================================================
+//  POSTINGS STATS
+// ============================================================================
+
+pub fn postings_count() -> Int:
+    return SearchIndex.postings_count
+
+pub fn doc_count() -> Int:
+    return SearchIndex.doc_count
+
+pub fn total_terms() -> Int:
+    return SearchIndex.term_count

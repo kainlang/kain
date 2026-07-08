@@ -1,0 +1,387 @@
+// ============================================================================
+//  music_player.kn — Kain Music Player UI Demo
+// ============================================================================
+//  A music player with:
+//    - Album art area (large colored panel with title)
+//    - Now-playing info (track, artist, album)
+//    - Transport controls (prev/play/pause/next/shuffle/repeat)
+//    - Seek slider + time display
+//    - Volume slider + mute button
+//    - Playlist panel (scrollable track list)
+//    - Equalizer visualization (animated labels)
+//
+//  Layout: VERTICAL SPLIT (portrait orientation — NOT horizontal!)
+//  Window: 520 x 820
+//  Theme: Dark purple/magenta (#2D0A3E / #FF00AA / #E040FB)
+//
+//  Usage: kain run blades/ui_demos/music_player.kn --target llvm
+// ============================================================================
+
+use std::ui
+use std::ui::widget
+use std::ui::style
+use std::math
+
+const WIN_W: Int = 520
+const WIN_H: Int = 820
+
+// Purple/magenta theme
+const CLR_PURPLE_DEEP: Int = 0xFF1A0A2E
+const CLR_PURPLE_MID: Int = 0xFF2D0A3E
+const CLR_PURPLE_LIGHT: Int = 0xFF3D1A5E
+const CLR_MAGENTA: Int = 0xFFFF00AA
+const CLR_MAGENTA_DIM: Int = 0xFFAA0077
+const CLR_PINK: Int = 0xFFE040FB
+const CLR_CYAN: Int = 0xFF00E5FF
+const CLR_TEXT: Int = 0xFFF0E0FF
+const CLR_TEXT_DIM: Int = 0xFF8866AA
+const CLR_PANEL: Int = 0xFF220A38
+
+// ============================================================================
+//  STATE
+// ============================================================================
+
+struct Track:
+    title: String
+    artist: String
+    album: String
+    duration_sec: Int
+    genre: String
+
+struct PlayerState:
+    playlist: Array<Track>
+    current_track: Int
+    playing: Bool
+    shuffle: Bool
+    repeat: Bool
+    volume: Float
+    muted: Bool
+    seek_pos: Float
+    time_elapsed_sec: Int
+    frame_count: Int
+    eq_bars: Array<Float>
+    eq_phases: Array<Float]
+    playlist_scroll: Int
+
+fn make_playlist() -> Array<Track>:
+    var tracks: Array<Track> = []
+    push(tracks, Track { title: "Neon Dreams", artist: "Synthwave Collective", album: "Retrograde", duration_sec: 234, genre: "Synthwave" })
+    push(tracks, Track { title: "Digital Horizon", artist: "Chroma Key", album: "Infinite Loop", duration_sec: 198, genre: "Electronic" })
+    push(tracks, Track { title: "Midnight Protocol", artist: "Bit Crusher", album: "Firewall", duration_sec: 267, genre: "Cyberpunk" })
+    push(tracks, Track { title: "Quantum Pulse", artist: "The Algorithms", album: "Binary Sunset", duration_sec: 312, genre: "Techno" })
+    push(tracks, Track { title: "Starfield Echo", artist: "Cosmos", album: "Deep Space", duration_sec: 245, genre: "Ambient" })
+    push(tracks, Track { title: "Chrome Velocity", artist: "Turbo Driver", album: "Nitro", duration_sec: 189, genre: "Outrun" })
+    push(tracks, Track { title: "Ghost in the Wire", artist: "Phantom Code", album: "Encryption", duration_sec: 276, genre: "Darkwave" })
+    push(tracks, Track { title: "Solar Flare", artist: "Helio", album: "Corona", duration_sec: 203, genre: "Chillwave" })
+    push(tracks, Track { title: "Neural Network", artist: "Deep Learning", album: "Epoch 42", duration_sec: 291, genre: "IDM" })
+    push(tracks, Track { title: "Pixel Rain", artist: "8-Bit Collective", album: "Retro Gaming", duration_sec: 178, genre: "Chiptune" })
+    push(tracks, Track { title: "Void Walker", artist: "Abyss", album: "Event Horizon", duration_sec: 334, genre: "Industrial" })
+    push(tracks, Track { title: "Laser Highway", artist: "Turbo Force", album: "Velocity", duration_sec: 215, genre: "Outrun" })
+    return tracks
+
+fn init_player() -> PlayerState:
+    var eq_b: Array<Float> = []
+    var eq_p: Array<Float> = []
+    var i = 0
+    while i < 8:
+        push(eq_b, 0.3)
+        push(eq_p, to_float(i) * 0.8)
+        i = i + 1
+    return PlayerState {
+        playlist: make_playlist(),
+        current_track: 0,
+        playing: true,
+        shuffle: false,
+        repeat: false,
+        volume: 0.7,
+        muted: false,
+        seek_pos: 0.0,
+        time_elapsed_sec: 47,
+        frame_count: 0,
+        eq_bars: eq_b,
+        eq_phases: eq_p,
+        playlist_scroll: 0,
+    }
+
+fn format_time(seconds: Int) -> String:
+    let mins = seconds / 60
+    let secs = seconds % 60
+    let sec_str = if secs < 10: "0" + str(secs) else: str(secs)
+    return str(mins) + ":" + sec_str
+
+fn current_track(st: PlayerState) -> Track:
+    if st.current_track >= 0 and st.current_track < len(st.playlist):
+        return st.playlist[st.current_track]
+    return Track { title: "No Track", artist: "", album: "", duration_sec: 0, genre: "" }
+
+// ============================================================================
+//  RENDER: ALBUM ART (top section)
+// ============================================================================
+
+fn render_album_art(ctx: Int, st: PlayerState) -> PlayerState:
+    let track = current_track(st)
+
+    // Album art placeholder — colored panel with text
+    let _p = panel_begin(ctx, "ALBUM ART", 20.0, 52.0, 480.0, 240.0)
+
+    label(ctx, " ")
+    label(ctx, " ")
+    label(ctx, "   +-------------------------------+")
+    label(ctx, "   |                               |")
+    label(ctx, "   |        [ ALBUM ART ]          |")
+    label(ctx, "   |                               |")
+    label(ctx, "   |     " + track.album + "     |")
+    label(ctx, "   |                               |")
+    label(ctx, "   |        " + track.genre + "              |")
+    label(ctx, "   |                               |")
+    label(ctx, "   +-------------------------------+")
+    label(ctx, " ")
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  RENDER: NOW PLAYING (below album art)
+// ============================================================================
+
+fn render_now_playing(ctx: Int, st: PlayerState) -> PlayerState:
+    let track = current_track(st)
+
+    let _p = panel_begin(ctx, "NOW PLAYING", 20.0, 302.0, 480.0, 120.0)
+
+    label(ctx, "  NOW PLAYING")
+    label(ctx, " ")
+    label(ctx, "  " + track.title)
+    label(ctx, "  " + track.artist)
+    label(ctx, "  " + track.album)
+    label(ctx, "  Genre: " + track.genre)
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  RENDER: TRANSPORT CONTROLS (center)
+// ============================================================================
+
+fn render_transport(ctx: Int, st: PlayerState) -> PlayerState:
+    let _p = panel_begin(ctx, "TRANSPORT", 20.0, 432.0, 480.0, 110.0)
+
+    label(ctx, "  CONTROLS")
+    label(ctx, " ")
+
+    // Seek bar
+    let track = current_track(st)
+    let seek_max = to_float(track.duration_sec)
+    let seek_val = if seek_max > 0.0: st.seek_pos * seek_max else: 0.0
+    let seek = slider(ctx, seek_val, 0.0, seek_max)
+    if seek.changed and seek_max > 0.0:
+        st.seek_pos = seek.value / seek_max
+
+    // Time display
+    let elapsed = to_int(st.seek_pos * seek_max)
+    label(ctx, "  " + format_time(elapsed) + " / " + format_time(track.duration_sec))
+
+    label(ctx, " ")
+
+    // Transport buttons row
+    if button(ctx, "  << PREV  "):
+        st.current_track = st.current_track - 1
+        if st.current_track < 0:
+            st.current_track = len(st.playlist) - 1
+        st.seek_pos = 0.0
+        st.time_elapsed_sec = 0
+
+    if button(ctx, "  " + if st.playing: "|| PAUSE " else: ">> PLAY  " + "  "):
+        st.playing = not st.playing
+
+    if button(ctx, "  NEXT >>  "):
+        st.current_track = st.current_track + 1
+        if st.current_track >= len(st.playlist):
+            st.current_track = 0
+        st.seek_pos = 0.0
+        st.time_elapsed_sec = 0
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  RENDER: VOLUME + OPTIONS
+// ============================================================================
+
+fn render_volume(ctx: Int, st: PlayerState) -> PlayerState:
+    let _p = panel_begin(ctx, "VOLUME", 20.0, 552.0, 480.0, 90.0)
+
+    label(ctx, "  VOLUME: " + str(to_int(st.volume * 100.0)) + "%" + if st.muted: " (MUTED)" else: "")
+    let vol = slider(ctx, st.volume, 0.0, 1.0)
+    if vol.changed:
+        st.volume = vol.value
+
+    label(ctx, " ")
+
+    let cb_mute = checkbox(ctx, "Mute", st.muted)
+    if cb_mute.toggled:
+        st.muted = cb_mute.value
+
+    let cb_shuffle = checkbox(ctx, "Shuffle", st.shuffle)
+    if cb_shuffle.toggled:
+        st.shuffle = cb_shuffle.value
+
+    let cb_repeat = checkbox(ctx, "Repeat", st.repeat)
+    if cb_repeat.toggled:
+        st.repeat = cb_repeat.value
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  RENDER: EQUALIZER
+// ============================================================================
+
+fn render_equalizer(ctx: Int, st: PlayerState) -> PlayerState:
+    let _p = panel_begin(ctx, "EQUALIZER", 20.0, 652.0, 480.0, 80.0)
+
+    label(ctx, "  EQ: " + eq_bar_text(st))
+
+    panel_end(ctx)
+    return st
+
+fn eq_bar_text(st: PlayerState) -> String:
+    var result = ""
+    let count = len(st.eq_bars)
+    var i = 0
+    while i < count:
+        let level = st.eq_bars[i]
+        let bars = to_int(level * 8.0)
+        var bar = ""
+        var j = 0
+        while j < bars:
+            bar = bar + "|"
+            j = j + 1
+        while j < 8:
+            bar = bar + "."
+            j = j + 1
+        if i > 0:
+            result = result + " "
+        result = result + bar
+        i = i + 1
+    return result
+
+// ============================================================================
+//  RENDER: PLAYLIST
+// ============================================================================
+
+fn render_playlist(ctx: Int, st: PlayerState) -> PlayerState:
+    let _p = panel_begin(ctx, "PLAYLIST", 20.0, 742.0, 480.0, 60.0)
+
+    label(ctx, "  TRACK LIST (" + str(len(st.playlist)) + " tracks)")
+    label(ctx, "  Current: " + str(st.current_track + 1) + " / " + str(len(st.playlist)))
+
+    let visible = 4
+    let start = st.playlist_scroll
+    var end_idx = start + visible
+    let total = len(st.playlist)
+    if end_idx > total:
+        end_idx = total
+
+    var i = start
+    while i < end_idx:
+        let track = st.playlist[i]
+        let prefix = if i == st.current_track: ">> " else: "   "
+        let num = if i < 9: "0" + str(i + 1) else: str(i + 1)
+        let line = prefix + num + ". " + track.title + " - " + track.artist
+
+        if button(ctx, "  " + line):
+            st.current_track = i
+            st.seek_pos = 0.0
+            st.time_elapsed_sec = 0
+
+        i = i + 1
+
+    panel_end(ctx)
+    return st
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+pub fn main() -> Int:
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("MusicPlayer", WIN_W, WIN_H)
+    if session <= 0:
+        return 1
+
+    let _win = native_ui_window_open(session, "Kain Music Player", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    let ctx = create(session)
+    if ctx <= 0:
+        return 2
+
+    let font_body = load_font(ctx, "C:/Windows/Fonts/arial.ttf", 14.0)
+    let body_id = if font_body <= 0: load_default_font(ctx, 14.0) else: font_body
+
+    let font_title = load_font(ctx, "C:/Windows/Fonts/impact.ttf", 22.0)
+    let title_id = if font_title <= 0: body_id else: font_title
+
+    let font_mono = load_font(ctx, "C:/Windows/Fonts/consola.ttf", 11.0)
+    let mono_id = if font_mono <= 0: body_id else: font_mono
+
+    var state = init_player()
+
+    while native_ui_host_should_close(session) == 0:
+        let _pump = native_ui_host_pump(session)
+        let _bf = native_ui_begin_frame(session, 16.0)
+        begin_frame(ctx)
+
+        // ── Header ──────────────────────────────────────────────────
+        let hdr = native_ui_node_create(session, "header")
+        native_ui_node_set_rect(session, hdr, 0.0, 0.0, to_float(WIN_W), 40.0)
+        native_ui_node_set_style_i64(session, hdr, "fill-color", CLR_PURPLE_DEEP)
+        let _ht = native_ui_draw_text(session, hdr, title_id, 16.0, 5.0,
+            " KAIN MUSIC PLAYER", "hdr-title")
+
+        // ── Sections (vertical layout) ──────────────────────────────
+        state = render_album_art(ctx, state)
+        state = render_now_playing(ctx, state)
+        state = render_transport(ctx, state)
+        state = render_volume(ctx, state)
+        state = render_equalizer(ctx, state)
+        state = render_playlist(ctx, state)
+
+        // ── Animate EQ bars ─────────────────────────────────────────
+        if state.playing:
+            var i = 0
+            while i < len(state.eq_bars):
+                state.eq_phases[i] = state.eq_phases[i] + 0.12
+                let v = sin(state.eq_phases[i]) * 0.4 + sin(state.eq_phases[i] * 1.7 + 1.0) * 0.2
+                state.eq_bars[i] = 0.3 + (v + 1.0) * 0.35
+                i = i + 1
+
+            // Simulate playback
+            state.time_elapsed_sec = state.time_elapsed_sec + 1
+            let track = current_track(state)
+            if track.duration_sec > 0:
+                state.seek_pos = to_float(state.time_elapsed_sec) / to_float(track.duration_sec)
+                if state.seek_pos >= 1.0:
+                    state.seek_pos = 0.0
+                    state.time_elapsed_sec = 0
+                    if state.shuffle:
+                        state.current_track = (state.current_track + 3) % len(state.playlist)
+                    else:
+                        state.current_track = state.current_track + 1
+                        if state.current_track >= len(state.playlist):
+                            if state.repeat:
+                                state.current_track = 0
+                            else:
+                                state.current_track = len(state.playlist) - 1
+                                state.playing = false
+
+        state.frame_count = state.frame_count + 1
+
+        end_frame(ctx)
+        let _fe = native_ui_end_frame(session)
+        let _pr = native_ui_invalidate_window(session)
+
+    destroy(ctx)
+    let _ds = native_ui_session_destroy(session)
+    return 0

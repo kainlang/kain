@@ -1,0 +1,497 @@
+// ============================================================================
+//  rig_mannequin.kn — Procedural Skeleton + Gait + IK + Head Tracking
+// ============================================================================
+//
+//  WHAT:      A full procedural mannequin demo exercising every electron_rig
+//             API surface. Creates a 18-bone humanoid skeleton via
+//             create_skeleton(), drives it with sine-wave procedural gait,
+//             arm swing, body bob, head tracking to mouse, and IK foot
+//             planting on click.
+//
+//             Hot path: SoA set_bone_pose() with 6 flat Float arrays
+//             (rx[], ry[], rz[], tx[], ty[], tz[]) — one lane per transform
+//             component. No per-bone JSON overhead.
+//
+//  KEYBOARD:
+//    G        — toggle gait animation
+//    T        — toggle head tracking (follows mouse)
+//    I        — toggle IK mode (click plants foot)
+//    R        — toggle auto-rotate
+//    C        — clear + reset pose
+//    1        — speed up (1.5x)
+//    2        — slow down (0.5x)
+//    3        — normal speed (1.0x)
+//
+//  LAYERS:    L1 (world for ready-gate + state)
+//             L5 (pulse 16ms animation loop)
+//             L7 (std::input via electron_interact)
+//
+//  STDLIB:    std::runtime, std::json, std::input
+//  BRIDGES:   electron_bridge, electron_extras, electron_rig, electron_interact
+//
+// ============================================================================
+
+use std::runtime
+use std::json
+use std::time
+use std::math
+use electron_rig
+use electron_extras
+use electron_interact
+use electron_bridge
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const BONE_COUNT: Int = 18
+const HEAD_IDX: Int = 3
+const L_THIGH_IDX: Int = 12
+const L_SHIN_IDX: Int = 13
+const L_FOOT_IDX: Int = 14
+const R_THIGH_IDX: Int = 15
+const R_SHIN_IDX: Int = 16
+const R_FOOT_IDX: Int = 17
+
+// ============================================================================
+//  WORLD — ready-gate + interaction state
+// ============================================================================
+
+world MannequinScene:
+    state ready: Int = 0
+    state gait_on: Int = 1
+    state head_track: Int = 0
+    state ik_mode: Int = 0
+    state speed: Float = 1.0
+    state target_x: Float = 0.0
+    state target_y: Float = 2.0
+    state target_z: Float = 3.0
+    state ik_target_x: Float = 0.0
+    state ik_target_y: Float = 0.0
+    state ik_target_z: Float = 0.0
+    state ik_leg: Int = 0           // 0 = left, 1 = right
+    state frame: Int = 0
+
+// ============================================================================
+//  BUILD BONE HIERARCHY — constructs the skeleton definition for Kain
+// ============================================================================
+
+fn build_skeleton() -> JsonArray:
+    let bones = json_array()
+
+    // 0: hips
+    json_array_push_object(bones, json_object(
+        "name", "hips", "parent", "",
+        "x", 0.0, "y", 1.0, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 1: spine
+    json_array_push_object(bones, json_object(
+        "name", "spine", "parent", "hips",
+        "x", 0.0, "y", 0.5, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 2: neck
+    json_array_push_object(bones, json_object(
+        "name", "neck", "parent", "spine",
+        "x", 0.0, "y", 0.3, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 3: head
+    json_array_push_object(bones, json_object(
+        "name", "head", "parent", "neck",
+        "x", 0.0, "y", 0.2, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 4: l_shoulder
+    json_array_push_object(bones, json_object(
+        "name", "l_shoulder", "parent", "spine",
+        "x", -0.3, "y", 0.25, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 5: l_upper_arm
+    json_array_push_object(bones, json_object(
+        "name", "l_upper_arm", "parent", "l_shoulder",
+        "x", 0.0, "y", -0.35, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 6: l_forearm
+    json_array_push_object(bones, json_object(
+        "name", "l_forearm", "parent", "l_upper_arm",
+        "x", 0.0, "y", -0.35, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 7: l_hand
+    json_array_push_object(bones, json_object(
+        "name", "l_hand", "parent", "l_forearm",
+        "x", 0.0, "y", -0.2, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 8: r_shoulder
+    json_array_push_object(bones, json_object(
+        "name", "r_shoulder", "parent", "spine",
+        "x", 0.3, "y", 0.25, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 9: r_upper_arm
+    json_array_push_object(bones, json_object(
+        "name", "r_upper_arm", "parent", "r_shoulder",
+        "x", 0.0, "y", -0.35, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 10: r_forearm
+    json_array_push_object(bones, json_object(
+        "name", "r_forearm", "parent", "r_upper_arm",
+        "x", 0.0, "y", -0.35, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 11: r_hand
+    json_array_push_object(bones, json_object(
+        "name", "r_hand", "parent", "r_forearm",
+        "x", 0.0, "y", -0.2, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 12: l_thigh
+    json_array_push_object(bones, json_object(
+        "name", "l_thigh", "parent", "hips",
+        "x", -0.15, "y", -0.3, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 13: l_shin
+    json_array_push_object(bones, json_object(
+        "name", "l_shin", "parent", "l_thigh",
+        "x", 0.0, "y", -0.45, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 14: l_foot
+    json_array_push_object(bones, json_object(
+        "name", "l_foot", "parent", "l_shin",
+        "x", 0.0, "y", -0.25, "z", 0.05,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 15: r_thigh
+    json_array_push_object(bones, json_object(
+        "name", "r_thigh", "parent", "hips",
+        "x", 0.15, "y", -0.3, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 16: r_shin
+    json_array_push_object(bones, json_object(
+        "name", "r_shin", "parent", "r_thigh",
+        "x", 0.0, "y", -0.45, "z", 0.0,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+    // 17: r_foot
+    json_array_push_object(bones, json_object(
+        "name", "r_foot", "parent", "r_shin",
+        "x", 0.0, "y", -0.25, "z", 0.05,
+        "rx", 0.0, "ry", 0.0, "rz", 0.0))
+
+    return bones
+
+// ============================================================================
+//  COMPUTE POSE — builds 6 SoA flat arrays from gait phase + state
+// ============================================================================
+
+// Compute the full bone pose for the current frame.
+// Fills rx[], ry[], rz[], tx[], ty[], tz[] arrays.
+// Returns nothing — arrays are mutated by reference (world-owned).
+fn compute_gait(t: Float, speed: Float,
+    rx: JsonArray, ry: JsonArray, rz: JsonArray,
+    tx: JsonArray, ty: JsonArray, tz: JsonArray):
+
+    // Phase for left/right alternating
+    let gait: Float = t * 0.08 * speed
+    let l_leg: Float = sin(gait)
+    let r_leg: Float = sin(gait + PI)
+
+    // ── HIPS (bone 0) — slight body bob ──
+    let hip_bob: Float = abs(sin(gait)) * 0.03
+    json_array_push_float(rx, 0.0)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, 1.0 + hip_bob)
+    json_array_push_float(tz, 0.0)
+
+    // ── SPINE (bone 1) — slight twist ──
+    json_array_push_float(rx, 0.0)
+    json_array_push_float(ry, l_leg * 0.03)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, 0.5)
+    json_array_push_float(tz, 0.0)
+
+    // ── NECK (bone 2) ──
+    json_array_push_float(rx, 0.0)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, 0.3)
+    json_array_push_float(tz, 0.0)
+
+    // ── HEAD (bone 3) — kept steady, look_at overrides ──
+    json_array_push_float(rx, 0.0)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, 0.2)
+    json_array_push_float(tz, 0.0)
+
+    // ── L_SHOULDER (bone 4) — arm swing opposite to legs ──
+    let l_arm_swing: Float = r_leg * 0.25
+    json_array_push_float(rx, l_arm_swing)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, -0.3)
+    json_array_push_float(ty, 0.25)
+    json_array_push_float(tz, 0.0)
+
+    // ── L_UPPER_ARM (bone 5) ──
+    json_array_push_float(rx, l_arm_swing * 0.5)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, -0.35)
+    json_array_push_float(tz, 0.0)
+
+    // ── L_FOREARM (bone 6) ──
+    json_array_push_float(rx, -0.1 + abs(sin(gait + PI * 0.5)) * 0.15)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, -0.35)
+    json_array_push_float(tz, 0.0)
+
+    // ── L_HAND (bone 7) ──
+    json_array_push_float(rx, 0.0)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, -0.2)
+    json_array_push_float(tz, 0.0)
+
+    // ── R_SHOULDER (bone 8) — opposite arm swing ──
+    let r_arm_swing: Float = l_leg * 0.25
+    json_array_push_float(rx, r_arm_swing)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.3)
+    json_array_push_float(ty, 0.25)
+    json_array_push_float(tz, 0.0)
+
+    // ── R_UPPER_ARM (bone 9) ──
+    json_array_push_float(rx, r_arm_swing * 0.5)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, -0.35)
+    json_array_push_float(tz, 0.0)
+
+    // ── R_FOREARM (bone 10) ──
+    json_array_push_float(rx, -0.1 + abs(sin(gait + PI * 1.5)) * 0.15)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, -0.35)
+    json_array_push_float(tz, 0.0)
+
+    // ── R_HAND (bone 11) ──
+    json_array_push_float(rx, 0.0)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, -0.2)
+    json_array_push_float(tz, 0.0)
+
+    // ── L_THIGH (bone 12) ──
+    let l_hip_flex: Float = l_leg * 0.4
+    json_array_push_float(rx, l_hip_flex)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, -0.15)
+    json_array_push_float(ty, -0.3)
+    json_array_push_float(tz, 0.0)
+
+    // ── L_SHIN (bone 13) — knee bend ──
+    let l_knee: Float = max(0.0, -l_leg * 0.3)
+    json_array_push_float(rx, -l_knee)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, -0.45)
+    json_array_push_float(tz, 0.0)
+
+    // ── L_FOOT (bone 14) ──
+    json_array_push_float(rx, 0.0)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, -0.25)
+    json_array_push_float(tz, 0.05)
+
+    // ── R_THIGH (bone 15) ──
+    let r_hip_flex: Float = r_leg * 0.4
+    json_array_push_float(rx, r_hip_flex)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.15)
+    json_array_push_float(ty, -0.3)
+    json_array_push_float(tz, 0.0)
+
+    // ── R_SHIN (bone 16) — knee bend ──
+    let r_knee: Float = max(0.0, -r_leg * 0.3)
+    json_array_push_float(rx, -r_knee)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, -0.45)
+    json_array_push_float(tz, 0.0)
+
+    // ── R_FOOT (bone 17) ──
+    json_array_push_float(rx, 0.0)
+    json_array_push_float(ry, 0.0)
+    json_array_push_float(rz, 0.0)
+    json_array_push_float(tx, 0.0)
+    json_array_push_float(ty, -0.25)
+    json_array_push_float(tz, 0.05)
+    return
+
+// ============================================================================
+//  PULSE — main animation loop (~60fps)
+// ============================================================================
+
+pulse anim_clock every 16 ms:
+    if MannequinScene.ready == 0:
+        return
+
+    // ── 1. Poll input ──
+    interact_poll()
+    interact_begin_frame(16.0)
+
+    // ── 2. Handle keys ──
+    if interact_action_pressed("clear") != 0:
+        MannequinScene.gait_on = 1
+        MannequinScene.head_track = 0
+        MannequinScene.ik_mode = 0
+        MannequinScene.speed = 1.0
+
+    if key_just_pressed("g"):
+        MannequinScene.gait_on = 1 - MannequinScene.gait_on
+    if key_just_pressed("t"):
+        MannequinScene.head_track = 1 - MannequinScene.head_track
+
+    // Speed control
+    if key_just_pressed("1"):
+        MannequinScene.speed = 1.5
+    if key_just_pressed("2"):
+        MannequinScene.speed = 0.5
+    if key_just_pressed("3"):
+        MannequinScene.speed = 1.0
+
+    // IK toggle
+    if key_just_pressed("i"):
+        MannequinScene.ik_mode = 1 - MannequinScene.ik_mode
+
+    // ── 3. Compute gait ──
+    let t: Float = pulse_tick
+    let speed: Float = MannequinScene.speed
+    let gait_on: Int = MannequinScene.gait_on
+
+    // Build SoA flat arrays
+    let rx: JsonArray = json_array()
+    let ry: JsonArray = json_array()
+    let rz: JsonArray = json_array()
+    let tx: JsonArray = json_array()
+    let ty: JsonArray = json_array()
+    let tz: JsonArray = json_array()
+
+    if gait_on != 0:
+        compute_gait(t, speed, rx, ry, rz, tx, ty, tz)
+    else:
+        // Bind pose — all zeros
+        var i: Int = 0
+        while i < BONE_COUNT:
+            json_array_push_float(rx, 0.0)
+            json_array_push_float(ry, 0.0)
+            json_array_push_float(rz, 0.0)
+            json_array_push_float(tx, 0.0)
+            json_array_push_float(ty, 0.0)
+            json_array_push_float(tz, 0.0)
+            i = i + 1
+
+    // ── 4. Send pose to renderer ──
+    set_bone_pose("mannequin", rx, ry, rz, tx, ty, tz)
+
+    // ── 5. Head tracking ──
+    if MannequinScene.head_track != 0:
+        look_at_bone("mannequin", "head",
+            MannequinScene.target_x,
+            MannequinScene.target_y,
+            MannequinScene.target_z,
+            1.0)
+
+    // ── 6. IK foot planting ──
+    if MannequinScene.ik_mode != 0:
+        // Plant the active IK leg at the target point
+        let leg_bone: String = "l_thigh"
+        if MannequinScene.ik_leg != 0:
+            leg_bone = "r_thigh"
+        two_bone_ik("mannequin",
+            leg_bone, "l_shin", "l_foot",
+            MannequinScene.ik_target_x,
+            MannequinScene.ik_target_y,
+            MannequinScene.ik_target_z,
+            0.0, 1.0, 0.0)
+
+    // ── 7. Telemetry ──
+    telemetry("bones", BONE_COUNT)
+    telemetry_float("speed", speed)
+    telemetry("gait", gait_on)
+    telemetry("head_track", MannequinScene.head_track)
+    telemetry("ik", MannequinScene.ik_mode)
+    telemetry("frame", pulse_tick)
+
+    // ── 8. Cleanup per-frame state ──
+    interact_clear()
+    MannequinScene.frame = MannequinScene.frame + 1
+
+// ============================================================================
+//  MAIN — setup scene, create skeleton, keep-alive
+// ============================================================================
+
+fn main() -> Int with IO:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    // ── Atmosphere ──
+    set_background("#0a0a1e")
+    set_fog("#0a0a1e", 8.0, 45.0)
+    set_ambient("#202040", 0.4)
+    set_auto_rotate(true, 1.2)
+    camera_look_at(0.0, 1.5, 5.0, 0.0, 1.2, 0.0)
+
+    // ── Lights ──
+    create_light("fill", "ambient", "#334466", 0.4, 0.0, 0.0, 0.0)
+    create_light("key", "directional", "#ffffff", 2.0, 5.0, 8.0, 5.0)
+    create_light("rim", "point", "#4488ff", 0.8, -3.0, 2.0, 2.0)
+
+    // ── Init input ──
+    let sid = interact_init()
+    if sid < 0:
+        return 50 + sid
+
+    // ── Load GLB model (if available) OR create procedural skeleton ──
+    // Uncomment to load GLB instead:
+    //   load_glb("mannequin", "models/rig1.glb")
+    //   // Wait 2 seconds for GLB to load, then play animation
+    //
+    // For now: create procedural 18-bone skeleton entirely from Kain:
+
+    let bones: JsonArray = build_skeleton()
+    create_skeleton("mannequin", bones)
+
+    // ── Telemetry ──
+    telemetry("bones", BONE_COUNT)
+
+    // ── Unlock pulse ──
+    MannequinScene.ready = 1
+
+    // ── Keep-alive ──
+    var tick: Int = 0
+    while tick < 9999999:
+        let _ = sleep_millis(1000)
+        tick = tick + 1
+
+    // ── Cleanup (unreachable in practice) ──
+    unload_glb("mannequin")
+    let sd = runtime_shutdown()
+    if sd != 0: return 200 + sd
+    return 0
+
+// ============================================================================
+//  END rig_mannequin.kn
+// ============================================================================

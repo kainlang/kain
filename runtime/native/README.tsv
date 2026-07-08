@@ -1,0 +1,285 @@
+type	section	name	path	description
+section	Architecture Overview		arch	Complete multi-layer architecture: UI Layer (retained-mode + Phase 1 Kain substrate), Platform Layer (win32/linux/macos), Core Layer (memory, concurrency, compiler-semantic, system services, infrastructure, Z3 proofs)
+section	GPU Backend Architecture		gpu-arch	Two-layer GPU backend design: Layer 1 Runtime Shims (~650 lines in src/core/) and Layer 2 ABI Libraries (~2,900 lines in extras/<name>-abi/)
+section	Backends		gpu-backends	Table of 3 GPU backends: Vulkan (shim + ABI lib), D3D12 (shim + ABI lib), WebGPU (shim + ABI lib)
+section	ABI Paths		gpu-abi-paths	5 Kain-to-runtime convergence paths through KainComponentSurface (24-slot vtable, 192 bytes on x64)
+section	Build Gates		gpu-build-gates	3 compile-time gates: KAIN_RUNTIME_HAS_VULKAN_LOADER, _D3D12, _WEBGPU
+section	Raw PFN Access		gpu-vulkan-pfn	Vulkan ABI library exposes KainVulkanPfnTable (57 PFNs) for blade-level raw Vulkan consumers
+section	Precedent		gpu-precedent	Architecture mirrors cuda_runtime.c pattern: shim owns catalog entry + dlopen; library owns concrete GPU calls
+section	GPU Backend ABI Libraries		gpu-abi-libs	Separately-linked GPU ABI libraries in extras/ directory
+section	extras/vulkan-abi/ (~2,050 lines)		gpu-extras-vulkan	libkain-vulkan-abi.so/.dll: 43+ Vulkan PFNs, per-platform WSI surfaces, swapchain lifecycle, 18 vtable slots, KainVulkanPfnTable
+section	extras/d3d12-abi/		gpu-extras-d3d12	libkain-d3d12-abi.dll: Direct3D 12 backend, native mesh shader pipeline support (ShaderStage::Mesh + Task), Windows-only
+section	extras/webgpu-abi/ (~870 lines)		gpu-extras-webgpu	libkain-webgpu-abi.so: WebGPU via wgpu-native, WASM browser fallback, WGSL subgroup intrinsics
+section	Directory Layout		dir-layout	Full directory tree for runtime/native/ including src/core/, src/platform/, src/ui/, include/, test/, Makefile, manifest files
+section	Core Layer (`src/core/`)		core	Core runtime subsystems: Initialization & Lifecycle, Crash Forensics, Memory & Ownership, Concurrency, Compiler-Semantic Runtime, System Services, Data & Interop, Attrition & Reflection
+section	Initialization & Lifecycle		core-init	Runtime bootstrap, shutdown, version, diagnostics, profiling, service registry, contract loading, compatibility
+section	Crash Forensics		core-crash	Cross-platform crash forensics via compiler-emitted __kain_crash_table, no external dependencies
+section	Memory & Ownership		core-memory	Arena allocator (833 CBMC props), buddy allocator, deferred free, virtual alloc, ownership state machine (collapse/observe/decay), fixup, handles, bitfield, union access
+section	Concurrency		core-concurrency	Actor runtime (5,676 CBMC props), async task/future, fanout, batch queue
+section	Compiler-Semantic Runtime		core-semantic	Entangle registry, converge multi-lane dispatch, machine stones (axiom/pulse/shatter/teleport), data wire encoding
+section	System Services		core-services	Networking, process management, input, graphics kernel, renderer backends, scene graph, CUDA PTX, SIMD detection
+section	Data & Interop		core-interop	JSON parse/render, interop contracts, zero-copy interop, Python runtime bridge (base + async + buffers + GPU + region)
+section	Attrition & Reflection		core-attrition	Attrition certification harness, reflection, host bridge, CPU feature detection
+section	Platform Layer (`src/platform/`)		platform	Platform capability descriptors, OS helpers, dynamic library loader, platform-specific crash handlers
+section	Common Files		platform-common	platform.c (capability descriptors), os_system.c (env, paths), platform_library.c (dlopen/LoadLibrary)
+section	Windows (`src/platform/win32/`)		platform-win32	kain_win32_app_host.c, kain_win32_input_host.c, win32_shared.c, crash_handler_win32.c
+section	Linux (`src/platform/linux/`)		platform-linux	crash_handler_linux.c (sigaction), linux_shared.c (proc self exe)
+section	macOS (`src/platform/macos/`)		platform-macos	crash_handler_macos.c (sigaction), macos_shared.c (_NSGetExecutablePath)
+section	UI Layer (`src/ui/`)		ui	Two cooperating sublayers: Retained-mode UI session and Phase 1 Kain substrate (widget-free, tree-free UI primitives)
+section	Retained-Mode UI Session		ui-retained	Legacy node tree, hot-reload, compiled bundle loader, software renderer, layout engine, color, KainComponentSurface adapter
+section	Phase 1 Kain Substrate (`src/ui/kain/`) — NEW		ui-kain	7 widget-free modules: geometry, surface, host vtable, input pipeline, font subsystem, damage tracker, software draw primitives
+section	Substrate / Session Boundary		ui-boundary	Additive API: substrate forwards into the same abi_ui_* ABI; no breaking changes to legacy session
+section	Formal Verification		verification	CBMC harnesses (check_arena 833 pass, check_actor 5,676 pass) and Z3 proof packs (140 YAML proofs)
+section	CBMC Harnesses (`test/cbmc/`)		verif-cbmc	4 CBMC harnesses: check_arena, check_actor, check_crash_handler, check_crash_handler_linux; combined sources for single-TU verification
+section	Z3 Proof Packs (`src/core/z3/`)		verif-z3	140 YAML proof packs (Actor, Memory, Services, Allocation domains); 8-script pipeline for automated proof lifecycle
+section	Verification Pipeline (`test/`)		verif-pipeline	3-layer verification: Layer 1 Sanitizer (ASan+UBSan+TSan), Layer 2 Fuzz (libFuzzer), Layer 3 CBMC Formal Verification
+section	Build System		build	Makefile for fast local dev, Bazel for production build, TOML manifests for runtime variants
+section	Makefile (Fast Local Dev)		build-make	7 make targets: all, lib, shared, test, fuzz, stress, clean
+section	Bazel (Production Build)		build-bazel	runtime_manifest_data.bzl auto-generated by sync_native_runtime_builds.py; native_runtime_rules.bzl with platform_select() macros
+section	TOML Manifests		build-toml	4 TOML manifests: native_core_runtime.toml (canonical), native_runtime.toml (compat), native_attrition_runtime.toml, native_async_benchmark_runtime.toml
+section	Service Table		services	50+ service entries with key, provider, status, description; backed by services.h/services.c registry
+section	Runtime Tiers		runtime-tiers	3 compile-time control tiers: NOOP (removed), GATED (low-cost), FULL (full instrumentation); independent subsystem tiers
+section	Public Headers (`include/`)		headers	50+ headers exposing public C ABI, each corresponding to a src/core/*.c source plus 7 Phase 1 kain_* headers
+section	Symbol Prefixing		prefixing	kain_prefix_rename_manifest.json + kain_prefixed_symbol_inventory.json/.md for systematic kain_ prefix renaming
+section	Portability		portability	3 platforms: Windows (MSVC/clang-cl, 11/11 services), Linux (GCC/clang, 5/11), macOS (Apple clang, 5/11); base.h provides POSIX→Win32 shims
+file	core/init	core.c	src/core/core.c	Runtime bootstrap and shutdown. Global main() entry wrappers, RC allocator, string operations, array management, file I/O, env(), cwd(), CLI args, kain_spawn, sleep, stdout/stderr, map operations, deep_eq, parse helpers. Largest single file (~3,900 lines): catch-all for compiler-emitted ABI helpers and stdlib glue.
+file	core/init	version.c	src/core/version.c	Runtime and ABI version constants. Reports version_get_info(), version_print_info(), version_check_abi_compatibility() for startup validation.
+file	core/init	diagnostics.c	src/core/diagnostics.c	Structured diagnostic subsystem: KainDiagnostic records, severity levels (Info/Warning/Error/Fatal), error code ranges (1000-10999), channel filtering, KainDiagnosticCollector for batched startup reporting.
+file	core/init	profile.c	src/core/profile.c	Scoped push/pop profiling zones with compile-out tiers (KAIN_RUNTIME_TIER_NOOP/GATED/FULL) and fixed-cost native timing telemetry.
+file	core/init	services.c	src/core/services.c	Central service registry ("service table") with ~35 canonical services. Supports registration, lookup, status/requirement queries, validation. Backed by alias canonicalization.
+file	core/init	contract.c	src/core/contract.c	Runtime contract bundle loading and validation.
+file	core/init	compatibility.c	src/core/compatibility.c	Version validation, migration, hot reload, and snapshot flow for runtime upgrades.
+file	core/crash	crash_handler.c	src/core/crash_handler.c	Cross-platform crash forensics core. Binary-searches compiler-emitted __kain_crash_table to map faulting IPs to source locations. Renders human-readable crash reports. No external dependencies (no libunwind, no libdwarf, no addr2line).
+file	core/memory	memory.c	src/core/memory.c	Low-level memory helpers: pointer operations (bind_local, addr_of, ptr_offset, field_ptr, index_ptr), load/store, volatile byte-exact I/O, ordered atomic operations (Relaxed through SeqCst), allocation (alloc, realloc, free). KainAllocHeader embeds magic/slot/arena/memtype/flags in 8 bytes.
+file	core/memory	arena.c	src/core/arena.c	Arena allocator with frame markers. Supports 4 named arenas (MAIN, SHARED, GPU, SCRATCH). Frame-based allocation with alloc_lo (bottom-up) and alloc_hi (top-down). Frame markers via set_marker/release_to_last_marker. 833 CBMC properties proven.
+file	core/memory	buddy.c	src/core/buddy.c	Buddy allocator for power-of-two block sizes. Manages free lists per order, supports split/merge of blocks.
+file	core/memory	deferred_free.c	src/core/deferred_free.c	Deferred deallocation queue. Batches free() calls for cache-friendly release.
+file	core/memory	virtual_alloc.c	src/core/virtual_alloc.c	OS-level virtual memory page management. Wraps VirtualAlloc (Win32) and mmap (POSIX) for page-size allocation, deallocation, and protection changes.
+file	core/memory	ownership.c	src/core/ownership.c	Runtime backing for collapse/observe/decay ownership semantics. Tracks region kinds and state machines (idle/observed/collapsed/shared/decayed). Supports helper allocation slot registration, relocate tracking, deferred decay flush.
+file	core/memory	fixup.c	src/core/fixup.c	Relocation fixup registry. Tracks allocations by KainRuntimeHandle, registers known pointer references for self-updating relocation, handle-aware reallocation tracking.
+file	core/memory	handle.c	src/core/handle.c	Generation-tagged runtime handles (KainRuntimeHandle). Handle table with free-list slot allocation, magic validation, kind-tagged resolve/rebind/release operations.
+file	core/memory	bitfield.c	src/core/bitfield.c	Bit-level field access helpers for struct bitfield operations.
+file	core/memory	union.c	src/core/union.c	Union type-aware load/store operations for preserving bit patterns across type-punned access.
+file	core/concurrency	actor.c	src/core/actor.c	Full actor runtime: spawn, mailbox (bounded/unbounded with backpressure), send/receive/try-receive, generation-tagged refs, reply ports, ask/ask_timeout, supervision trees, monitors, links, registry, execution classes, locality, scheduler with per-thread ready queue. 5,676 CBMC properties proven.
+file	core/concurrency	async.c	src/core/async.c	Async task/future runtime: task lifecycle (Pending/Ready/Running/Completed/Cancelled/Failed), poll-based execution, wake handles, timers, task graphs, continuation scheduling, dependency wait, batch lock/unlock, kain_task_yield.
+file	core/concurrency	fanout.c	src/core/fanout.c	Shared-memory fanout over OS threads. Supports compiler-owned share/fanout lowering with seq-cst atomic cells.
+file	core/concurrency	batch_queue.c	src/core/batch_queue.c	Batched message queue for efficient bulk enqueue/dequeue patterns across actor and async subsystems.
+file	core/semantic	entangle.c	src/core/entangle.c	World entangle registry. Tracks authority-mirror bindings with policy and type-name metadata. Supports up to 128 bindings with register/get/reset.
+file	core/semantic	converge.c	src/core/converge.c	Multi-lane dispatch telemetry and lane selection. abi_converge_select_lane_for_key, commit_winner, record_telemetry with fixed-size ring buffer. Max 8 lanes, 64 telemetry samples, 64-entry tune cache.
+file	core/semantic	machine_stones.c	src/core/machine_stones.c	Machine-stones substrate: runtime backing for axiom, pulse, shatter, teleport. High-res timer, capability predicate, pulse start/snapshot/stop, shatter alloc/lane_ptr/lane_base/free, teleport ptr/note. Capability bitmask.
+file	core/semantic	wire.c	src/core/wire.c	Data wire encoding and transport layer for serialized cross-world data transfer.
+file	core/services	net_system.c	src/core/net_system.c	Native networking: TCP sockets, protocol-aware HTTP client/server, capability-query, Windows-first HTTPS/HTTP2 client primitives.
+file	core/services	process_system.c	src/core/process_system.c	Native child-process management: pipe and PTY session creation, process lifecycle, I/O redirection.
+file	core/services	input_system.c	src/core/input_system.c	Canonical input session management: semantic action dispatch, replay trace capture, platform event translation.
+file	core/services	graphics_system.c	src/core/graphics_system.c	Catalog-free graphics kernel: buffer management, SPIR-V shader module registration, pipeline state, draw command recording.
+file	core/services	renderer_backend.c	src/core/renderer_backend.c	Renderer backend identity and capability descriptors for Vulkan and DirectX 12 targets.
+file	core/services	renderer_session.c	src/core/renderer_session.c	Renderer session lifecycle: frame begin/end, resource binding, command submission.
+file	core/services	scene.c	src/core/scene.c	Scene graph runtime: stable scene handles, picking/raycast/bounds/visibility queries, transactional mutation requests and receipts, realtime bundle loading.
+file	core/services	cuda_runtime.c	src/core/cuda_runtime.c	CUDA PTX dispatch bridge: compute bundle validation, dispatch planning, GPU runtime handoff. Status: degraded, backed by external kain-gpu-runtime.
+file	core/services	simd.c	src/core/simd.c	Runtime-published SIMD capability detection and dispatch.
+file	core/interop	json.c	src/core/json.c	Native JSON parse/render. Supports null, boolean, integer, float (f64), string, array, object. Linked-list/node-based representation.
+file	core/interop	json_benchmark.c	src/core/json_benchmark.c	Performance benchmark for JSON parse/render operations.
+file	core/interop	ray_sphere_benchmark.c	src/core/ray_sphere_benchmark.c	Ray-sphere intersection benchmark exercising converge selector and machine_stones timer.
+file	core/interop	stdlib_abi.c	src/core/stdlib_abi.c	ABI bridge to Kain stdlib: abi_option_*, abi_result_*, abi_tagged_*, abi_future_*, abi_runtime_init/shutdown/heap_validate, abi_attrition_* checkpoint/progress/result.
+file	core/interop	interop_contracts.c	src/core/interop_contracts.c	Neutral shared buffer/image contracts for Python, JS, GPU, and foreign host bridge handoff.
+file	core/interop	interop_zero_copy.c	src/core/interop_zero_copy.c	Zero-copy buffer materialization for interop with Python/Rust/Node host environments.
+file	core/interop	python_runtime.c	src/core/python_runtime.c	Python bridge base: marshaling, object lifetime, host context management.
+file	core/interop	python_runtime_async.c	src/core/python_runtime_async.c	Python async integration: future conversion, event loop interop.
+file	core/interop	python_runtime_buffers.c	src/core/python_runtime_buffers.c	Python buffer protocol: NumPy array views, C-contiguity checks.
+file	core/interop	python_runtime_gpu.c	src/core/python_runtime_gpu.c	Python GPU bridge: CUDA tensor/materialization contracts.
+file	core/interop	python_runtime_region.c	src/core/python_runtime_region.c	Python bridge region caches for buffer and image materialization.
+file	core/attrition	attrition.c	src/core/attrition.c	Runtime certification (attrition) harness: tracks RC allocations/frees, heap operations, clock ticks, sleep/millis. Provides checkpoint and result-reporting ABI.
+file	core/attrition	reflection.c	src/core/reflection.c	Reflection payload loading and runtime type lookup.
+file	core/attrition	host_bridge.c	src/core/host_bridge.c	Plugin and foreign service module integration. Supports registration of modules from Rust, Python, Node, C, Zig against native service registry.
+file	core/attrition	cpu.c	src/core/cpu.c	Runtime-published CPU feature detection: x86 vendor strings, AVX/AVX2/AVX-512 gates, logical CPU count, thread identity, affinity controls.
+file	platform	platform.c	src/platform/platform.c	Platform capability descriptor system. Defines KainPlatformKind and bitmask of 11 platform services. Win32 supports all 11; Linux/macOS provide core subset.
+file	platform	os_system.c	src/platform/os_system.c	OS-level helper functions: environment variable access, executable path resolution, system directory queries.
+file	platform	platform_library.c	src/platform/platform_library.c	Raw platform dynamic library loader (dlopen/dlsym/dlclose on POSIX, LoadLibrary/GetProcAddress/FreeLibrary on Windows).
+file	platform/win32	kain_win32_app_host.c	src/platform/win32/kain_win32_app_host.c	Win32 application/window host substrate: window class registration, message pump creation/management, window lifecycle.
+file	platform/win32	kain_win32_input_host.c	src/platform/win32/kain_win32_input_host.c	Win32 input event translation: WM_KEYDOWN/UP, WM_MOUSEMOVE etc. into Kain input sessions, semantic actions, replay traces.
+file	platform/win32	win32_shared.c	src/platform/win32/win32_shared.c	Win32 shared helpers: env var get/set, executable path (GetModuleFileNameA), sidecar path construction, UTF-16<->UTF-8 conversion.
+file	platform/win32	crash_handler_win32.c	src/platform/win32/crash_handler_win32.c	Windows Vectored Exception Handler (VEH). Handles ACCESS_VIOLATION, ILLEGAL_INSTRUCTION, DIVIDE_BY_ZERO, STACK_OVERFLOW. x64 frame-pointer-based stack unwinding.
+file	platform/linux	crash_handler_linux.c	src/platform/linux/crash_handler_linux.c	Linux signal handler: SIGSEGV, SIGILL, SIGFPE, SIGABRT via sigaction with SA_SIGINFO. siglongjmp-based unwinding, crash table lookup.
+file	platform/linux	linux_shared.c	src/platform/linux/linux_shared.c	Linux shared helpers: /proc/self/exe path resolution, /proc/self/cmdline arg discovery, environment helpers.
+file	platform/macos	crash_handler_macos.c	src/platform/macos/crash_handler_macos.c	macOS crash handler: SIGSEGV/SIGILL/SIGFPE/SIGABRT via sigaction.
+file	platform/macos	macos_shared.c	src/platform/macos/macos_shared.c	macOS shared helpers: _NSGetExecutablePath for binary path, environment helpers.
+file	ui/retained	ui_system.c	src/ui/ui_system.c	UI component system: component state management, invalidation tracking, focus routing, event dispatch.
+file	ui/retained	ui_system_internal.h	src/ui/ui_system_internal.h	Internal UI system data structures not exposed in the public ABI.
+file	ui/retained	ui_runtime.c	src/ui/ui_runtime.c	UI runtime lifecycle: initialization, termination, top-level component tree management.
+file	ui/retained	ui_host_adapter.c	src/ui/ui_host_adapter.c	Interface layer between platform window system and Kain UI component tree. Translates platform events into component updates.
+file	ui/retained	ui_host_adapter.h	src/ui/ui_host_adapter.h	Minimal host adapter interface header.
+file	ui/retained	ui_hot_reload.c	src/ui/ui_hot_reload.c	UI hot-reload support: monitors compiled UI bundles for changes, triggers seamless component swaps.
+file	ui/retained	ui_compiled_bundle.c	src/ui/ui_compiled_bundle.c	Loads and validates compiled UI bundle payloads (pre-compiled component trees from Kain compiler).
+file	ui/retained	ui_color.c	src/ui/ui_color.c	Color parsing (#RGB, #RRGGBB, #RRGGBBAA, rgb, rgba, ~34 named), Z3-proven div255_fast alpha blending, opacity multiplication.
+file	ui/retained	ui_layout.c	src/ui/ui_layout.c	Node tree layout engine: direction-aware child distribution, padding/spacing, dirty-flag caching (Z3-proven ~51x speedup), sibling-linked child enumeration (Z3-proven ~4000x speedup).
+file	ui/retained	ui_renderer.c	src/ui/ui_renderer.c	Software framebuffer renderer: walks retained-mode node tree, rasterizes fill/border/rounded-rect/opacity to uint32_t* pixel buffer. Z3-proven branchless clamp, dual-pixel fill, corner falloff.
+file	ui/retained	native_ui_surface.c	src/ui/native_ui_surface.c	KainComponentSurface vtable implementation for native_ui surface. Reconciles by stable key, persists state on hidden __kain_state_root node.
+file	ui/kain	kain_geometry.h	src/ui/kain/kain_geometry.h	Primitive geometry types: kainRect, kainPoint, kainSize, kainMatrix (2D affine), kainColor (float RGBA). Inline helpers for rect ops, color conversion, lerp, matrix transform.
+file	ui/kain	kain_surface.h	src/ui/kain/kain_surface.h	GPU surface abstraction: kainSurface, kainSurfaceKind enum (SOFTWARE/VULKAN/D3D12/WEBGPU). Phase 1 only SOFTWARE active; lifecycle create/destroy/resize.
+file	ui/kain	kain_host.h	src/ui/kain/kain_host.h	Platform-agnostic host interface vtable (kainHostVTable): 15 slots for identification, window lifecycle, message pump, framebuffer, present, clipboard, cursor, GPU surface extension.
+file	ui/kain	kain_host_win32.c	src/ui/kain/kain_host_win32.c	Win32 GDI host backend: KainWin32UI class, CreateDIBSection DIB framebuffer, PeekMessage/DispatchMessage pump, BitBlt present, DPI scaling, OS event bridging.
+file	ui/kain	kain_input.h	src/ui/kain/kain_input.h	Input pipeline header: KainInputEventKind enum (KEY_DOWN/UP, TEXT, POINTER_*, FOCUS_*, DRAG, DROP), KainInputEvent struct.
+file	ui/kain	kain_input.c	src/ui/kain/kain_input.c	Input pipeline implementation: thin typed wrapper over abi_ui_push_event/abi_ui_poll_event ring buffer, hit-test via abi_ui_hit_test.
+file	ui/kain	kain_font.h	src/ui/kain/kain_font.h	Font subsystem header: font load/measure/glyph interface, KainFontMetrics struct.
+file	ui/kain	kain_font.c	src/ui/kain/kain_font.c	Font subsystem: load from raw TTF bytes, file path, or platform default. Platform search order for Windows/macOS/Linux. KAIN_UI_FONT env var override. Returns 0 on failure (no crash).
+file	ui/kain	kain_compositor.h	src/ui/kain/kain_compositor.h	Damage region tracker header: compositor lifecycle, damage_rect, damaged_region, has_damage.
+file	ui/kain	kain_compositor.c	src/ui/kain/kain_compositor.c	Damage region tracker: accumulates up to 64 dirty rectangles per frame, bounding union for partial redraws, frame-bounded lifecycle.
+file	ui/kain	kain_render_software.h	src/ui/kain/kain_render_software.h	Software draw primitives header: 16 primitive signatures + clip stack (max 16) + transform stack (max 16).
+file	ui/kain	kain_render_software.c	src/ui/kain/kain_render_software.c	Backend-agnostic software draw primitives: fill/stroke/rounded-rect/circle/gradient/blit/blur/text. Strict-aliasing-safe. Z3-proven branchless clamp, dual-pixel fill, corner falloff.
+file	gpu/shim	vulkan_surface_shim.c	src/core/vulkan_surface_shim.c	Vulkan runtime shim: capability flag, env-var resolution, error/telemetry globals, KainComponentSurface vtable shape declaration, dlopen of libkain-vulkan-abi.so.
+file	gpu/shim	d3d12_surface_shim.c	src/core/d3d12_surface_shim.c	D3D12 runtime shim: capability flag, env-var resolution, error/telemetry globals, KainComponentSurface vtable shape declaration, dlopen of libkain-d3d12-abi.dll.
+file	gpu/shim	webgpu_surface_shim.c	src/core/webgpu_surface_shim.c	WebGPU runtime shim: capability flag, env-var resolution, error/telemetry globals, KainComponentSurface vtable shape declaration, dlopen of libkain-webgpu-abi.so.
+file	gpu/abi	libkain-vulkan-abi.so	extras/vulkan-abi/	Vulkan ABI library: 43+ Vulkan PFNs dynamically resolved, per-platform WSI surfaces, swapchain lifecycle, fence/semaphore submission, 18 KainComponentSurface vtable slots, KainVulkanPfnTable (57 PFNs).
+file	gpu/abi	libkain-d3d12-abi.dll	extras/d3d12-abi/	D3D12 ABI library: Direct3D 12 backend, native mesh shader pipeline (ShaderStage::Mesh + ShaderStage::Task), Windows-only.
+file	gpu/abi	libkain-webgpu-abi.so	extras/webgpu-abi/	WebGPU ABI library (~870 lines): WebGPU via wgpu-native, WASM browser fallback, WGSL subgroup intrinsics via Kain subgroup keyword.
+file	test/cbmc	check_arena.c	test/cbmc/check_arena.c	CBMC arena harness: 833 assertions, all pass. Proves arena init preserves bounds, frame marker/release restores state, alloc_lo/alloc_hi non-overlap.
+file	test/cbmc	check_actor.c	test/cbmc/check_actor.c	CBMC actor harness: 5,676 assertions, all pass. Proves queue enqueue/dequeue integrity, FIFO, capacity, NULL safety, OOM, mailbox invariants.
+file	test/cbmc	check_crash_handler.c	test/cbmc/check_crash_handler.c	CBMC crash handler harness: crash table lookup edge cases.
+file	test/cbmc	check_crash_handler_linux.c	test/cbmc/check_crash_handler_linux.c	CBMC Linux signal handler harness: signal registration verification.
+file	test/scripts	run_pipeline.py	test/scripts/run_pipeline.py	Python pipeline orchestrator: function catalog extraction, CBMC verification (WSL-first, native fallback), ESBMC integration, Z3 cross-referencing.
+file	test/scripts	_common.py	test/scripts/_common.py	Shared paths and helpers for test pipeline scripts.
+file	build	Makefile	Makefile	Fast local dev build (clang, C11, -Wall -Wextra). Targets: all, lib, shared, test, fuzz, stress, clean. Supports ASan+UBSan+TSan.
+file	build	native_core_runtime.toml	runtime/native_core_runtime.toml	Canonical runtime manifest for production Bazel builds. Lists all sources, platform-conditioned files, defines, link libraries, versions, ~50 registered services.
+file	build	native_runtime.toml	runtime/native_runtime.toml	Compatibility mirror of canonical manifest for older discovery paths.
+file	build	native_attrition_runtime.toml	runtime/native_attrition_runtime.toml	Runtime variant for the attrition (certification) pipeline.
+file	build	native_async_benchmark_runtime.toml	runtime/native_async_benchmark_runtime.toml	Runtime variant for async subsystem benchmarks.
+file	build	runtime_manifest_data.bzl	runtime/runtime_manifest_data.bzl	Auto-generated Bazel manifest (by tools/bazel/sync_native_runtime_builds.py) driving production builds.
+file	build	native_runtime_rules.bzl	runtime/native_runtime_rules.bzl	Helper macros for Bazel builds including platform_select() for platform-conditioned resolution.
+file	root	SERVICE_TABLE_MAPPING.md	SERVICE_TABLE_MAPPING.md	Service table mapping documentation.
+file	root	kain_prefix_rename_manifest.json	kain_prefix_rename_manifest.json	Systematic renaming manifest for all public symbols with kain_ prefix.
+file	root	kain_prefixed_symbol_inventory.json	kain_prefixed_symbol_inventory.json	Inventory of prefixed symbols.
+file	root	kain_prefixed_symbol_inventory.md	kain_prefixed_symbol_inventory.md	Documentation of prefixed symbols inventory.
+file	z3	z3.toml	src/core/z3/z3.toml	Z3 configuration file.
+file	z3	map.json	src/core/map.json	File-to-description mapping for core files.
+header	base	base.h	include/base.h	Core types: RcHeader, KainArray, KainMap, MapEntry, MessageQueue, MessageNode, ThreadArgs. Portable C11 shims. KAIN_LIKELY/UNLIKELY macros. RC magic constants.
+header	actor	actor.h	include/actor.h	Full actor ABI: KainActorId, lifecycle, mailbox, supervision, monitors, links, registry, reply ports, scheduler snapshots.
+header	arena	arena.h	include/arena.h	Arena allocator: KainArenaId, KainMemType, frame marker API.
+header	async	async.h	include/async.h	Async runtime: KainTaskId, KainTimerId, futures, poll, wake, task graph.
+header	attrition	attrition.h	include/attrition.h	Attrition certification: RC tracking, heap validation, checkpoint ABI.
+header	batch_queue	batch_queue.h	include/batch_queue.h	Batched message queue.
+header	bitfield	bitfield.h	include/bitfield.h	Bit-level field access.
+header	buddy	buddy.h	include/buddy.h	Buddy allocator.
+header	compatibility	compatibility.h	include/compatibility.h	Hot reload, version migration.
+header	contract	contract.h	include/contract.h	Runtime contract loading.
+header	converge	converge.h	include/converge.h	Multi-lane dispatch: abi_converge_select_lane_for_key, telemetry.
+header	cpu	cpu.h	include/cpu.h	CPU capability detection.
+header	crash_handler	crash_handler.h	include/crash_handler.h	Crash forensics: KainCrashEntry, __kain_crash_handler_init, lookup, render.
+header	cuda_runtime	cuda_runtime.h	include/cuda_runtime.h	CUDA PTX dispatch.
+header	deferred_free	deferred_free.h	include/deferred_free.h	Deferred deallocation.
+header	diagnostics	diagnostics.h	include/diagnostics.h	Structured diagnostics: KainDiagnostic, collector, startup validation.
+header	entangle	entangle.h	include/entangle.h	World entangle registry.
+header	fanout	fanout.h	include/fanout.h	Shared-memory fanout.
+header	fixup	fixup.h	include/fixup.h	Relocation fixup + known-ref tracking.
+header	graphics_bundle	graphics_bundle.h	include/graphics_bundle.h	Graphics bundle metadata.
+header	graphics_system	graphics_system.h	include/graphics_system.h	Raw graphics kernel: buffers, shaders, pipelines.
+header	handle	handle.h	include/handle.h	KainRuntimeHandle generation-tagged handle table.
+header	host_bridge	host_bridge.h	include/host_bridge.h	Plugin and foreign runtime module integration.
+header	input_system	input_system.h	include/input_system.h	Input session management.
+header	interop_contracts	interop_contracts.h	include/interop_contracts.h	Shared buffer/image contracts.
+header	interop_zero_copy	interop_zero_copy.h	include/interop_zero_copy.h	Zero-copy interop.
+header	json	json.h	include/json.h	JSON parse/render.
+header	lru	lru.h	include/lru.h	LRU cache.
+header	machine_stones	machine_stones.h	include/machine_stones.h	Axiom, pulse, shatter, teleport runtime.
+header	memory	memory.h	include/memory.h	Low-level memory helpers: bind, load/store, atomic, alloc.
+header	net_system	net_system.h	include/net_system.h	Networking: TCP, HTTP.
+header	os_system	os_system.h	include/os_system.h	OS-level helpers.
+header	ownership	ownership.h	include/ownership.h	Collapse/observe/decay state machine.
+header	platform	platform.h	include/platform.h	Platform capability descriptors.
+header	platform_library	platform_library.h	include/platform_library.h	Dynamic library loader.
+header	process_system	process_system.h	include/process_system.h	Child process management.
+header	profile	profile.h	include/profile.h	Profiling zones.
+header	realtime	realtime.h	include/realtime.h	Realtime bundle loading.
+header	reflection	reflection.h	include/reflection.h	Reflection payload loading.
+header	renderer_backend	renderer_backend.h	include/renderer_backend.h	Vulkan/D3D12 backend descriptors.
+header	renderer_session	renderer_session.h	include/renderer_session.h	Render session lifecycle.
+header	runtime_tiers	runtime_tiers.h	include/runtime_tiers.h	Compile-time control tiers.
+header	scene	scene.h	include/scene.h	Scene graph, queries, mutations.
+header	services	services.h	include/services.h	Service registry.
+header	simd	simd.h	include/simd.h	SIMD capability detection.
+header	stdlib_abi	stdlib_abi.h	include/stdlib_abi.h	ABI bridge for Option, Result, Future, attrition.
+header	ui_bundle	ui_bundle.h	include/ui_bundle.h	UI bundle loading.
+header	ui_hot_reload	ui_hot_reload.h	include/ui_hot_reload.h	UI hot-reload.
+header	ui_runtime	ui_runtime.h	include/ui_runtime.h	UI runtime lifecycle.
+header	ui_system	ui_system.h	include/ui_system.h	UI component system.
+header	union	union.h	include/union.h	Union type access.
+header	kain_geometry	kain_geometry.h	include/kain_geometry.h	NEW - Phase 1 substrate: kainRect, kainPoint, kainSize, kainMatrix, kainColor, inline ops.
+header	kain_surface	kain_surface.h	include/kain_surface.h	NEW - Phase 1 substrate: GPU surface abstraction with SOFTWARE/VULKAN/D3D12/WEBGPU kinds.
+header	kain_host	kain_host.h	include/kain_host.h	NEW - Phase 1 substrate: kainHostVTable + kainHostPlatform enum.
+header	kain_input	kain_input.h	include/kain_input.h	NEW - Phase 1 substrate: typed input pipeline, KainInputEvent, KainInputEventKind.
+header	kain_font	kain_font.h	include/kain_font.h	NEW - Phase 1 substrate: font load/glyph/measure/metrics.
+header	kain_compositor	kain_compositor.h	include/kain_compositor.h	NEW - Phase 1 substrate: damage region tracker (64-rect accumulator, bounding union).
+header	kain_render_software	kain_render_software.h	include/kain_render_software.h	NEW - Phase 1 substrate: software draw primitives + clip + transform stacks.
+header	version	version.h	include/version.h	ABI/runtime version constants.
+header	virtual_alloc	virtual_alloc.h	include/virtual_alloc.h	OS page management.
+header	vulkan_loader_subset	vulkan_loader_subset.h	include/vulkan_loader_subset.h	Minimal Vulkan loader bindings.
+header	ffmpeg_version_subset	ffmpeg_version_subset.h	include/ffmpeg_version_subset.h	Minimal FFmpeg version constants.
+header	c_runtime_math_subset	c_runtime_math_subset.h	include/c_runtime_math_subset.h	Minimal C math subset for build environments without full libm.
+header	win32	win32.h	include/win32.h	Win32 shared helpers.
+header	wire	wire.h	include/wire.h	Data wire encoding.
+header	self_updating_ptr	self_updating_ptr.h	include/self_updating_ptr.h	Self-updating pointer relocation.
+header	ray_sphere_benchmark	ray_sphere_benchmark.h	include/ray_sphere_benchmark.h	Ray-sphere benchmark declarations.
+service	services	base.memory	native-core	Core allocation, retain/release, memory management
+service	services	memory.ownership	native-core	Collapse/observe/decay ownership guards
+service	services	memory.shared-fanout	native-core	Shared-memory fanout over OS threads
+service	services	memory.atomic-seqcst	native-core	SeqCst atomic cell ABI
+service	services	memory.atomic-v2	native-core	Ordered atomic load/store/RMW/fence
+service	services	memory.volatile	native-core	MMIO volatile load/store
+service	services	base.diagnostics	native-core	Structured diagnostics and error reporting
+service	services	contract	native-core	Runtime contract loading and validation
+service	services	cpu.capabilities	native-core	CPU feature bits for converge selectors
+service	services	machine.stones	native-core	Axiom, pulse, shatter, teleport runtime
+service	services	machine.topology	native-core	CPU count, thread identity, affinity
+service	services	machine.virtual-memory	native-core	Page map/unmap/protect
+service	services	control.converge.autotune	native-core	Converge lane selection + telemetry
+service	services	control.runtime-tiers	native-core	Noop/gated/full control tiers
+service	services	runtime.profile	native-core	Scoped profiling zones
+service	services	memory.handles	native-core	Generation-tagged runtime handles
+service	services	memory.fixup	native-core	Relocation fixup registry
+service	services	data.json	native-core	JSON parse/render helpers
+service	services	interop.shared-contracts	native-core	Shared buffer/image contracts
+service	services	actor.runtime	native-core	Actor spawn, mailbox, lifecycle, scheduling
+service	services	actor.registry	native-core	Named actor registration
+service	services	async.runtime	native-core	Task/future execution, wake/poll
+service	services	async.timers	native-core	Timer registration and wake
+service	services	io.net	native-core	TCP, HTTP, HTTPS client/server
+service	services	io.process	native-core	Child process, pipe, PTY
+service	services	platform.app-host	platform-win32	Win32 app/window host (win32 only)
+service	services	platform.input	platform-win32	Input sessions, actions, replay (win32 only)
+service	services	platform.library	native-core	Dynamic library open/resolve/close
+service	services	gfx.raw-native	native-core	Buffer, SPIR-V, pipeline, draw commands
+service	services	gfx.shader.spirv	native-core	Shader payload registration
+service	services	gfx.compute	native-core	Compute dispatch validation and handoff
+service	services	gfx.compute.cuda	native-core	CUDA PTX dispatch bridge (degraded)
+service	services	gfx.backend.vulkan	native-core	Vulkan backend via vulkan_surface_shim.c + libkain-vulkan-abi.so (57 PFNs, WSI surfaces, swapchain)
+service	services	gfx.backend.d3d12	native-core	DirectX 12 backend via d3d12_surface_shim.c + libkain-d3d12-abi.dll (mesh shader pipeline)
+service	services	gfx.backend.webgpu	native-core	WebGPU backend via webgpu_surface_shim.c + libkain-webgpu-abi.so (wgpu-native, WASM, WGSL subgroup)
+service	services	gfx.viewport	platform-win32	Window handles and presenter attachment (degraded)
+service	services	scene.runtime	native-core	Scene handles and state access
+service	services	scene.query	native-core	Picking, raycast, bounds, visibility
+service	services	scene.mutation	native-core	Transactional scene mutations
+service	services	asset.ingestion	native-core	Descriptor-driven asset entry
+service	services	asset.realtime	native-core	Realtime bundle loading
+service	services	asset.gltf	native-core	glTF loader removed; blade-owned loaders (degraded)
+service	services	ui.bundle	native-core	Compiled UI bundle loading
+service	services	ui.component	native-core	Component state, invalidation, focus
+service	services	reflection	native-core	Reflection payload + type lookup
+service	services	runtime.inspection	native-core	Scene, resource, binding inspection
+service	services	device.reflection	native-core	Backend, GPU, display descriptors
+service	services	compatibility	native-core	Version check, migration, hot reload
+service	services	host.bridge	native-core	Plugin and foreign service integration
+backend	gpu	Vulkan	vulkan_surface_shim.c / libkain-vulkan-abi.so	Win32, Linux X11, Linux Wayland, macOS (MoltenVK). 43+ PFNs, 57 PFN table, 18 vtable slots, WSI surfaces, swapchain.
+backend	gpu	D3D12	d3d12_surface_shim.c / libkain-d3d12-abi.dll	Windows only. Direct3D 12 backend, native mesh shader pipeline (Mesh + Task stages).
+backend	gpu	WebGPU	webgpu_surface_shim.c / libkain-webgpu-abi.so	Native (wgpu-native) + WASM (browser). WGSL subgroup intrinsics.
+build_target	make	make (all)	Makefile	Compile all .o files (clang, C11, -Wall -Wextra)
+build_target	make	make lib	Makefile	Static library (_build/lib/libkain_runtime.a/.lib)
+build_target	make	make shared	Makefile	Shared library (_build/lib/libkain_runtime.so/.dylib/.dll)
+build_target	make	make test	Makefile	Build + run smoke + property tests (ASan+UBSan)
+build_target	make	make fuzz	Makefile	Build libFuzzer harnesses
+build_target	make	make stress	Makefile	Build + run stress tests (TSan)
+build_target	make	make clean	Makefile	Remove build artifacts
+platform	portability	Windows	Win32	MSVC/clang-cl. Full service coverage (11/11). Key abstractions: CRITICAL_SECTION, HANDLE, VEH, VirtualAlloc, WS2_32, WinHTTP.
+platform	portability	Linux	POSIX	GCC/clang. Core service coverage (5/11). Key abstractions: pthread_mutex_t, pthread_cond_t, sigaction, mmap, POSIX sockets.
+platform	portability	macOS	POSIX	Apple clang. Core service coverage (5/11). Key abstractions: same POSIX base as Linux.
+tier	runtime-tiers	KAIN_RUNTIME_TIER_NOOP	include/runtime_tiers.h	Removed at compile time. Default (Debug): not set. Default (Release): not set.
+tier	runtime-tiers	KAIN_RUNTIME_TIER_GATED	include/runtime_tiers.h	Active but low-cost. Default (Debug): not set. Default (Release): diagnostics, profiling, fixup.
+tier	runtime-tiers	KAIN_RUNTIME_TIER_FULL	include/runtime_tiers.h	Full instrumentation. Default (Debug): diagnostics, profiling, fixup. Default (Release): not set.

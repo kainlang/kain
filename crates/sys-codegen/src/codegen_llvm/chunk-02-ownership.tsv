@@ -1,0 +1,104 @@
+function_name	kain_concept	llvm_ir_pattern	llvm_c_api	status	lines
+runtime_symbol_for_stdlib_function	systems (stdlib mapping)	Function name remapping (i64 call)	N/A — string mapping only	mapped	234-241
+stdlib_function_uses_borrowed_string_param	systems (string ABI)	String parameter classification	N/A — metadata only	mapped	243-248
+kain_map_codegen_mix_u64	systems (hash)	u64 arithmetic (xor, mul, rotate)	N/A — compile-time math	mapped	250-257
+kain_map_codegen_hash_bytes	systems (hash)	u64 hash with arithmetic ops	N/A — compile-time math	mapped	259-284
+kain_map_codegen_magic_prefix_state	systems (hash)	u64 fold with magic constants	N/A — compile-time math	mapped	286-304
+kain_map_codegen_static_key_metadata	systems (hash)	u64 key metadata extraction	N/A — compile-time math	mapped	306-335
+llvm_runtime_declaration_is_preemitted	systems (runtime FFI)	Declaration name classification	N/A — metadata only	mapped	337-382
+python_import_binding_infos	python imports	Import metadata extraction	N/A — metadata only	mapped	384-422
+llvm_orchestrate_trace_enabled	orchestrate	Env var trace enable check	N/A — env var flag	mapped	424-447
+resolve_host_llvm_target_descriptor	systems (target)	N/A — target descriptor resolution	LLVMGetDefaultTargetTriple equivalent	mapped	449-451
+resolve_llvm_target_for_compile_target	systems (target)	target triple string matching	LLVMGetDefaultTargetTriple, LLVMTargetByName	mapped	453-461
+generate	codegen entry	Full LLVM IR module	LLVMPrintModuleToFile	mapped	463-465
+generate_with_target	codegen entry	Full LLVM IR module	LLVMTargetMachineEmitToMemoryBuffer	mapped	467-472
+generate_llvm_for_target	codegen entry	Full LLVM IR module	LLVMTargetMachineEmitToMemoryBuffer	mapped	478-487
+generate_with_debug	codegen entry (debug)	+ !dbg metadata, DICompileUnit, DISubprogram	LLVMSetCurrentDebugLocation, LLVMAddNamedMetadataOperand	mapped	495-503
+generate_with_debug_for_target	codegen entry (debug+cross)	+ !dbg metadata, DICompileUnit, DISubprogram	LLVMSetCurrentDebugLocation, LLVMTargetMachineEmitToMemoryBuffer	mapped	510-521
+generate_with_options	codegen entry	Lowered program → LLVM IR text	LLVMContextCreate, LLVMModuleCreateWithNameInContext	mapped	523-547
+codegen_error	diagnostics	Error formatting with span	KainError::rich (no LLVM-C)	mapped	846-858
+compile_runtime_array_write_value	runtime array (Array<T>)	compile_expr for runtime array element type	LLVMBuildStore (typed element)	mapped	862-876
+record_runtime_array_local_element_ty	runtime array (Array<T>)	Metadata tracking (no IR emitted)	N/A	mapped	878-885
+materialize_runtime_array_element_value	runtime array (Array<T>)	trunc i64 to smaller / bitcast i64 to double / inttoptr i64 to ptr	type-specific cast instructions	mapped	887-920
+record_helper_owned_pointer_local	collapse/observe/decay (provenance)	Metadata tracking (no IR emitted)	N/A	mapped	922-934
+ownership_pointer_provenance_for_expr	collapse/observe/decay (provenance)	Metadata analysis (no IR emitted)	N/A	mapped	936-976
+expr_needs_rc_retain	collapse/observe/decay (RC management)	Metadata analysis (no IR emitted)	N/A	mapped	978-982
+expr_is_raw_pointer_value	collapse/observe/decay (pointer identity)	Metadata analysis (no IR emitted)	N/A	mapped	984-1007
+expr_needs_shared_value_retain	collapse/observe/decay (shared RC management)	Metadata analysis (no IR emitted)	N/A	mapped	1009-1038
+obvious_ast_type_byte_width	type utils (byte width)	Metadata analysis (no IR emitted)	N/A	mapped	1040-1043
+obvious_llvm_type_alignment	type utils (alignment)	Metadata analysis (no IR emitted)	LLVMGetAlignment equivalent	mapped	1045-1051
+ptr_offset_stride_matches_llvm_type	collapse (ptr_offset)	Metadata analysis (stride check)	N/A	mapped	1053-1065
+safe_memory_access_alignment	collapse/observe (alignment safety)	align N on load/store	LLVMSetAlignment	mapped	1067-1077
+target_is_x86_64	systems (target detection)	target triple matching	N/A	mapped	1079-1084
+target_is_windows_x64	systems (target detection)	target triple matching	N/A	mapped	1086-1088
+target_is_bare_metal	systems (target detection)	target triple matching	N/A	mapped	1090-1092
+escape_llvm_inline_asm_fragment	asm (inline assembly)	String escaping for LLVM IR asm	N/A	mapped	1094-1104
+emit_inline_asm_call	asm (inline assembly)	call void asm [sideeffect] [inteldialect] "template", "constraints"(operands)	LLVMGetInlineAsm (via template)	mapped	1106-1189
+compile_inline_asm	asm (inline assembly)	compile_expr → coerce_to_i64 → emit_inline_asm_call	LLVMGetInlineAsm	mapped	1191-1206
+compile_cpu_fence	systems (fence)	call void asm sideeffect "mfence/lfence/sfence", "~{memory}"	LLVMGetInlineAsm (fence)	mapped	1208-1224
+compile_cpu_cache_flush	systems (cache flush)	call void asm sideeffect "clflush ($0)", "~{memory}"(i64)	LLVMGetInlineAsm (clflush)	mapped	1226-1253
+coerce_pointer_value_to_typed_memory_pointer	collapse/observe (pointer coercion)	bitcast T* to U* / inttoptr i64 to U*	LLVMBuildBitCast, LLVMBuildIntToPtr	mapped	1255-1280
+compile_non_ephemeral_typed_memory_pointer	collapse/observe (typed access)	getelementptr T, T* base, i64 offset	LLVMBuildGEP, LLVMBuildBitCast	mapped	1282-1348
+compile_ephemeral_storage_i8_pointer	observe (ephemeral optimization)	bitcast T* to i8* / getelementptr inbounds + bitcast to i8*	LLVMBuildBitCast, LLVMBuildGEP	mapped	1350-1448
+compile_ephemeral_typed_memory_pointer	observe (ephemeral optimization)	getelementptr T, T* base, i64 offset	LLVMBuildGEP	mapped	1450-1531
+scalar_forward_key	observe (forwarded mem)	Metadata key derivation (no IR emitted)	N/A	mapped	1533-1568
+forwardable_mem_pointer_key	observe (forwarded mem)	Metadata key derivation (no IR emitted)	N/A	mapped	1570-1609
+forwarded_mem_load_slot	observe (forwarded mem load)	Expression analysis (no IR emitted)	N/A	mapped	1611-1629
+current_forwarded_mem_load_slot	observe (forwarded mem load)	Scope lookup (no IR emitted)	N/A	mapped	1631-1637
+record_forwarded_mem_store	observe (forwarded mem store)	Scope insertion (no IR emitted)	N/A	mapped	1639-1659
+clear_current_forwarded_mem_slots	observe (forwarded mem)	Scope clearing (no IR emitted)	N/A	mapped	1661-1665
+expr_is_mem_load_surface	observe (mem_load forwarding)	Expression classification (no IR emitted)	N/A	mapped	1667-1678
+stmt_preserves_forwarded_mem_slots	observe (mem forwarding)	Statement classification (no IR emitted)	N/A	mapped	1680-1691
+scalar_ssa_local_type	type utils (SSA)	Metadata classification (no IR emitted)	N/A	mapped	1693-1695
+aggregate_ssa_local_type	type utils (SSA)	Metadata classification (no IR emitted)	N/A	mapped	1697-1712
+value_can_lower_as_ssa_local	type utils (SSA)	Metadata classification (no IR emitted)	N/A	mapped	1714-1716
+stmts_require_addressable_local	collapse/observe/decay (addressability)	Metadata analysis (no IR emitted)	N/A	mapped	1718-1722
+block_requires_addressable_local	collapse/observe/decay (addressability)	Metadata analysis (no IR emitted)	N/A	mapped	1724-1726
+else_branch_requires_addressable_local	collapse/observe/decay (addressability)	Metadata analysis (no IR emitted)	N/A	mapped	1728-1740
+stmt_requires_addressable_local	collapse/observe/decay (addressability)	Metadata analysis (no IR emitted)	N/A	mapped	1742-1769
+expr_requires_addressable_local	collapse/observe/decay (addressability)	Metadata analysis (no IR emitted)	N/A	mapped	1771-1949
+current_scope_marks_ephemeral_candidate	observe (ephemeral optimization)	Scope lookup (no IR emitted)	N/A	mapped	1951-1956
+current_scope_elides_ephemeral_zero_init	observe (ephemeral optimization)	Scope lookup (no IR emitted)	N/A	mapped	1958-1963
+current_known_i64_literals	type utils (literal tracking)	Scope merge (no IR emitted)	N/A	mapped	1965-1973
+current_known_nonnegative_i64s	type utils (literal tracking)	Scope merge (no IR emitted)	N/A	mapped	1975-1983
+current_known_llvm_types	type utils (type tracking)	Scope merge (no IR emitted)	N/A	mapped	1985-1994
+current_scope_marks_fixed_array_candidate	shatter (fixed array)	Scope lookup (no IR emitted)	N/A	mapped	1996-2001
+current_scope_marks_stack_shatter_candidate	shatter (stack shatter)	Scope lookup (no IR emitted)	N/A	mapped	2003-2008
+current_scope_marks_literal_map_candidate	world/patch (literal map)	Scope lookup (no IR emitted)	N/A	mapped	2010-2015
+active_loop_bounds_for	systems (loop analysis)	Scope lookup (no IR emitted)	N/A	mapped	2017-2022
+helper_alloc_storage_layout_with_bindings	collapse (alloc)	Expression analysis (no IR emitted)	N/A	mapped	2024-2049
+helper_alloc_is_single_cell	collapse (alloc)	Expression analysis (no IR emitted)	N/A	mapped	2051-2056
+helper_alloc_scalar_llvm_ty	collapse (alloc)	Type mapping (stride → scalar type)	N/A	mapped	2058-2066
+preferred_ephemeral_storage_element_llvm_ty	observe (ephemeral alloc)	Type mapping (declared ptr → scalar LLVM)	N/A	mapped	2068-2086
+preferred_ephemeral_storage_element_llvm_ty_for_let	observe (ephemeral alloc)	Type mapping (for let stmt)	N/A	mapped	2088-2099
+authored_struct_pointer_llvm_ty	collapse (typed pointer)	Type mapping (authored ptr → %struct*)	N/A	mapped	2101-2110
+record_authored_struct_pointer_local	collapse (typed pointer)	Metadata tracking (no IR emitted)	N/A	mapped	2112-2119
+record_authored_struct_pointer_local_for_let	collapse (typed pointer)	Metadata tracking (for let stmt)	N/A	mapped	2121-2132
+authored_pointer_param_type	collapse (typed pointer)	Metadata lookup (param type)	N/A	mapped	2134-2142
+helper_alloc_stack_storage_shape	observe (ephemeral stack alloc)	alloca type shape: [N x T] or [N x i8]	LLVMBuildAlloca	mapped	2144-2168
+resolve_i64_literal	type utils (literal folding)	Expression folding (no IR emitted)	N/A	mapped	2170-2199
+resolve_zeroed_literal	type utils (literal folding)	Expression folding (no IR emitted)	N/A	mapped	2201-2217
+positive_power_of_two_shift	type utils (literal folding)	Constant folding (trailing_zeros)	N/A	mapped	2219-2221
+positive_i64_literal	type utils (literal folding)	Expression folding (no IR emitted)	N/A	mapped	2223-2226
+expr_is_proven_nonnegative_i64	type utils (range analysis)	Range analysis (no IR emitted)	N/A	mapped	2228-2232
+expr_is_proven_nonnegative_i64_with	type utils (range analysis)	Range analysis (no IR emitted)	N/A	mapped	2234-2307
+debug_mentions_identifier	debug/forensics	Debug formatting check (no IR emitted)	N/A	mapped	2309-2311
+else_branch_has_loop_that_mentions_identifier	debug/forensics	Debug analysis (no IR emitted)	N/A	mapped	2313-2330
+expr_has_loop_that_mentions_identifier	debug/forensics	Debug analysis (no IR emitted)	N/A	mapped	2332-2530
+stmt_has_loop_that_mentions_identifier	debug/forensics	Debug analysis (no IR emitted)	N/A	mapped	2532-2569
+block_has_loop_that_mentions_identifier	debug/forensics	Debug analysis (no IR emitted)	N/A	mapped	2571-2576
+expr_is_exact_target_pointer	collapse/observe (pointer identity)	Expression classification (no IR emitted)	N/A	mapped	2578-2587
+expr_is_ephemeral_target_address	observe (ephemeral optimization)	Expression classification (no IR emitted)	N/A	mapped	2589-2613
+stmt_binds_i64_literal	type utils (literal tracking)	Expression analysis (no IR emitted)	N/A	mapped	2615-2628
+stmt_assigned_identifier_name	type utils (literal tracking)	Expression analysis (no IR emitted)	N/A	mapped	2630-2638
+collect_expr_assigned_identifier_names	type utils (literal tracking)	Expression traversal (no IR emitted)	N/A	mapped	2640-2866
+collect_else_branch_assigned_identifier_names	type utils (literal tracking)	Expression traversal (no IR emitted)	N/A	mapped	2868-2884
+collect_block_assigned_identifier_names	type utils (literal tracking)	Expression traversal (no IR emitted)	N/A	mapped	2886-2926
+clear_loop_variant_literal_facts	type utils (literal tracking)	Scope mutation (no IR emitted)	N/A	mapped	2928-2944
+record_stmt_i64_literal_effects	type utils (literal tracking)	Scope mutation (no IR emitted)	N/A	mapped	2946-2961
+record_stmt_literal_map_effects	world/patch (literal map)	Scope mutation (no IR emitted)	N/A	mapped	2963-2995
+record_stmt_nonnegative_i64_effects	type utils (range analysis)	Scope mutation (no IR emitted)	N/A	mapped	2997-3027
+obvious_llvm_type_byte_width	type utils (byte width)	Type classification (no IR emitted)	LLVMStoreSizeOfType equivalent	mapped	3029-3040
+expr_obvious_llvm_ty	type utils (type inference)	Type inference (no IR emitted)	N/A	mapped	3042-3078
+stmt_binds_obvious_llvm_ty	type utils (type inference)	Type inference (no IR emitted)	N/A	mapped	3080-3100
+expr_is_full_width_initial_store_on_target	collapse (store optimization)	Expression analysis (header only, incomplete)	N/A	mapped	3102-3104

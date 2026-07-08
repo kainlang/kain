@@ -1,0 +1,612 @@
+// ============================================================================
+//  terminal_pong.kn — Vintage 70s Terminal Pong
+//
+//  Green phosphor on dark background, CRT scanlines, retro aesthetic.
+//  Uses native_ui for window, rendering, and keyboard input.
+//
+//  Controls:
+//    W/S       = left paddle
+//    Up/Down   = right paddle (AI)
+//    Space     = serve
+//    R         = reset
+//
+//  First to 7 wins.
+//  Window: 800x600  |  Board: 640x400
+// ============================================================================
+
+use std::ui
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+// Window
+const WIN_W: Int = 800
+const WIN_H: Int = 600
+
+// Board layout (centered in window)
+const BOARD_X: Int = 80
+const BOARD_Y: Int = 100
+const BOARD_W: Int = 640
+const BOARD_H: Int = 400
+
+// Paddles
+const PADDLE_W: Int = 8
+const PADDLE_H: Int = 60
+const PADDLE_OFFSET: Int = 20           // distance from board edge
+const PADDLE_SPEED: Int = 5
+
+// Ball
+const BALL_SIZE: Int = 8
+const BALL_SPEED_X: Int = 4
+const BALL_SPEED_Y: Int = 3
+const BALL_SPEED_Y_AI: Int = 3
+
+// Scoring
+const WIN_SCORE: Int = 7
+
+// Net segment
+const NET_SEGMENT_H: Int = 10
+const NET_GAP: Int = 6
+
+// Key codes
+const KEY_W: Int = 87
+const KEY_S: Int = 83
+const KEY_UP: Int = 38
+const KEY_DOWN: Int = 40
+const KEY_SPACE: Int = 32
+const KEY_R: Int = 82
+
+// == Color Palette (70s Green Phosphor) ===================================
+const COLOR_BG:         Int = 0xFF050A05   // near-black with green tint
+const COLOR_BOARD_BG:   Int = 0xFF0A140A   // very dark green
+const COLOR_BOARD_BORDER: Int = 0xFF1A3A1A // dim green border
+const COLOR_PADDLE:     Int = 0xFF33FF33   // bright phosphor green
+const COLOR_BALL:       Int = 0xFF33FF33   // bright phosphor green
+const COLOR_NET:        Int = 0xFF1A3A1A   // dim green net
+const COLOR_SCANLINE:   Int = 0xFF040A04   // very subtle dark overlay
+const COLOR_SCORE:      Int = 0xFF33FF33   // bright green score dots
+const COLOR_TEXT:       Int = 0xFF33FF33   // bright green text
+const COLOR_TEXT_DIM:   Int = 0xFF1A3A1A   // dim green text
+const COLOR_GAMEOVER:   Int = 0xFF66FF66   // brighter green for game over
+const COLOR_WINNER_BG:  Int = 0xFF0A1A0A   // subtle highlight
+
+// ============================================================================
+//  GAME STATE
+// ============================================================================
+
+struct PongGame:
+    // Positions (top-left corner of each element)
+    left_paddle_y:  Int
+    right_paddle_y: Int
+    ball_x:         Int
+    ball_y:         Int
+    ball_dx:        Int
+    ball_dy:        Int
+
+    // Score
+    left_score:  Int
+    right_score: Int
+
+    // State flags
+    serving:   Bool          // true = waiting for serve
+    game_over: Bool          // true = game finished
+    winner:    Int           // 0 = none, 1 = left, 2 = right
+
+    // Key state (for continuous paddle movement)
+    w_down: Bool
+    s_down: Bool
+
+    // Font ID (for text rendering, 0 = not loaded)
+    font_id: Int
+
+// ============================================================================
+//  INITIALIZATION
+// ============================================================================
+
+fn pong_init() -> PongGame:
+    return PongGame {
+        left_paddle_y:  BOARD_Y + (BOARD_H - PADDLE_H) / 2,
+        right_paddle_y: BOARD_Y + (BOARD_H - PADDLE_H) / 2,
+        ball_x:         BOARD_X + (BOARD_W - BALL_SIZE) / 2,
+        ball_y:         BOARD_Y + (BOARD_H - BALL_SIZE) / 2,
+        ball_dx:        BALL_SPEED_X,
+        ball_dy:        BALL_SPEED_Y,
+        left_score:     0,
+        right_score:    0,
+        serving:        true,
+        game_over:      false,
+        winner:         0,
+        w_down:         false,
+        s_down:         false,
+        font_id:        0,
+    }
+
+fn pong_reset() -> PongGame:
+    return pong_init()
+
+fn pong_serve(st: PongGame) -> PongGame:
+    st.serving = false
+    st.ball_x = BOARD_X + (BOARD_W - BALL_SIZE) / 2
+    st.ball_y = BOARD_Y + (BOARD_H - BALL_SIZE) / 2
+    // Alternate serve direction based on score parity
+    if st.left_score % 2 == 0:
+        st.ball_dx = BALL_SPEED_X
+    else:
+        st.ball_dx = -BALL_SPEED_X
+    if st.right_score % 2 == 0:
+        st.ball_dy = BALL_SPEED_Y
+    else:
+        st.ball_dy = -BALL_SPEED_Y
+    return st
+
+// ============================================================================
+//  AI — Controls the right paddle
+// ============================================================================
+
+fn ai_update(st: PongGame) -> PongGame:
+    // Simple AI: track the ball's y position
+    // Only react when ball is moving towards AI (dx > 0) or always track
+    let paddle_center: Int = st.right_paddle_y + PADDLE_H / 2
+    let ball_center: Int = st.ball_y + BALL_SIZE / 2
+
+    if paddle_center + PADDLE_SPEED < ball_center:
+        if st.right_paddle_y + PADDLE_H < BOARD_Y + BOARD_H:
+            st.right_paddle_y = st.right_paddle_y + PADDLE_SPEED
+    elif paddle_center - PADDLE_SPEED > ball_center:
+        if st.right_paddle_y > BOARD_Y:
+            st.right_paddle_y = st.right_paddle_y - PADDLE_SPEED
+
+    // Clamp paddle to board
+    if st.right_paddle_y < BOARD_Y:
+        st.right_paddle_y = BOARD_Y
+    if st.right_paddle_y + PADDLE_H > BOARD_Y + BOARD_H:
+        st.right_paddle_y = BOARD_Y + BOARD_H - PADDLE_H
+
+    return st
+
+// ============================================================================
+//  PHYSICS UPDATE
+// ============================================================================
+
+fn pong_update(st: PongGame) -> PongGame:
+    if st.serving or st.game_over:
+        return st
+
+    // Move ball
+    st.ball_x = st.ball_x + st.ball_dx
+    st.ball_y = st.ball_y + st.ball_dy
+
+    // Top/bottom wall bounce
+    if st.ball_y <= BOARD_Y:
+        st.ball_y = BOARD_Y
+        st.ball_dy = -st.ball_dy
+    if st.ball_y + BALL_SIZE >= BOARD_Y + BOARD_H:
+        st.ball_y = BOARD_Y + BOARD_H - BALL_SIZE
+        st.ball_dy = -st.ball_dy
+
+    // Left paddle collision
+    let lp_x: Int = BOARD_X + PADDLE_OFFSET
+    let lp_y: Int = st.left_paddle_y
+    let ball_right: Int = st.ball_x + BALL_SIZE
+    let ball_bottom: Int = st.ball_y + BALL_SIZE
+    let paddle_right: Int = lp_x + PADDLE_W
+    let paddle_bottom: Int = lp_y + PADDLE_H
+
+    // Check AABB overlap between ball and left paddle
+    let hit_left_paddle: Bool = st.ball_dx < 0 and ball_right > lp_x and st.ball_x < paddle_right and ball_bottom > lp_y and st.ball_y < paddle_bottom
+    if hit_left_paddle:
+        // Bounce right
+        st.ball_x = paddle_right
+        st.ball_dx = -st.ball_dx
+        // Add slight Y deflection based on where ball hit paddle
+        let hit_offset: Int = (st.ball_y + BALL_SIZE / 2) - (lp_y + PADDLE_H / 2)
+        if hit_offset < 0:
+            st.ball_dy = st.ball_dy - 1
+        elif hit_offset > 0:
+            st.ball_dy = st.ball_dy + 1
+        // Clamp ball dy
+        if st.ball_dy < -BALL_SPEED_Y_AI:
+            st.ball_dy = -BALL_SPEED_Y_AI
+        if st.ball_dy > BALL_SPEED_Y_AI:
+            st.ball_dy = BALL_SPEED_Y_AI
+
+    // Right paddle collision
+    let rp_x: Int = BOARD_X + BOARD_W - PADDLE_OFFSET - PADDLE_W
+    let rp_y: Int = st.right_paddle_y
+    let paddle_r_right: Int = rp_x + PADDLE_W
+    let paddle_r_bottom: Int = rp_y + PADDLE_H
+
+    let hit_right_paddle: Bool = st.ball_dx > 0 and ball_right > rp_x and st.ball_x < paddle_r_right and ball_bottom > rp_y and st.ball_y < paddle_r_bottom
+    if hit_right_paddle:
+        // Bounce left
+        st.ball_x = rp_x - BALL_SIZE
+        st.ball_dx = -st.ball_dx
+        let hit_offset: Int = (st.ball_y + BALL_SIZE / 2) - (rp_y + PADDLE_H / 2)
+        if hit_offset < 0:
+            st.ball_dy = st.ball_dy - 1
+        elif hit_offset > 0:
+            st.ball_dy = st.ball_dy + 1
+        if st.ball_dy < -BALL_SPEED_Y_AI:
+            st.ball_dy = -BALL_SPEED_Y_AI
+        if st.ball_dy > BALL_SPEED_Y_AI:
+            st.ball_dy = BALL_SPEED_Y_AI
+
+    // Left wall — right player scores
+    if st.ball_x < BOARD_X:
+        st.right_score = st.right_score + 1
+        if st.right_score >= WIN_SCORE:
+            st.game_over = true
+            st.winner = 2
+        else:
+            st.serving = true
+            st = pong_serve(st)
+
+    // Right wall — left player scores
+    if st.ball_x + BALL_SIZE > BOARD_X + BOARD_W:
+        st.left_score = st.left_score + 1
+        if st.left_score >= WIN_SCORE:
+            st.game_over = true
+            st.winner = 1
+        else:
+            st.serving = true
+            st = pong_serve(st)
+
+    return st
+
+// ============================================================================
+//  KEYBOARD EVENT HANDLING
+// ============================================================================
+
+fn pong_handle_event(st: PongGame, kind: String, code: Int) -> PongGame:
+    // Handle key-down events
+    let is_down: Bool = kind == "key.down" or kind == "keyboard"
+    let is_up: Bool = kind == "key.up"
+
+    if is_down or is_up:
+        if code == KEY_W:
+            st.w_down = is_down
+        elif code == KEY_S:
+            st.s_down = is_down
+
+    // Actions on key-down only
+    if is_down:
+        if code == KEY_SPACE:
+            if st.game_over == false and st.serving:
+                st = pong_serve(st)
+                // After serve, update AI for one frame
+                st = ai_update(st)
+        elif code == KEY_R:
+            st = pong_reset()
+
+    return st
+
+// ============================================================================
+//  RENDERING
+// ============================================================================
+
+fn render_board(session: Int, board_node: Int, st: PongGame):
+    // Board background
+    native_ui_node_set_rect(session, board_node,
+        to_float(BOARD_X), to_float(BOARD_Y),
+        to_float(BOARD_W), to_float(BOARD_H))
+    ui_render_box(session, board_node, "fill-color")
+
+    // Board border (draw outline with 4 thin rects)
+    let border_thick: Int = 1
+    // Top
+    native_ui_node_set_style_i64(session, board_node, "fill-color", COLOR_BOARD_BORDER)
+    native_ui_node_set_rect(session, board_node,
+        to_float(BOARD_X), to_float(BOARD_Y),
+        to_float(BOARD_W), to_float(border_thick))
+    ui_render_box(session, board_node, "fill-color")
+    // Bottom
+    native_ui_node_set_rect(session, board_node,
+        to_float(BOARD_X), to_float(BOARD_Y + BOARD_H - border_thick),
+        to_float(BOARD_W), to_float(border_thick))
+    ui_render_box(session, board_node, "fill-color")
+    // Left
+    native_ui_node_set_rect(session, board_node,
+        to_float(BOARD_X), to_float(BOARD_Y),
+        to_float(border_thick), to_float(BOARD_H))
+    ui_render_box(session, board_node, "fill-color")
+    // Right
+    native_ui_node_set_rect(session, board_node,
+        to_float(BOARD_X + BOARD_W - border_thick), to_float(BOARD_Y),
+        to_float(border_thick), to_float(BOARD_H))
+    ui_render_box(session, board_node, "fill-color")
+
+fn render_net(session: Int, net_node: Int):
+    let cx: Int = BOARD_X + BOARD_W / 2
+    native_ui_node_set_style_i64(session, net_node, "fill-color", COLOR_NET)
+    var ny: Int = BOARD_Y
+    while ny + NET_SEGMENT_H <= BOARD_Y + BOARD_H:
+        native_ui_node_set_rect(session, net_node,
+            to_float(cx), to_float(ny),
+            2.0, to_float(NET_SEGMENT_H))
+        ui_render_box(session, net_node, "fill-color")
+        ny = ny + NET_SEGMENT_H + NET_GAP
+
+fn render_paddle(session: Int, paddle_node: Int, x: Int, y: Int, color: Int):
+    native_ui_node_set_style_i64(session, paddle_node, "fill-color", color)
+    native_ui_node_set_rect(session, paddle_node,
+        to_float(x), to_float(y),
+        to_float(PADDLE_W), to_float(PADDLE_H))
+    ui_render_box(session, paddle_node, "fill-color")
+
+fn render_ball(session: Int, ball_node: Int, x: Int, y: Int):
+    native_ui_node_set_style_i64(session, ball_node, "fill-color", COLOR_BALL)
+    native_ui_node_set_rect(session, ball_node,
+        to_float(x), to_float(y),
+        to_float(BALL_SIZE), to_float(BALL_SIZE))
+    ui_render_box(session, ball_node, "fill-color")
+
+fn render_score(session: Int, board_node: Int, st: PongGame):
+    // Draw score as dots/cubes — each point is a small retro square
+    let dot_size: Int = 6
+    let dot_gap: Int = 4
+    let dot_y: Int = BOARD_Y + 12  // just below top border
+
+    // Left score (drawn from left)
+    native_ui_node_set_style_i64(session, board_node, "fill-color", COLOR_SCORE)
+    var li: Int = 0
+    while li < WIN_SCORE:
+        let dx: Int = BOARD_X + 20 + li * (dot_size + dot_gap)
+        if li < st.left_score:
+            native_ui_node_set_rect(session, board_node,
+                to_float(dx), to_float(dot_y),
+                to_float(dot_size), to_float(dot_size))
+            ui_render_box(session, board_node, "fill-color")
+        li = li + 1
+
+    // Right score (drawn from right)
+    var ri: Int = 0
+    while ri < WIN_SCORE:
+        let dx: Int = BOARD_X + BOARD_W - 20 - (WIN_SCORE - ri) * (dot_size + dot_gap)
+        if ri < st.right_score:
+            native_ui_node_set_rect(session, board_node,
+                to_float(dx), to_float(dot_y),
+                to_float(dot_size), to_float(dot_size))
+            ui_render_box(session, board_node, "fill-color")
+        ri = ri + 1
+
+fn render_scanlines(session: Int, scanline_node: Int):
+    native_ui_node_set_style_i64(session, scanline_node, "fill-color", COLOR_SCANLINE)
+    var sy: Int = BOARD_Y
+    while sy < BOARD_Y + BOARD_H:
+        native_ui_node_set_rect(session, scanline_node,
+            to_float(BOARD_X), to_float(sy),
+            to_float(BOARD_W), 1.0)
+        ui_render_box(session, scanline_node, "fill-color")
+        sy = sy + 3
+
+fn render_serve_text(session: Int, text_node: Int, font_id: Int, st: PongGame):
+    if st.serving == false and st.game_over == false:
+        return
+    if st.game_over:
+        let msg: String = if st.winner == 1: "GAME OVER -- LEFT WINS!" elif st.winner == 2: "GAME OVER -- RIGHT WINS!" else: "GAME OVER"
+        native_ui_node_set_style_i64(session, text_node, "fill-color", COLOR_GAMEOVER)
+
+        // Draw a highlight box
+        let hl_w: Int = 320
+        let hl_h: Int = 60
+        let hl_x: Int = BOARD_X + (BOARD_W - hl_w) / 2
+        let hl_y: Int = BOARD_Y + (BOARD_H - hl_h) / 2
+        native_ui_node_set_style_i64(session, text_node, "fill-color", COLOR_WINNER_BG)
+        native_ui_node_set_rect(session, text_node,
+            to_float(hl_x), to_float(hl_y),
+            to_float(hl_w), to_float(hl_h))
+        ui_render_box(session, text_node, "fill-color")
+
+        // Draw text border
+        native_ui_node_set_style_i64(session, text_node, "fill-color", COLOR_PADDLE)
+        native_ui_node_set_rect(session, text_node,
+            to_float(hl_x), to_float(hl_y),
+            to_float(hl_w), 1.0)
+        ui_render_box(session, text_node, "fill-color")
+        native_ui_node_set_rect(session, text_node,
+            to_float(hl_x), to_float(hl_y + hl_h - 1),
+            to_float(hl_w), 1.0)
+        ui_render_box(session, text_node, "fill-color")
+        native_ui_node_set_rect(session, text_node,
+            to_float(hl_x), to_float(hl_y),
+            1.0, to_float(hl_h))
+        ui_render_box(session, text_node, "fill-color")
+        native_ui_node_set_rect(session, text_node,
+            to_float(hl_x + hl_w - 1), to_float(hl_y),
+            1.0, to_float(hl_h))
+        ui_render_box(session, text_node, "fill-color")
+
+        // Draw "R = RESET" instruction
+        if font_id > 0:
+            native_ui_draw_text(session, text_node, font_id,
+                to_float(hl_x + 10), to_float(hl_y + 6),
+                msg, "fill-color")
+            native_ui_draw_text(session, text_node, font_id,
+                to_float(hl_x + 10), to_float(hl_y + 34),
+                "Press R to reset", "fill-color")
+
+    elif st.serving:
+        native_ui_node_set_style_i64(session, text_node, "fill-color", COLOR_TEXT_DIM)
+        let cx: Int = BOARD_X + BOARD_W / 2
+        let cy: Int = BOARD_Y + BOARD_H - 40
+        // Draw a small indicator box for serve
+        native_ui_node_set_rect(session, text_node,
+            to_float(cx - 80), to_float(cy - 2),
+            to_float(160), to_float(20))
+        ui_render_box(session, text_node, "fill-color")
+
+        // Draw slightly brighter serve indicator
+        native_ui_node_set_style_i64(session, text_node, "fill-color", COLOR_PADDLE)
+        native_ui_node_set_rect(session, text_node,
+            to_float(cx - 60), to_float(cy),
+            to_float(120), 1.0)
+        ui_render_box(session, text_node, "fill-color")
+        native_ui_node_set_rect(session, text_node,
+            to_float(cx - 60), to_float(cy + 16),
+            to_float(120), 1.0)
+        ui_render_box(session, text_node, "fill-color")
+        native_ui_node_set_rect(session, text_node,
+            to_float(cx - 60), to_float(cy),
+            1.0, to_float(17))
+        ui_render_box(session, text_node, "fill-color")
+        native_ui_node_set_rect(session, text_node,
+            to_float(cx + 60), to_float(cy),
+            1.0, to_float(17))
+        ui_render_box(session, text_node, "fill-color")
+
+        if font_id > 0:
+            native_ui_draw_text(session, text_node, font_id,
+                to_float(cx - 56), to_float(cy + 2),
+                "Press SPACE to serve", "fill-color")
+        else:
+            // Draw a blinker dot as serve indicator
+            native_ui_node_set_style_i64(session, text_node, "fill-color", COLOR_BALL)
+            native_ui_node_set_rect(session, text_node,
+                to_float(cx - 2), to_float(cy + 6),
+                4.0, 4.0)
+            ui_render_box(session, text_node, "fill-color")
+
+fn render_hud(session: Int, text_node: Int, font_id: Int, st: PongGame):
+    // Score numbers (HUD at bottom of window)
+    if font_id > 0:
+        let left_score_str: String = to_string(st.left_score)
+        let right_score_str: String = to_string(st.right_score)
+        let sc_y: Int = 560
+
+        // Left player label
+        native_ui_draw_text(session, text_node, font_id,
+            160.0, to_float(sc_y), "LEFT: " + left_score_str, "fill-color")
+        // Right player label
+        native_ui_draw_text(session, text_node, font_id,
+            520.0, to_float(sc_y), "RIGHT: " + right_score_str, "fill-color")
+
+// ============================================================================
+//  CREATE UI NODES (called once at init)
+// ============================================================================
+
+fn create_game_nodes(session: Int) -> (Int, Int, Int, Int, Int, Int):
+    let board_node = native_ui_node_create(session, "board")
+    native_ui_node_set_style_i64(session, board_node, "fill-color", COLOR_BOARD_BG)
+
+    let net_node = native_ui_node_create(session, "net")
+    native_ui_node_set_style_i64(session, net_node, "fill-color", COLOR_NET)
+
+    let paddle_node = native_ui_node_create(session, "paddle")
+    native_ui_node_set_style_i64(session, paddle_node, "fill-color", COLOR_PADDLE)
+
+    let ball_node = native_ui_node_create(session, "ball")
+    native_ui_node_set_style_i64(session, ball_node, "fill-color", COLOR_BALL)
+
+    let scanline_node = native_ui_node_create(session, "scanline")
+    native_ui_node_set_style_i64(session, scanline_node, "fill-color", COLOR_SCANLINE)
+
+    let text_node = native_ui_node_create(session, "text")
+    native_ui_node_set_style_i64(session, text_node, "fill-color", COLOR_TEXT)
+
+    return (board_node, net_node, paddle_node, ball_node, scanline_node, text_node)
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+pub fn main() -> Int:
+    // Initialize UI session
+    let _reset = native_ui_reset()
+    let session = native_ui_session_create("TerminalPong", WIN_W, WIN_H)
+    if session <= 0:
+        return 1
+
+    let _win = native_ui_window_open(session, "TERMINAL PONG  [W/S] Left  |  AI Right  |  SPACE Serve  |  R Reset", WIN_W, WIN_H)
+    let _at = native_ui_host_attach(session, "winit")
+
+    // Try to load a font for text rendering
+    let font_id: Int = native_ui_font_create(session, "pong-font", "Courier New", 14.0)
+    if font_id <= 0:
+        font_id = native_ui_font_create(session, "pong-font", "Courier", 14.0)
+    if font_id <= 0:
+        font_id = native_ui_font_create(session, "pong-font", "Consolas", 14.0)
+
+    // Initialize game state
+    var game: PongGame = pong_init()
+    game.font_id = font_id
+
+    // Main loop
+    while native_ui_host_should_close(session) == 0:
+        // Pump Windows messages
+        let _pump = native_ui_host_pump(session)
+
+        // Begin frame
+        let _bf = native_ui_begin_frame(session, 16.0)
+
+        // Create UI nodes (per-frame)
+        let (board_node, net_node, paddle_node, ball_node, scanline_node, text_node) = create_game_nodes(session)
+
+        // Poll keyboard events
+        while native_ui_poll_event(session) == 1:
+            let kind: String = native_ui_event_kind(session)
+            let code: Int = native_ui_event_key_code(session)
+            game = pong_handle_event(game, kind, code)
+
+        // Apply left paddle movement (continuous while key held)
+        if game.w_down and game.s_down == false:
+            game.left_paddle_y = game.left_paddle_y - PADDLE_SPEED
+        if game.s_down and game.w_down == false:
+            game.left_paddle_y = game.left_paddle_y + PADDLE_SPEED
+
+        // Clamp left paddle to board
+        if game.left_paddle_y < BOARD_Y:
+            game.left_paddle_y = BOARD_Y
+        if game.left_paddle_y + PADDLE_H > BOARD_Y + BOARD_H:
+            game.left_paddle_y = BOARD_Y + BOARD_H - PADDLE_H
+
+        // Update AI (right paddle)
+        game = ai_update(game)
+
+        // Update physics
+        game = pong_update(game)
+
+        // ── RENDER ───────────────────────────────────────────────────
+        // Background (full window)
+        native_ui_node_set_style_i64(session, text_node, "fill-color", COLOR_BG)
+        native_ui_node_set_rect(session, text_node, 0.0, 0.0, to_float(WIN_W), to_float(WIN_H))
+        ui_render_box(session, text_node, "fill-color")
+
+        // Board
+        render_board(session, board_node, game)
+
+        // Net
+        render_net(session, net_node)
+
+        // Paddles
+        let lp_x: Int = BOARD_X + PADDLE_OFFSET
+        render_paddle(session, paddle_node, lp_x, game.left_paddle_y, COLOR_PADDLE)
+
+        let rp_x: Int = BOARD_X + BOARD_W - PADDLE_OFFSET - PADDLE_W
+        render_paddle(session, paddle_node, rp_x, game.right_paddle_y, COLOR_PADDLE)
+
+        // Ball
+        if game.serving == false:
+            render_ball(session, ball_node, game.ball_x, game.ball_y)
+
+        // Score dots
+        render_score(session, board_node, game)
+
+        // Scanlines (CRT effect)
+        render_scanlines(session, scanline_node)
+
+        // Serve text / game over overlay
+        render_serve_text(session, text_node, font_id, game)
+
+        // HUD (score numbers with font)
+        render_hud(session, text_node, font_id, game)
+
+        // End frame and present
+        let _submit = ui_frame_submit(session)
+
+    // Cleanup
+    let _ds = native_ui_session_destroy(session)
+    return 0
+// ============================================================================
+//  END terminal_pong.kn
+// ============================================================================

@@ -1,0 +1,12 @@
+use std::runtime
+use std::os
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let entries = os_listdir("X:/blades/ui_demos")
+    println("entries: " + str(len(entries)))
+    var i = 0
+    while i < len(entries):
+        println("  " + entries[i])
+        i = i + 1
+    return 0

@@ -1,0 +1,46 @@
+function_name	kain_concept	llvm_ir_pattern	llvm_c_api	status	lines
+compile_lowered_helper_call	ptr<T>/mem_load/mem_store/atomic	bitcast/ptrtoint/load/store/call to @__kain_* helpers	LLVMBuildLoad/BuildStore/BuildCall	needs-review	865-1390
+jsx_span	component/JSX	Span extraction from JSXNode	—	needs-review	1392-1402
+compile_jsx	component/JSX	string concat/%KainActorRef/call @component	LLVMBuildCall/BuildGlobalString	needs-review	1404-1555
+hash_message_tag	actor	DJBA2 hash via i64 ops	—	needs-review	1557-1564
+hash_emit_message_tag	actor/emit	DJBA2 hash for __emit__ events	—	needs-review	1566-1573
+llvm_type_is_reply_port	actor	Compare against %KainReplyPort	—	mapped	1575-1577
+actor_name_for_handle_type	actor	Extract actor name from %Name* handle	—	needs-review	1579-1592
+compile_actor_handle_ref_value	actor	extractvalue/getelementptr/load %KainActorRef	—	needs-review	1594-1626
+compile_actor_handle_id	actor	extractvalue on %KainActorRef.0	—	needs-review	1628-1641
+compile_actor_builtin_ask	actor	ask/ask_timeout: insertvalue store/getelementptr/kain_actor_ask_send_ref	—	needs-review	1643-1959
+callable_signature	fn	ResolvedType function signature extraction	LLVMGetElementType/GetParamTypes	needs-review	1961-1977
+extern_callable_signature	fn/extern	ResolvedType signature for extern functions	LLVMGetElementType/GetParamTypes	needs-review	1979-1993
+ast_param_codegen_types	fn	Map AST params to LLVM types	LLVMInt32Type/LLVMPointerType in wrapper	needs-review	1995-2017
+function_codegen_signature	fn	Detect extern/naked/interrupt, map types	LLVMGetElementType/GetReturnType	needs-review	2019-2038
+function_is_extern	fn/extern	Check for @extern attribute	—	mapped	2040-2042
+register_callable_signature	fn	Register return/param types in HashMap	—	needs-review	2044-2080
+prescan_item_signatures	fn/impl/const	Pre-scan signatures for all TypedItems	—	mapped	2082-2270
+register_type_definitions_recursive	struct/enum/world/actor/component	Emit %type = type { fields } LLVM struct types	LLVMStructCreateNamed/StructSetBody	needs-review	2272-2464
+compile_typed_items	all	Dispatch compile per TypedItem kind	—	mapped	2466-2489
+collect_native_entanglements	entangle	Collect NativeEntangleBinding from items	—	mapped	2491-2506
+resonance_handler_symbol	resonate	__kain_resonate_{name} symbol	—	mapped	2508-2510
+collect_native_resonances	resonate	Collect NativeResonanceInfo from items	—	mapped	2512-2526
+native_resonance_binding	resonate	Find resonance by target path	—	mapped	2528-2533
+collect_machine_stone_metadata	axiom/pulse/shatter	Collect axioms/pulses/shattered structs	—	mapped	2535-2567
+collect_component_metadata	component	Collect dimensions/pulses/resonates per component	—	mapped	2571-2646
+register_world_type_and_global	world	%Emit %WorldName = type {fields}/@__kain_world_* zeroinitializer	LLVMStructCreateNamed LLVMAddGlobal	needs-review	2648-2688
+record_actor_state_initializers	actor	Store state initializer expressions	—	mapped	2690-2697
+llvm_constant_initializer_for_expr	const	Extract constant LLVM initializer from expr	LLVMConstInt/ConstReal	needs-review	2699-2712
+register_const_global	const	@__kain_const_{name} global + optional thread_local	LLVMAddGlobal	needs-review	2714-2785
+register_python_import_global	import (Python)	@__kain_py_import_{name} global i64 + init flag	LLVMAddGlobal	needs-review	2787-2819
+register_python_import_globals	import (Python)	Register all Python import globals recursively	—	mapped	2821-2826
+register_python_import_globals_recursive	import (Python)	Recursive walk to register Python imports	—	mapped	2828-2853
+register_const_globals	const	Register all const globals recursively	—	mapped	2855-2859
+register_const_globals_recursive	const	Recursive walk to register const globals	—	mapped	2861-2876
+compile_const_initializer	const	define void @__kain_init_const_{name}() with init guard	LLVMBuildStore	needs-review	2878-2949
+emit_const_init_call_if_needed	const	Emit call to const init if not yet hoisted	LLVMBuildCall	needs-review	2951-2976
+compile_const_load	const	Load global with lazy init call	LLVMBuildLoad	needs-review	2978-2986
+compile_python_import_context_ptr	import (Python)	Compile importer source file C string	—	mapped	2988-2992
+compile_python_import_runtime_call	import (Python)	call @py_import_with_context / @py_import_from_with_context	LLVMBuildCall	needs-review	2994-3035
+compile_python_import_initializer	import (Python)	define void @__kain_init_py_import_{name}()	LLVMBuildCall	needs-review	3037-3116
+emit_python_import_init_call_if_needed	import (Python)	Emit lazy init call for Python import	LLVMBuildCall	needs-review	3118-3141
+compile_python_import_load	import (Python)	Load i64 from Python import global with lazy init	LLVMBuildLoad	needs-review	3143-3151
+compile_module	all (top-level)	Full module compilation pipeline (header→externs→items→strings→dtors→debug)	LLVMModuleCreateWithNameInContext	needs-review	3153-3279
+emit_debug_metadata_footer	debug/DWARF	!llvm.dbg.cu / !DICompileUnit / !DIFile / !DILocation	LLVMAddNamedMetadataOperand LLVMSetCurrentDebugLocation	needs-review	3284-3309
+emit_crash_table	debug/forensics	@__kain_crash_table = global [N x %KainCrashEntry]	LLVMAddGlobal	needs-review	3313-3378

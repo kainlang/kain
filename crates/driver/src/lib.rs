@@ -983,7 +983,7 @@ impl DriverSession {
         source_path: Option<&Path>,
         target: CompileTarget,
     ) -> Result<String, KainError> {
-        self.compile_with_source_path_and_progress(source, source_path, target, None)
+        self.compile_with_source_path_and_progress(source, source_path, target, None, false)
     }
 
     pub fn compile_with_source_path_and_progress(
@@ -992,6 +992,7 @@ impl DriverSession {
         source_path: Option<&Path>,
         target: CompileTarget,
         progress: Option<&ToolingProgressSink>,
+        is_shared_library: bool,
     ) -> Result<String, KainError> {
         match target {
             #[cfg(feature = "ue5")]
@@ -1173,7 +1174,21 @@ impl DriverSession {
                                 .and_then(|p| p.file_name())
                                 .and_then(|n| n.to_str())
                                 .unwrap_or("unknown.kn");
-                            if let Some(ref triple) = self.target_triple {
+                            if is_shared_library {
+                                sys::generate_with_debug_for_shared_library(
+                                    &typed_for_codegen,
+                                    source,
+                                    filename,
+                                )
+                                .and_then(|bytes| {
+                                    String::from_utf8(bytes).map_err(|err| {
+                                        KainError::codegen(
+                                            format!("LLVM output was not valid UTF-8: {err}"),
+                                            Span::default(),
+                                        )
+                                    })
+                                })
+                            } else if let Some(ref triple) = self.target_triple {
                                 sys::generate_with_debug_for_target(
                                     &typed_for_codegen,
                                     source,
@@ -1199,6 +1214,16 @@ impl DriverSession {
                                         })
                                     })
                             }
+                        } else if is_shared_library {
+                            sys::generate_for_shared_library(&typed_for_codegen)
+                                .and_then(|bytes| {
+                                    String::from_utf8(bytes).map_err(|err| {
+                                        KainError::codegen(
+                                            format!("LLVM output was not valid UTF-8: {err}"),
+                                            Span::default(),
+                                        )
+                                    })
+                                })
                         } else if let Some(ref triple) = self.target_triple {
                             sys::generate_llvm_for_target(&typed_for_codegen, Some(triple.as_str()))
                                 .and_then(|bytes| {

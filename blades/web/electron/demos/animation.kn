@@ -1,0 +1,505 @@
+// animation.kn — DISCO VOID: ~60s looping short film
+// 33ms pulse × 1800 ticks. 5-phase beat-synced disco. Build: kain build demos/animation.kn --target llvm
+
+use std::runtime
+use std::math
+use std::time
+use electron_bridge
+use electron_extras
+
+// CONSTANTS
+const TOTAL_TICKS:  Int   = 1800
+const SPARKLE_N:    Int   = 300
+const CONFETTI_N:   Int   = 100
+
+// LAYER 1: STATE AUTHORITY
+world DiscoState:
+    state frame:         Int = 0
+    state current_phase: Int = 0
+
+// EASING HELPERS
+fn ease_out(t: Float) -> Float:
+    return 1.0 - (1.0 - t) * (1.0 - t)
+
+fn ease_in(t: Float) -> Float:
+    return t * t * t
+
+// LAYER 5: TEMPORAL — 33ms pulse
+pulse disco_clock every 33 ms:
+    let lt: Int = pulse_tick % TOTAL_TICKS           // looped tick 0..1799
+    let ltf: Float = lt
+    // Phase detection: 0=WARMUP 1=DROP 2=GROOVE 3=BUILDUP 4=FINALE
+
+    let phase: Int = 0
+    let phase_t: Float = 0.0
+
+    if lt < 300:
+        phase = 0
+        phase_t = ltf / 300.0
+    elif lt < 600:
+        phase = 1
+        phase_t = (ltf - 300.0) / 300.0
+    elif lt < 1200:
+        phase = 2
+        phase_t = (ltf - 600.0) / 600.0
+    elif lt < 1500:
+        phase = 3
+        phase_t = (ltf - 1200.0) / 300.0
+    else:
+        phase = 4
+        phase_t = (ltf - 1500.0) / 300.0
+
+    DiscoState.frame = lt
+    DiscoState.current_phase = phase
+
+    // Beat timing: ~113 BPM (16 ticks/beat)
+    let beat: Int = (lt / 16) % 4
+    let beat_t: Float = ltf / 16.0
+    beat_t = beat_t - floor(beat_t)                  // 0.0→1.0 within beat
+    let measure: Int = lt / 64
+    // Phase transition guard
+    let phase_transition: Bool = false
+    if lt == 0 or lt == 300 or lt == 600 or lt == 1200 or lt == 1500:
+        phase_transition = true
+
+    // ATMOSPHERE
+    if phase_transition:
+        if phase == 0:
+            set_background("#020010")
+            set_fog("#020015", 8.0, 30.0)
+            set_ambient("#0a0a20", 0.20)
+        elif phase == 1:
+            set_background("#0a0020")
+            set_fog("#0a0020", 14.0, 55.0)
+            set_ambient("#1a0a30", 0.55)
+        elif phase == 2:
+            set_background("#080018")
+            set_fog("#080020", 16.0, 65.0)
+            set_ambient("#180a28", 0.45)
+        elif phase == 3:
+            set_background("#100018")
+            set_fog("#100020", 22.0, 80.0)
+            set_ambient("#281838", 0.65)
+        else:
+            set_background("#000000")
+            set_fog("#000008", 5.0, 25.0)
+            set_ambient("#000000", 0.05)
+
+    // DISCO BALL
+
+    let ball_y: Float = 0.0
+    let ball_spin_rate: Float = 0.08
+    let ball_color: String = "#ff00ff"
+    let ball_emissive: Float = 1.0
+    let ball_scale: Float = 1.5
+    let ball_beat_pulse: Float = 1.0 + sin(beat_t * TAU) * 0.12
+
+    if phase == 0:
+        // WARMUP: descend, dim blue, slow spin
+        ball_y = lerp(8.0, 0.0, ease_out(phase_t))
+        ball_spin_rate = lerp(0.02, 0.06, ease_out(phase_t))
+        ball_color = "#3355cc"
+        ball_emissive = lerp(0.15, 0.7, phase_t)
+        ball_scale = lerp(0.4, 1.5, ease_out(phase_t))
+
+    elif phase == 1:
+        // DROP: magenta blaze, beat-pulsed spin
+        ball_y = sin(beat_t * TAU) * 0.2
+        ball_spin_rate = 0.18 + sin(beat_t * TAU) * 0.06
+        ball_color = "#ff00ff"
+        ball_emissive = 2.2 + sin(beat_t * TAU) * 1.0
+        ball_scale = 1.5 * ball_beat_pulse
+
+    elif phase == 2:
+        // GROOVE: color-cycle through neon palette
+        ball_y = sin(phase_t * TAU * 0.5) * 0.35
+        ball_spin_rate = 0.14 + sin(phase_t * TAU * 0.25) * 0.04
+        ball_scale = 1.5 * ball_beat_pulse * 0.9
+        let ci: Int = (measure * 4 + beat) % 6
+        if ci == 0:      ball_color = "#ff00ff"
+        elif ci == 1:    ball_color = "#00ffff"
+        elif ci == 2:    ball_color = "#ffaa00"
+        elif ci == 3:    ball_color = "#ff0088"
+        elif ci == 4:    ball_color = "#0088ff"
+        else:            ball_color = "#88ff00"
+        ball_emissive = 1.6 + sin(beat_t * TAU) * 0.7
+
+    elif phase == 3:
+        // BUILDUP: accelerate, whiten, intensify
+        ball_y = 0.0
+        ball_spin_rate = lerp(0.16, 0.45, ease_in(phase_t))
+        ball_color = "#ffffff"
+        ball_emissive = lerp(1.6, 4.5, ease_in(phase_t))
+        ball_scale = 1.5 + phase_t * 0.35
+
+    else:
+        // FINALE: peak then fade over last 30%
+        ball_y = 0.0
+        ball_spin_rate = 0.50
+        let fin_fade: Float = 1.0
+        if phase_t > 0.7:
+            fin_fade = 1.0 - (phase_t - 0.7) / 0.3
+        ball_color = "#ffffff"
+        ball_emissive = 4.5 * fin_fade
+        ball_scale = 1.85 * fin_fade
+
+    // Rotation (loop discontinuity hidden by finale fade)
+    let ball_rx: Float = ltf * ball_spin_rate * 0.7
+    let ball_ry: Float = ltf * ball_spin_rate
+    let ball_rz: Float = ltf * ball_spin_rate * 0.3
+
+    update_transform("disco_ball", 0.0, ball_y, 0.0, ball_scale, ball_scale, ball_scale)
+    update_rotation("disco_ball", ball_rx, ball_ry, ball_rz)
+    update_emissive("disco_ball", ball_color, ball_emissive)
+
+    if phase_transition or beat_t < 0.06:
+        update_color("disco_ball", ball_color)
+
+    // DANCE RING
+    let ring_radius: Float = 3.5
+    let ring_rot_rate: Float = 0.06
+    let ring_color: String = "#ff4488"
+    let ring_emissive: Float = 0.5
+
+    if phase == 0:
+        ring_radius = lerp(9.0, 3.5, ease_out(phase_t))
+        ring_rot_rate = lerp(0.01, 0.04, ease_out(phase_t))
+        ring_color = "#3355cc"
+        ring_emissive = lerp(0.0, 0.4, phase_t)
+
+    elif phase == 1:
+        ring_radius = 3.5 + sin(beat_t * TAU) * 0.4
+        ring_rot_rate = 0.09 + sin(beat_t * TAU) * 0.03
+        ring_color = "#ff4488"
+        ring_emissive = 0.9 + sin(beat_t * TAU) * 0.5
+
+    elif phase == 2:
+        ring_radius = 3.5 + sin(phase_t * TAU * 0.35) * 0.6
+        ring_rot_rate = 0.07 + sin(beat_t * TAU) * 0.025
+        ring_color = ball_color
+        ring_emissive = 0.6 + sin(beat_t * TAU) * 0.3
+
+    elif phase == 3:
+        ring_radius = lerp(3.5, 1.8, ease_in(phase_t))
+        ring_rot_rate = lerp(0.08, 0.25, ease_in(phase_t))
+        ring_color = "#ffffff"
+        ring_emissive = lerp(0.6, 2.5, ease_in(phase_t))
+
+    else:
+        let fin_fade2: Float = 1.0
+        if phase_t > 0.7: fin_fade2 = 1.0 - (phase_t - 0.7) / 0.3
+        ring_radius = 1.8
+        ring_rot_rate = 0.30
+        ring_color = "#ffffff"
+        ring_emissive = 2.5 * fin_fade2
+
+    let ring_angle: Float = ltf * ring_rot_rate
+    update_transform("dance_ring", 0.0, 0.2, 0.0, ring_radius, ring_radius, ring_radius)
+    update_rotation("dance_ring", ring_angle * 0.2, ring_angle, ring_angle * 0.15)
+    update_emissive("dance_ring", ring_color, ring_emissive)
+
+    if phase_transition or beat_t < 0.06:
+        update_color("dance_ring", ring_color)
+
+    // DYNAMIC LIGHTING
+    let light_orbit_r: Float = 6.0
+    let light_orbit_speed: Float = 0.08
+    let light_base: Float = 2.0
+
+    if phase == 0:
+        light_base = lerp(0.0, 1.2, phase_t)
+        light_orbit_speed = 0.03
+    elif phase == 1:
+        light_base = 2.8 + sin(beat_t * TAU) * 1.5
+        light_orbit_speed = 0.14
+    elif phase == 2:
+        light_base = 2.0 + sin(beat_t * TAU) * 0.9
+        light_orbit_speed = 0.10 + sin(phase_t * TAU * 0.25) * 0.04
+    elif phase == 3:
+        light_base = lerp(2.2, 4.5, ease_in(phase_t))
+        light_orbit_speed = lerp(0.12, 0.35, ease_in(phase_t))
+        light_orbit_r = lerp(6.0, 3.0, ease_in(phase_t))
+    else:
+        let fin_fade3: Float = 1.0
+        if phase_t > 0.7: fin_fade3 = 1.0 - (phase_t - 0.7) / 0.3
+        light_base = 4.5 * fin_fade3
+        light_orbit_speed = 0.40
+        light_orbit_r = 3.0
+
+    var li: Int = 0
+    while li < 4:
+        let la: Float = ltf * light_orbit_speed + (li * PI / 2.0)
+        let lx: Float = cos(la) * light_orbit_r
+        let lz: Float = sin(la) * light_orbit_r
+        let ly: Float = sin(la * 0.7 + li * 1.2) * 2.5
+
+        // Light identity + strobe pattern
+        let light_id: String = ""
+        let light_color: String = "#ffffff"
+        if li == 0:
+            light_id = "light_red"
+            light_color = "#ff3333"
+        elif li == 1:
+            light_id = "light_blue"
+            light_color = "#3366ff"
+        elif li == 2:
+            light_id = "light_green"
+            light_color = "#33ff55"
+        else:
+            light_id = "light_gold"
+            light_color = "#ffaa22"
+
+
+        let strobe: Float = 1.0
+        if phase >= 1:
+            if (beat + li) % 4 == 0:
+                strobe = 1.6 + sin(beat_t * TAU) * 0.4
+            elif beat % 2 == 0:
+                strobe = 0.35
+            else:
+                strobe = 0.65
+
+        update_light_position(light_id, lx, ly, lz)
+        update_light(light_id, light_color, light_base * strobe)
+        li = li + 1
+
+    // SPARKLE PARTICLES (300)
+    var sparkle_json: String = "{\"cmd\":\"update\",\"id\":\"sparkles\",\"flat\":["
+    var si: Int = 0
+    while si < SPARKLE_N:
+        if si > 0:
+            sparkle_json = sparkle_json + ","
+
+        let seed: Float = si * 0.373 + 1.7
+        let sx: Float = 0.0
+        let sy: Float = 0.0
+        let sz: Float = 0.0
+
+        if phase == 0:
+            // WARMUP: sparse, far out
+            let r: Float = lerp(16.0, 7.0, ease_out(phase_t)) + sin(seed * 9.0) * 3.5
+            let a: Float = seed * TAU + ltf * 0.015
+            sx = cos(a) * r
+            sy = sin(seed * 6.0 + ltf * 0.008) * 8.0
+            sz = sin(a) * r
+
+        elif phase == 1:
+            // DROP: burst spiral, settle
+            let r: Float = 4.0 + sin(seed * 9.0 + ltf * 0.05) * 4.5 + phase_t * 2.5
+            let a: Float = seed * TAU + ltf * 0.07 + phase_t * TAU * 2.0
+            sx = cos(a) * r
+            sy = sin(seed * 3.5 + ltf * 0.06) * 5.5
+            sz = sin(a) * r
+
+        elif phase == 2:
+            // GROOVE: double-helix wave
+            let helix: Float = seed * TAU + ltf * 0.045
+            let r: Float = 3.5 + sin(seed * 8.0 + ltf * 0.03) * 2.8 + sin(beat_t * TAU) * 1.2
+            sx = cos(helix) * r
+            sy = sin(seed * 4.5 + ltf * 0.05 + phase_t * TAU) * 4.5
+            sz = sin(helix) * r
+
+        elif phase == 3:
+            // BUILDUP: contract, faster
+            let r: Float = lerp(3.5, 1.2, ease_in(phase_t)) + sin(seed * 8.0 + ltf * 0.09) * (1.6 - phase_t * 1.2)
+            let a: Float = seed * TAU + ltf * 0.09 * (1.0 + phase_t * 2.5)
+            sx = cos(a) * r
+            sy = sin(seed * 5.5 + ltf * 0.12) * (3.5 - phase_t * 3.0)
+            sz = sin(a) * r
+
+        else:
+            // FINALE: explode, fade
+            let fin_fade4: Float = 1.0
+            if phase_t > 0.7: fin_fade4 = 1.0 - (phase_t - 0.7) / 0.3
+            let r: Float = (1.2 + phase_t * 14.0) * fin_fade4
+            let a: Float = seed * TAU + ltf * 0.12
+            sx = cos(a) * r
+            sy = sin(seed * 7.0) * r * 0.7 * fin_fade4
+            sz = sin(a) * r
+
+        sparkle_json = sparkle_json + str(sx)
+        sparkle_json = sparkle_json + ","
+        sparkle_json = sparkle_json + str(sy)
+        sparkle_json = sparkle_json + ","
+        sparkle_json = sparkle_json + str(sz)
+        si = si + 1
+    sparkle_json = sparkle_json + "]}"
+    println(sparkle_json)
+
+    // Sparkle color + size (throttled)
+    if phase_transition or beat_t < 0.06:
+        let s_color: String = "#ff88cc"
+        let s_size: Float = 0.06
+        if phase == 0:
+            s_color = "#334488"
+            s_size = 0.028
+        elif phase == 1:
+            s_color = "#ff66aa"
+            s_size = 0.055 + sin(beat_t * TAU) * 0.02
+        elif phase == 2:
+            s_color = ball_color
+            s_size = 0.05 + sin(beat_t * TAU) * 0.025
+        elif phase == 3:
+            s_color = "#ffffff"
+            s_size = lerp(0.05, 0.10, phase_t)
+        else:
+            s_color = "#ffffff"
+            s_size = 0.10
+        update_color("sparkles", s_color)
+        update_particle_size("sparkles", s_size)
+
+    // CONFETTI PARTICLES (100)
+    var confetti_json: String = "{\"cmd\":\"update\",\"id\":\"confetti\",\"flat\":["
+    var ci: Int = 0
+    while ci < CONFETTI_N:
+        if ci > 0:
+            confetti_json = confetti_json + ","
+
+        let cseed: Float = ci * 1.137 + 0.5
+        let cx: Float = 0.0
+        let cy: Float = 0.0
+        let cz: Float = 0.0
+
+        if phase == 0:
+            // WARMUP: hidden
+            cx = sin(cseed * 17.0) * 0.08
+            cy = cos(cseed * 13.0) * 0.08
+            cz = sin(cseed * 19.0) * 0.08
+
+        elif phase == 1:
+            // DROP: burst + gravity
+            let br: Float = 1.5 + phase_t * 6.0 + sin(cseed * 11.0) * 3.5
+            let ba: Float = cseed * TAU + ltf * 0.04
+            let grav: Float = phase_t * 4.0
+            cx = cos(ba) * br
+            cy = sin(cseed * 7.5) * br * 0.55 - grav
+            cz = sin(ba) * br
+
+        elif phase == 2:
+            // GROOVE: float, drift
+            let fa: Float = cseed * TAU + ltf * 0.018
+            let fr: Float = 3.0 + sin(cseed * 8.5 + ltf * 0.014) * 2.5
+            cx = cos(fa) * fr
+            cy = sin(cseed * 5.5 + ltf * 0.022) * 4.5 - 1.5
+            cz = sin(fa) * fr
+
+        elif phase == 3:
+            // BUILDUP: swarm in
+            let sr: Float = lerp(3.5, 0.4, ease_in(phase_t))
+            let sa: Float = cseed * TAU + ltf * 0.07 * (1.0 + phase_t * 1.5)
+            cx = cos(sa) * sr
+            cy = sin(cseed * 6.5) * sr * 0.6
+            cz = sin(sa) * sr
+
+        else:
+            // FINALE: mega burst
+            let fin_fade5: Float = 1.0
+            if phase_t > 0.7: fin_fade5 = 1.0 - (phase_t - 0.7) / 0.3
+            let mr: Float = (0.4 + phase_t * 16.0) * fin_fade5
+            let ma: Float = cseed * TAU + ltf * 0.10
+            cx = cos(ma) * mr
+            cy = sin(cseed * 9.5) * mr * 0.65 * fin_fade5
+            cz = sin(ma) * mr
+
+        confetti_json = confetti_json + str(cx)
+        confetti_json = confetti_json + ","
+        confetti_json = confetti_json + str(cy)
+        confetti_json = confetti_json + ","
+        confetti_json = confetti_json + str(cz)
+        ci = ci + 1
+    confetti_json = confetti_json + "]}"
+    println(confetti_json)
+
+    if phase_transition or beat_t < 0.06:
+        let c_color: String = "#ffdd44"
+        let c_size: Float = 0.08
+        if phase == 0:
+            c_color = "#000011"
+            c_size = 0.001
+        elif phase == 1:
+            c_color = "#ffdd44"
+            c_size = 0.08
+        elif phase == 2:
+            c_color = ball_color
+            c_size = 0.065
+        elif phase == 3:
+            c_color = "#ffffff"
+            c_size = lerp(0.065, 0.13, phase_t)
+        else:
+            c_color = "#ffff88"
+            c_size = 0.13
+        update_color("confetti", c_color)
+        update_particle_size("confetti", c_size)
+
+    // TELEMETRY
+    if lt % 30 == 0:
+        telemetry("loop_tick", lt)
+        telemetry("phase", phase)
+        telemetry("beat", beat)
+        telemetry_string("ball", ball_color)
+        telemetry_float("ball_y", ball_y)
+        telemetry_float("emissive", ball_emissive)
+        if phase == 0:   telemetry_string("act", "WARMUP")
+        elif phase == 1: telemetry_string("act", "DROP")
+        elif phase == 2: telemetry_string("act", "GROOVE")
+        elif phase == 3: telemetry_string("act", "BUILDUP")
+        else:            telemetry_string("act", "FINALE")
+
+// MAIN — scene setup + keep-alive
+
+fn main() -> Int with IO:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // ATMOSPHERE
+    set_background("#020010")
+    set_fog("#020015", 8.0, 30.0)
+    set_ambient("#0a0a20", 0.20)
+
+    // CAMERA
+    camera_look_at(6.0, 2.8, 10.0, 0.0, 0.0, 0.0)
+
+    // DISCO BALL — icosahedron
+    create_mesh("disco_ball", "icosahedron", "#3355cc")
+    update_transform("disco_ball", 0.0, 8.0, 0.0, 0.4, 0.4, 0.4)
+    update_emissive("disco_ball", "#3355cc", 0.15)
+
+    // DANCE RING — torus
+    create_mesh("dance_ring", "torus", "#3355cc")
+    update_transform("dance_ring", 0.0, 0.2, 0.0, 9.0, 9.0, 9.0)
+    update_emissive("dance_ring", "#3355cc", 0.0)
+
+    // PARTICLES
+    create_particles("sparkles", SPARKLE_N, "#334488")
+    update_particle_size("sparkles", 0.028)
+
+    create_particles("confetti", CONFETTI_N, "#000011")
+    update_particle_size("confetti", 0.001)
+
+    // DYNAMIC LIGHTS
+    create_light("light_red",   "point", "#ff3333", 0.0,  6.0, 0.0,  0.0)
+    create_light("light_blue",  "point", "#3366ff", 0.0,  0.0, 0.0,  6.0)
+    create_light("light_green", "point", "#33ff55", 0.0, -6.0, 0.0,  0.0)
+    create_light("light_gold",  "point", "#ffaa22", 0.0,  0.0, 0.0, -6.0)
+
+    // HUD TELEMETRY
+    telemetry_string("film", "DISCO VOID")
+    telemetry_string("bpm", "~113 — four on the floor")
+    telemetry_string("phases", "WARMUP→DROP→GROOVE→BUILDUP→FINALE")
+    telemetry("sparkles", SPARKLE_N)
+    telemetry("confetti", CONFETTI_N)
+    telemetry("total_ticks", TOTAL_TICKS)
+
+    // KEEP-ALIVE
+    var tick: Int = 0
+    while tick < 999999:
+        let _ = sleep_millis(1000)
+        tick = tick + 1
+
+    let sd = runtime_shutdown()
+    if sd != 0:
+        return 200 + sd
+    return 0
+
+// END animation.kn — Disco Void

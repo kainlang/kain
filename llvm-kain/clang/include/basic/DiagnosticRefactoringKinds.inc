@@ -1,0 +1,1 @@
+// Stub: DiagnosticRefactoringKinds.inc

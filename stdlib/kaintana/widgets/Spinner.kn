@@ -1,0 +1,107 @@
+// ============================================================================
+//  widgets/Spinner.kn — Animated loading spinner with rotating arc segments
+//  P2-015: Pulse-driven angle animation. 8 segments arranged in a circular
+//          pattern with varying opacity to simulate rotation. Speed multiplier
+//          prop. Themed accent color with color override support.
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+// ============================================================================
+
+pub type KtSession   = Int
+pub type KtElementId = Int
+
+// ── @extern bindings (from core.kn) ──────────────────────────────────────
+@extern fn kt_row(s: KtSession, parent: KtElementId, kind: String, key: String) -> KtElementId
+@extern fn kt_end_row(s: KtSession) -> Void
+@extern fn kt_fill(s: KtSession, elem: KtElementId, color: String) -> Void
+@extern fn kt_width(s: KtSession, elem: KtElementId, w: Float) -> Void
+@extern fn kt_height(s: KtSession, elem: KtElementId, h: Float) -> Void
+@extern fn kt_radius(s: KtSession, elem: KtElementId, r: Float) -> Void
+@extern fn kt_opacity(s: KtSession, elem: KtElementId, a: Float) -> Void
+@extern fn kt_direction(s: KtSession, elem: KtElementId, dir: Int) -> Void
+@extern fn kt_gap(s: KtSession, elem: KtElementId, gap: Float) -> Void
+@extern fn kt_pad(s: KtSession, elem: KtElementId, all: Float) -> Void
+
+// ── Widget trait (from Widget.kn) ────────────────────────────────────────
+pub trait Widget:
+    fn stable_key(_self: Self_) -> String:
+        return ""
+    fn kind(_self: Self_) -> String:
+        return "widget"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return
+
+// ── Pure helper functions (not component methods) ─────────────────────────
+//  These take raw Float values and compute geometry/opacity for spinner
+//  segments. Called from JSX expressions in the render block.
+
+/// Compute opacity for a spinner segment given current rotation angle
+/// and the segment's base angle (degrees). Returns [0.15, 1.0].
+fn seg_opacity_at(angle: Float, base: Float) -> Float:
+    let diff = angle - base
+    let abs_diff = if diff < 0.0: -diff else: diff
+    let wrapped = if abs_diff > 180.0: 360.0 - abs_diff else: abs_diff
+    let opacity = 1.0 - wrapped / 180.0
+    if opacity < 0.15: return 0.15
+    return opacity
+
+/// Compute segment square dimension from spinner size.
+fn seg_dim_from(spinner_size: Float) -> Float:
+    return spinner_size * 0.22
+
+/// Compute segment corner radius from spinner size.
+fn seg_radius_from(spinner_size: Float) -> Float:
+    return seg_dim_from(spinner_size) * 0.25
+
+// ============================================================================
+//  Component: Spinner
+// ============================================================================
+
+/// Animated loading spinner with pulse-driven rotation.
+/// Renders 8 arc segments arranged in a circular 3x3 pattern (center empty).
+/// Segment opacity modulates with _angle to create the illusion of a
+/// rotating arc. The speed prop scales the rotation rate.
+component Spinner(
+    size:  Float = 24.0,
+    color: String = "#21D4A1",
+    speed: Float = 1.0,
+    key:   String = "spinner",
+):
+    state _angle: Float = 0.0
+
+    /// Advance the rotation angle each tick. Wraps at 360 degrees.
+    /// Speed multiplier: angle increment = 6.0 * speed per tick (~375 deg/s at 1x).
+    pulse rotate every 16ms jitter 2ms:
+        _angle = (_angle + 6.0 * speed) % 360.0
+
+    render <box kind="spinner" key={key} width={size} height={size}>
+        <box direction={0} gap={0} pad={0}>
+            <box fill={color} width={seg_dim_from(size)} height={seg_dim_from(size)} radius={seg_radius_from(size)} opacity={seg_opacity_at(_angle,   0.0)} />
+            <box fill={color} width={seg_dim_from(size)} height={seg_dim_from(size)} radius={seg_radius_from(size)} opacity={seg_opacity_at(_angle,  45.0)} />
+            <box fill={color} width={seg_dim_from(size)} height={seg_dim_from(size)} radius={seg_radius_from(size)} opacity={seg_opacity_at(_angle,  90.0)} />
+        </box>
+        <box direction={0} gap={0} pad={0}>
+            <box fill={color} width={seg_dim_from(size)} height={seg_dim_from(size)} radius={seg_radius_from(size)} opacity={seg_opacity_at(_angle, 315.0)} />
+            <box fill={color} width={seg_dim_from(size)} height={seg_dim_from(size)} radius={seg_radius_from(size)} opacity={seg_opacity_at(_angle, 135.0)} />
+        </box>
+        <box direction={0} gap={0} pad={0}>
+            <box fill={color} width={seg_dim_from(size)} height={seg_dim_from(size)} radius={seg_radius_from(size)} opacity={seg_opacity_at(_angle, 270.0)} />
+            <box fill={color} width={seg_dim_from(size)} height={seg_dim_from(size)} radius={seg_radius_from(size)} opacity={seg_opacity_at(_angle, 225.0)} />
+            <box fill={color} width={seg_dim_from(size)} height={seg_dim_from(size)} radius={seg_radius_from(size)} opacity={seg_opacity_at(_angle, 180.0)} />
+        </box>
+    </box>
+
+// ============================================================================
+//  Widget trait implementation for Spinner
+// ============================================================================
+
+impl Widget for Spinner:
+    fn stable_key(_self: Self_) -> String:
+        return _self.key
+    fn kind(_self: Self_) -> String:
+        return "spinner"
+    fn element_id(_self: Self_) -> Int:
+        return -1
+    fn tick_interaction(_self: Self_):
+        return

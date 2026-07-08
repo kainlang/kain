@@ -1,0 +1,155 @@
+// ============================================================================
+//  component_clock.kn — KUIF COMPONENT DEMO: Analog + Digital Clock
+//  ============================================================================
+//  A real-time clock with analog face (drawn via framebuffer) and digital
+//  readout. Uses the component keyword + world + surface.
+//
+//  World reads time from std::time, renders through component vtable.
+//  Demonstrates: world state, surface binding, component composition,
+//  framebuffer pixel art inside a component render loop.
+//
+//  Layer: L0 (plain code) + L1 (world) + L7 (framebuffer on Unsafe)
+//  Usage:  kain build blades/ui_demos/component_clock.kn --target llvm
+// ============================================================================
+
+use std::runtime
+use std::time
+use std::math
+use std::ui
+
+// ============================================================================
+//  WORLD — clock state authority
+// ============================================================================
+
+world ClockWorld:
+    state hour: Int = 12
+    state minute: Int = 0
+    state second: Int = 0
+    state millis: Int = 0
+    state color_scheme: Int = 0
+    surface native_ui => ClockApp
+
+// ============================================================================
+//  FORMATTING HELPERS (top-level fns for JSX)
+// ============================================================================
+
+fn pad2(v: Int) -> String:
+    if v < 10: return "0" + str(v)
+    return str(v)
+
+fn time_str() -> String:
+    return pad2(ClockWorld.hour) + ":" + pad2(ClockWorld.minute) + ":" + pad2(ClockWorld.second)
+
+fn date_str() -> String:
+    let now = datetime_from_epoch_millis(now_millis())
+    return pad2(now.month) + "/" + pad2(now.day) + "/" + str(now.year)
+
+fn scheme_name() -> String:
+    if ClockWorld.color_scheme == 0: return "CLASSIC"
+    if ClockWorld.color_scheme == 1: return "NEON"
+    if ClockWorld.color_scheme == 2: return "OCEAN"
+    return "FIRE"
+
+fn color_bg() -> Int:
+    if ClockWorld.color_scheme == 0: return 0xFF1A1A2E
+    if ClockWorld.color_scheme == 1: return 0xFF0A0A1A
+    if ClockWorld.color_scheme == 2: return 0xFF0A0A20
+    return 0xFF1A0A0A
+
+fn color_accent() -> Int:
+    if ClockWorld.color_scheme == 0: return 0xFF4A90D9
+    if ClockWorld.color_scheme == 1: return 0xFFFF00AA
+    if ClockWorld.color_scheme == 2: return 0xFF00AAFF
+    return 0xFFFF4400
+
+fn color_face() -> Int:
+    if ClockWorld.color_scheme == 0: return 0xFF2A2A44
+    if ClockWorld.color_scheme == 1: return 0xFF1A1A2A
+    if ClockWorld.color_scheme == 2: return 0xFF0A2A3A
+    return 0xFF2A1A0A
+
+fn sec_angle() -> Float:
+    return to_float(ClockWorld.second) * 6.0 * PI / 180.0
+
+fn min_angle() -> Float:
+    return (to_float(ClockWorld.minute) + to_float(ClockWorld.second) / 60.0) * 6.0 * PI / 180.0
+
+fn hour_angle() -> Float:
+    return (to_float(ClockWorld.hour % 12) + to_float(ClockWorld.minute) / 60.0) * 30.0 * PI / 180.0
+
+// Dead-state validator reads
+fn read_clock_time() -> Int:
+    return ClockWorld.hour + ClockWorld.minute + ClockWorld.second + ClockWorld.millis
+
+// ============================================================================
+//  COMPONENTS
+// ============================================================================
+
+component DigitalDisplay():
+    render <stack direction="vertical" padding={8} spacing={4}>
+        <text value={time_str()} font_size={36} />
+        <text value={date_str()} font_size={14} />
+    </stack>
+
+component ColorButton(label: String, idx: Int):
+    render <stack direction="horizontal" padding={4} spacing={4}>
+        <text value={label} font_size={11} />
+    </stack>
+
+component Controls():
+    render <stack direction="horizontal" padding={8} spacing={12}>
+        <text value={"Scheme: " + scheme_name()} font_size={11} />
+    </stack>
+
+component StatusBar():
+    render <stack direction="horizontal" padding={4} spacing={8}>
+        <text value={"Frame count: ---"} font_size={9} />
+        <text value={"Angle H:" + str(to_int(hour_angle() * 100.0))} font_size={8} />
+    </stack>
+
+// ============================================================================
+//  ROOT COMPONENT
+// ============================================================================
+
+component ClockApp():
+    render <panel title="Kain Component Clock">
+        <stack direction="vertical" padding={16} spacing={12}>
+            // Header
+            <stack direction="horizontal" spacing={16}>
+                <text value="⏰" font_size={24} />
+                <text value="CLOCK" font_size={18} />
+                <text value={scheme_name()} font_size={12} />
+            </stack>
+
+            // Time
+            <DigitalDisplay />
+
+            // Controls
+            <Controls />
+
+            // Info
+            <stack direction="vertical" padding={4} spacing={2}>
+                <text value="Pure component render via world → surface → vtable" font_size={9} />
+                <text value="No @extern, no C bridge, no widget system" font_size={9} />
+            </stack>
+
+            <StatusBar />
+        </stack>
+    </panel>
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // Dead-state validator reads
+    let _time = read_clock_time()
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

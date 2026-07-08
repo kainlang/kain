@@ -1,0 +1,149 @@
+// ============================================================================
+//  run_audio.kn — Audio Effect Test Harness
+// ============================================================================
+//  Standalone executable that generates a 440Hz sine wave, processes through
+//  the lowpass filter, and outputs audio data + frequency response as JSON.
+//  Self-contained — no external DSP module dependencies.
+//
+//  BUILD:  kain build audio/run_audio.kn --target llvm
+//  RUN:    run_audio.exe
+// ============================================================================
+
+use std::runtime
+use std::json
+use std::fmt
+use std::math
+
+// ── Constants ───────────────────────────────────────────────────────────────
+const RUN_SAMPLE_RATE: Int = 44100
+const RUN_DURATION_MS: Int = 2000
+const RUN_NUM_SAMPLES: Int = RUN_SAMPLE_RATE * RUN_DURATION_MS / 1000
+const RUN_TWO_PI: Float = 6.283185307179586
+const RUN_OUTPUT_SAMPLES: Int = 100
+
+// ── Biquad coefficient structure ────────────────────────────────────────────
+struct BqCoeffs:
+    b0: Float
+    b1: Float
+    b2: Float
+    a1: Float
+    a2: Float
+
+fn bq_lowpass(freq_hz: Float, q: Float, sr: Int) -> BqCoeffs with Pure:
+    let w0: Float = RUN_TWO_PI * freq_hz / Float(sr)
+    let cw: Float = cos(w0)
+    let sw: Float = sin(w0)
+    let alpha: Float = sw / (2.0 * q)
+    let a0: Float = 1.0 + alpha
+    return BqCoeffs {
+        b0: (1.0 - cw) * 0.5 / a0,
+        b1: (1.0 - cw) / a0,
+        b2: (1.0 - cw) * 0.5 / a0,
+        a1: (-2.0 * cw) / a0,
+        a2: (1.0 - alpha) / a0,
+    }
+
+// ── Helper: generate sine wave ─────────────────────────────────────────────
+fn generate_sine(buffer: ptr<Float>, count: Int, freq_hz: Float, sample_rate: Int) with Unsafe:
+    let step: Float = RUN_TWO_PI * freq_hz / Float(sample_rate)
+    var i: Int = 0
+    while i < count:
+        let sample: Float = sin(Float(i) * step)
+        mem_store(ptr_offset(buffer, i, "Float"), sample * 0.5, "Float")
+        i = i + 1
+
+// ── Helper: compute frequency response of a biquad ─────────────────────────
+fn compute_freq_response(filter_freq: Float, q: Float, test_freq: Float, sample_rate: Int) -> Float with Pure:
+    let coeffs: BqCoeffs = bq_lowpass(filter_freq, q, sample_rate)
+    let w: Float = RUN_TWO_PI * test_freq / Float(sample_rate)
+    let cw: Float = cos(w)
+    let sw: Float = sin(w)
+    let c2w: Float = cos(2.0 * w)
+    let s2w: Float = sin(2.0 * w)
+
+    let num_re: Float = coeffs.b0 + (coeffs.b1 * cw) + (coeffs.b2 * c2w)
+    let num_im: Float = (0.0 - coeffs.b1 * sw) - (coeffs.b2 * s2w)
+    let den_re: Float = 1.0 + (coeffs.a1 * cw) + (coeffs.a2 * c2w)
+    let den_im: Float = (0.0 - coeffs.a1 * sw) - (coeffs.a2 * s2w)
+
+    let num_mag: Float = sqrt((num_re * num_re) + (num_im * num_im))
+    let den_mag: Float = sqrt((den_re * den_re) + (den_im * den_im))
+    if den_mag <= 0.0:
+        return -120.0
+
+    let gain_linear: Float = num_mag / den_mag
+    if gain_linear <= 0.0:
+        return -120.0
+    return 20.0 * ln_scalar(gain_linear) / LN_10
+
+/// Main entry — runs the audio test pipeline
+pub fn main() -> Int with IO, Unsafe:
+    let init: Int = runtime_init()
+    if init != 0:
+        println("{\"error\":\"runtime_init failed\",\"code\":" + fmt_int(init) + "}")
+        return 100 + init
+
+    // ── Generate 440Hz sine wave ─────────────────────────────────────────
+    let buffer: ptr<Float> = alloc_zeroed(RUN_NUM_SAMPLES, "Float")
+    defer decay buffer
+
+    generate_sine(buffer, RUN_NUM_SAMPLES, 440.0, RUN_SAMPLE_RATE)
+
+    // ── Process through lowpass filter (880Hz, Q=0.707) ──────────────────
+    let coeffs: BqCoeffs = bq_lowpass(880.0, 0.707, RUN_SAMPLE_RATE)
+    var z1: Float = 0.0
+    var z2: Float = 0.0
+
+    var i: Int = 0
+    while i < RUN_NUM_SAMPLES:
+        let input: Float = mem_load(ptr_offset(buffer, i, "Float"), "Float")
+        let y: Float = (coeffs.b0 * input) + z1
+        let nz1: Float = (coeffs.b1 * input) - (coeffs.a1 * y) + z2
+        let nz2: Float = (coeffs.b2 * input) - (coeffs.a2 * y)
+        mem_store(ptr_offset(buffer, i, "Float"), y, "Float")
+        z1 = nz1
+        z2 = nz2
+        i = i + 1
+
+    // ── Build output JSON ────────────────────────────────────────────────
+    let output: JsonObject = json_object()
+    json_object_set_string(output, "cmd", "audio_data")
+
+    let samples_arr: JsonArray = json_array()
+    var j: Int = 0
+    while j < RUN_OUTPUT_SAMPLES:
+        let s: Float = mem_load(ptr_offset(buffer, j, "Float"), "Float")
+        json_array_push_float(samples_arr, s)
+        j = j + 1
+    json_object_set_array(output, "samples", samples_arr)
+
+    json_object_set_int(output, "sample_rate", RUN_SAMPLE_RATE)
+    json_object_set_int(output, "channels", 1)
+    json_object_set_int(output, "duration_ms", RUN_DURATION_MS)
+    json_object_set_int(output, "num_samples", RUN_NUM_SAMPLES)
+    json_object_set_string(output, "filter", "lowpass")
+    json_object_set_float(output, "filter_freq", 880.0)
+    json_object_set_float(output, "filter_q", 0.707)
+
+    // ── Frequency response measurements ─────────────────────────────────
+    let resp_arr: JsonArray = json_array()
+    let test_freqs: Array<Float> = [100.0, 200.0, 400.0, 800.0, 1000.0, 2000.0, 4000.0, 8000.0, 10000.0, 16000.0]
+
+    var k: Int = 0
+    while k < 10:
+        let tf: Float = test_freqs[k]
+        let gain_db: Float = compute_freq_response(880.0, 0.707, tf, RUN_SAMPLE_RATE)
+        let entry: JsonObject = json_object()
+        json_object_set_float(entry, "freq_hz", tf)
+        json_object_set_float(entry, "gain_db", gain_db)
+        json_array_push_object(resp_arr, entry)
+        k = k + 1
+
+    json_object_set_array(output, "freq_response", resp_arr)
+
+    // ── Emit JSON ────────────────────────────────────────────────────────
+    let json_str: String = json_stringify(output)
+    println(json_str)
+
+    let shutdown: Int = runtime_shutdown()
+    return 0

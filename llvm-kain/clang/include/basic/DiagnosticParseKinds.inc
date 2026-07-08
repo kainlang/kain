@@ -1,0 +1,1 @@
+// Stub: DiagnosticParseKinds.inc

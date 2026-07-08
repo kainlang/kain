@@ -1,0 +1,292 @@
+// ============================================================================
+//  electron_bridge.kn — Kain → Electron 3D Engine Bridge
+// ============================================================================
+//
+//  WHAT:      The render protocol bridge. Every Kain file driving the Electron
+//             3D playground imports this module. Uses std::json (C-backed,
+//             30× faster than C++ JSON) to emit structured render commands
+//             to stdout — picked up by Electron's main.js child_process pipe.
+//
+//  IMPORT:    use electron_bridge
+//
+//  PATTERN:   Build → flush. Every command is a typed JSON object that the
+//             SceneManager (renderer.js) interprets.
+//
+//  COMMANDS:  create_mesh / create_instanced / create_particles / create_lines
+//             update_transform / update_instanced_transforms
+//             update_particle_positions / update_line_points / update_color
+//             remove / scene_clear / camera_look_at / telemetry
+//
+//  EXAMPLE:
+//             use electron_bridge
+//             fn main() -> Int with IO:
+//                 let _ = runtime_init()
+//                 create_instanced("cubes", "box", 10000, "#ff4444")
+//                 // ... compute transforms ...
+//                 update_instanced_transforms("cubes", transforms)
+//                 let _ = runtime_shutdown()
+//                 return 0
+//
+//  SEMANTIC LAYER: L0 (plain code — fn, let, var, while, use)
+//  STDLIB:         std::json (C-backed builtins, 30× faster than C++)
+// ============================================================================
+
+use std::json
+
+// ============================================================================
+//  CORE FLUSH — sends a JSON command object to stdout
+//  Every public function below builds a JsonObject and calls this.
+//  println(json_stringify(...)) is the one-way door into Electron.
+// ============================================================================
+
+pub fn flush(cmd: JsonObject):
+    println(json_stringify(cmd))
+
+// ============================================================================
+//  SCENE COMMANDS
+// ============================================================================
+
+pub fn scene_clear():
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "clear")
+    flush(cmd)
+
+// ============================================================================
+//  CAMERA
+// ============================================================================
+
+pub fn camera_look_at(pos_x: Float, pos_y: Float, pos_z: Float, target_x: Float, target_y: Float, target_z: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "camera")
+    let pos = json_object()
+    json_object_set_float(pos, "x", pos_x)
+    json_object_set_float(pos, "y", pos_y)
+    json_object_set_float(pos, "z", pos_z)
+    json_object_set_object(cmd, "pos", pos)
+    let target = json_object()
+    json_object_set_float(target, "x", target_x)
+    json_object_set_float(target, "y", target_y)
+    json_object_set_float(target, "z", target_z)
+    json_object_set_object(cmd, "target", target)
+    flush(cmd)
+
+// ============================================================================
+//  CREATE — spawn objects in the 3D scene
+// ============================================================================
+
+pub fn create_mesh(id: String, geometry: String, color_hex: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "create")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "type", "mesh")
+    json_object_set_string(cmd, "geo", geometry)
+    json_object_set_string(cmd, "color", color_hex)
+    flush(cmd)
+
+// create_instanced: single draw call for N objects. Use for 10K+.
+// geometry = "box" | "sphere" | "cylinder" | "cone" | "torus" | "tetrahedron" | "octahedron" | "icosahedron" | "dodecahedron"
+pub fn create_instanced(id: String, geometry: String, count: Int, color_hex: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "create")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "type", "instanced")
+    json_object_set_string(cmd, "geo", geometry)
+    json_object_set_int(cmd, "count", count)
+    json_object_set_string(cmd, "color", color_hex)
+    flush(cmd)
+
+pub fn create_particles(id: String, count: Int, color_hex: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "create")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "type", "particles")
+    json_object_set_int(cmd, "count", count)
+    json_object_set_string(cmd, "color", color_hex)
+    flush(cmd)
+
+pub fn create_lines(id: String, color_hex: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "create")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "type", "lines")
+    json_object_set_string(cmd, "color", color_hex)
+    flush(cmd)
+
+// ============================================================================
+//  UPDATE — modify existing objects
+// ============================================================================
+
+// Single-object transform. For bulk instanced, use update_instanced_transforms.
+pub fn update_transform(id: String, x: Float, y: Float, z: Float, sx: Float, sy: Float, sz: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "update")
+    json_object_set_string(cmd, "id", id)
+    let pos = json_object()
+    json_object_set_float(pos, "x", x)
+    json_object_set_float(pos, "y", y)
+    json_object_set_float(pos, "z", z)
+    json_object_set_object(cmd, "pos", pos)
+    let scale = json_object()
+    json_object_set_float(scale, "x", sx)
+    json_object_set_float(scale, "y", sy)
+    json_object_set_float(scale, "z", sz)
+    json_object_set_object(cmd, "scale", scale)
+    flush(cmd)
+
+// Extended transform with rotation. Same as update_transform but adds rx, ry, rz Euler angles.
+pub fn update_transform_r(id: String, x: Float, y: Float, z: Float,
+    rx: Float, ry: Float, rz: Float,
+    sx: Float, sy: Float, sz: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "update")
+    json_object_set_string(cmd, "id", id)
+    let pos = json_object()
+    json_object_set_float(pos, "x", x)
+    json_object_set_float(pos, "y", y)
+    json_object_set_float(pos, "z", z)
+    json_object_set_object(cmd, "pos", pos)
+    let rot = json_object()
+    json_object_set_float(rot, "x", rx)
+    json_object_set_float(rot, "y", ry)
+    json_object_set_float(rot, "z", rz)
+    json_object_set_object(cmd, "rot", rot)
+    let scale = json_object()
+    json_object_set_float(scale, "x", sx)
+    json_object_set_float(scale, "y", sy)
+    json_object_set_float(scale, "z", sz)
+    json_object_set_object(cmd, "scale", scale)
+    flush(cmd)
+
+// Hot path for 10K+ instanced objects. Pass an array of {x,y,z,sx,sy,sz} objects.
+pub fn update_instanced_transforms(id: String, transforms: JsonArray):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "update")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_array(cmd, "matrices", transforms)
+    flush(cmd)
+
+pub fn update_particle_positions(id: String, positions: JsonArray):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "update")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_array(cmd, "positions", positions)
+    flush(cmd)
+
+pub fn update_line_points(id: String, points: JsonArray):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "update")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_array(cmd, "points", points)
+    flush(cmd)
+
+pub fn update_color(id: String, color_hex: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "update")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "color", color_hex)
+    flush(cmd)
+
+// ============================================================================
+//  REMOVE — delete objects from the scene
+// ============================================================================
+
+pub fn remove(id: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "remove")
+    json_object_set_string(cmd, "id", id)
+    flush(cmd)
+
+// ============================================================================
+//  TRANSFORM HELPERS — build {x,y,z,rx,ry,rz,sx,sy,sz} objects for bulk updates
+// ============================================================================
+
+pub fn transform(x: Float, y: Float, z: Float, sx: Float, sy: Float, sz: Float) -> JsonObject:
+    let t = json_object()
+    json_object_set_float(t, "x", x)
+    json_object_set_float(t, "y", y)
+    json_object_set_float(t, "z", z)
+    json_object_set_float(t, "rx", 0.0)
+    json_object_set_float(t, "ry", 0.0)
+    json_object_set_float(t, "rz", 0.0)
+    json_object_set_float(t, "sx", sx)
+    json_object_set_float(t, "sy", sy)
+    json_object_set_float(t, "sz", sz)
+    return t
+
+// Build a {x,y,z,sx,sy,sz,rx,ry,rz} object with rotation for bulk instanced updates.
+pub fn transform_r(x: Float, y: Float, z: Float,
+    rx: Float, ry: Float, rz: Float,
+    sx: Float, sy: Float, sz: Float) -> JsonObject:
+    let t = json_object()
+    json_object_set_float(t, "x", x)
+    json_object_set_float(t, "y", y)
+    json_object_set_float(t, "z", z)
+    json_object_set_float(t, "rx", rx)
+    json_object_set_float(t, "ry", ry)
+    json_object_set_float(t, "rz", rz)
+    json_object_set_float(t, "sx", sx)
+    json_object_set_float(t, "sy", sy)
+    json_object_set_float(t, "sz", sz)
+    return t
+
+pub fn point(x: Float, y: Float, z: Float) -> JsonObject:
+    let p = json_object()
+    json_object_set_float(p, "x", x)
+    json_object_set_float(p, "y", y)
+    json_object_set_float(p, "z", z)
+    return p
+
+// ============================================================================
+//  TELEMETRY — emit named counters the renderer displays in the HUD
+// ============================================================================
+
+pub fn telemetry(key: String, value: Int):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "telemetry")
+    json_object_set_string(cmd, "key", key)
+    json_object_set_int(cmd, "value", value)
+    flush(cmd)
+
+pub fn telemetry_float(key: String, value: Float):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "telemetry")
+    json_object_set_string(cmd, "key", key)
+    json_object_set_float(cmd, "value", value)
+    flush(cmd)
+
+pub fn telemetry_string(key: String, value: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "telemetry")
+    json_object_set_string(cmd, "key", key)
+    json_object_set_string(cmd, "value", value)
+    flush(cmd)
+
+// ============================================================================
+//  CUSTOM MESH — raw vertex + index buffers for procedural geometry
+// ============================================================================
+
+// create_custom_mesh: send raw vertex positions + triangle indices.
+// verts: flat JSON array [x0,y0,z0, x1,y1,z1, ...]
+// indices: flat JSON array [i0,i1,i2, i3,i4,i5, ...] (3 per triangle)
+pub fn create_custom_mesh(id: String, verts: JsonArray, indices: JsonArray, color_hex: String):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "create")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "type", "custom_mesh")
+    json_object_set_array(cmd, "verts", verts)
+    json_object_set_array(cmd, "indices", indices)
+    json_object_set_string(cmd, "color", color_hex)
+    flush(cmd)
+
+// update_custom_verts: modify vertex positions of an existing custom mesh.
+// verts: flat JSON array [x0,y0,z0, x1,y1,z1, ...] — must match original count
+pub fn update_custom_verts(id: String, verts: JsonArray):
+    let cmd = json_object()
+    json_object_set_string(cmd, "cmd", "update")
+    json_object_set_string(cmd, "id", id)
+    json_object_set_string(cmd, "type", "custom_mesh")
+    json_object_set_array(cmd, "verts", verts)
+    flush(cmd)
+// ============================================================================
+//  END electron_bridge.kn
+// ============================================================================

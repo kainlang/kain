@@ -1,0 +1,8 @@
+use std::runtime
+use std::fs
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+    let entries = fs_walk("X:/blades/ui_demos")
+    println("entries: " + str(len(entries)))
+    return 0

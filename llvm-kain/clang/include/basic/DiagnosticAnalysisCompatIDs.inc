@@ -1,0 +1,1 @@
+// Stub: DiagnosticAnalysisCompatIDs.inc

@@ -1,0 +1,39 @@
+function_name	kain_concept	llvm_ir_pattern	llvm_c_api	status	lines
+compile_numeric_floor_builtin	std::math/floor	call @llvm.floor.f64 + fptosi.sat.i64	LLVMBuildCall @llvm.floor.f64	needs-review	865-886
+compile_numeric_abs_builtin	std::math/abs	fcmp oge + fsub + select (double); icmp sge + sub + select (integer)	LLVMBuildFCmp/BuildICmp/BuildSelect	needs-review	888-931
+compile_numeric_min_or_max_builtin	std::math/min/max	fcmp ole/oge + select (double); icmp sle/sge + select (integer)	LLVMBuildFCmp/BuildICmp/BuildSelect	needs-review	933-975
+compile_numeric_clamp_builtin	std::math/clamp	Chain min+max with value coercion	LLVMBuildFCmp/BuildICmp/BuildSelect	needs-review	977-1008
+compile_numeric_min_or_max_builtin_from_values	std::math/min/max	fcmp/icmp + select from pre-compiled values	LLVMBuildFCmp/BuildICmp/BuildSelect	needs-review	1010-1051
+compile_direct_call	fn/call	call @name(args) with coercion, tagged ptr untagging, struct return, extern ABI	LLVMBuildCall	needs-review	1053-1509
+compile_stage_call	orchestrate	Orchestrate stage call wrapper	LLVMBuildCall	needs-review	1511-1567
+compile_expr_as_string_value	fn/string	Compile expr to string value	—	needs-review	1569-1574
+compile_stdout_write_call	IO/print	call @print_str(i8*, i64)	LLVMBuildCall	needs-review	1576-1608
+compile_assert_call	test/assert	call @runtime_assert with formatted message	LLVMBuildCall	needs-review	1610-1655
+compile_macro_call	macro	Inline macro expansion + compile	LLVMBuildCall	needs-review	1657-1736
+compile_expr	all expressions	~2400-line dispatcher for 50+ expression kinds: literals, ident, binary, unary, call, field, index, if, match, struct, array, tuple, lambda, block, as, world field, teleport, collapse, observe, share, etc.	LLVMBuildAdd/BuildSub/BuildLoad/BuildStore/etc	needs-review	1738-4158
+generate_llvm_or_error	test helper	Wrap generate for tests	—	mapped	4169-4171
+generate_llvm_or_error_with_filename	test helper	Wrap generate_with_debug for tests	—	mapped	4173-4188
+repo_test_path	test helper	Resolve test Kain source path	—	mapped	4190-4196
+lowers_immutable_scalar_lets_as_ssa_values	test	let	SSA value test for immutable scalar lets	—	mapped	4199-4228
+remaps_rounding_builtins_to_runtime_wrappers	test	stdlib	Floor/ceil/round remapping verification	—	mapped	4231-4242
+lowers_extern_cffi_declarations_without_void_parameters	test	extern C FFI	Extern C declaration lowering test	—	mapped	4245-4267
+lowers_extern_cffi_declarations_inside_generated_modules	test	extern C FFI	Extern in modules test	—	mapped	4270-4296
+lowers_impl_self_builder_methods_without_extra_self_parameter	test	impl	Impl self builder method lowering test	—	mapped	4299-4328
+lowers_impl_self_local_copy_without_pointer_bit_corruption	test	impl	Impl self local copy test	—	mapped	4331-4374
+retains_borrowed_string_arguments_before_non_extern_calls	test	String/RC	Borrowed string arg retain test	—	mapped	4377-4404
+lowers_unit_enum_equality_to_tag_comparison	test	enum	Unit enum tag comparison test	—	mapped	4407-4426
+stdlib_string_predicates_materialize_owned_literals_before_runtime_calls	test	stdlib/String	String predicate materialization test	—	mapped	4429-4472
+lowers_len_of_runtime_string_result_to_rc_len_not_array_len	test	String/RC	Length-of-string test	—	mapped	4475-4500
+materializes_c_string_extern_returns_into_owned_kain_strings	test	C String	C string return materialization test	—	mapped	4503-4521
+retains_string_field_assignment_before_releasing_previous_field	test	String/RC	String field assignment release ordering test	—	mapped	4524-4553
+retains_shared_string_when_storing_in_runtime_array	test	String/RC	String retain in runtime array test	—	mapped	4556-4583
+transfers_helper_owned_pointers_through_value_struct_returns	test	ownership	Helper-owned pointer struct transfer test	—	mapped	4586-4610
+transfers_helper_owned_pointers_stored_as_raw_bits	test	ownership	Helper-owned pointer raw bits test	—	mapped	4613-4643
+authored_stdlib_signature_overrides_catalog_any_stub	test	stdlib	Stdlib signature override test	—	mapped	4646-4676
+rejects_invalid_atomic_store_ordering_for_llvm	test	atomic	Atomic store ordering validation test	—	mapped	4679-4690
+rejects_invalid_compare_exchange_failure_shape_for_llvm	test	atomic	Compare-exchange shape validation test	—	mapped	4693-4702
+rejects_compare_exchange_failure_ordering_stronger_than_success_for_llvm	test	atomic	CAS ordering validation test	—	mapped	4705-4716
+debug_metadata_emits_dbg_and_compile_unit	test	debug/DWARF	Debug metadata emission test	—	mapped	4719-4753
+no_debug_metadata_without_flag	test	debug/DWARF	No debug metadata without -g test	—	mapped	4756-4771
+debug_metadata_emits_per_statement_line_numbers	test	debug/DWARF	Per-statement debug line test	—	mapped	4774-4810
+generate_with_debug	test	debug/DWARF	Debug IR generation integration test	—	mapped	4812-4825

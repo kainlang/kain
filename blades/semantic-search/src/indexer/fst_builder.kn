@@ -1,0 +1,389 @@
+// ============================================================================
+//  indexer/fst_builder.kn — FST Trie Builder
+//
+//  Builds a trie (DAFSA-like structure) mapping terms to term IDs.
+//  Uses shatter struct FSTNode for SoA layout of the trie nodes.
+//  Insert walks the trie character by character, adding nodes as needed.
+//  Lookup returns term_id, doc_freq, and postings pointer.
+// ============================================================================
+
+use types::FSTNode
+use types::SearchIndex
+use types::MAX_TERMS
+use types::MAX_TERM_LEN
+use types::FST_CHAR_CODE
+use types::FST_SIBLING
+use types::FST_CHILD
+use types::FST_IS_FINAL
+use types::FST_DOC_FREQ
+use types::FST_TERM_ID
+use util
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+pub const ROOT_NODE_ID: Int = 0
+
+// ============================================================================
+//  INIT FST
+// ============================================================================
+
+// Initialize the FST with a root node
+pub fn init_fst() -> Int with Unsafe:
+    let cap: Int = MAX_TERMS
+    let char_codes: ptr<Int> = alloc_zeroed(cap, "Int")
+    let siblings: ptr<Int> = alloc_zeroed(cap, "Int")
+    let children: ptr<Int> = alloc_zeroed(cap, "Int")
+    let is_finals: ptr<Int> = alloc_zeroed(cap, "Int")
+    let doc_freqs: ptr<Int> = alloc_zeroed(cap, "Int")
+    let term_ids: ptr<Int> = alloc_zeroed(cap, "Int")
+
+    // Root node (empty char, not final) — set non-zero fields
+    collapse char_codes:
+        mem_store(ptr_offset(char_codes, 0, "Int"), 0, "Int")
+        0
+    collapse siblings:
+        mem_store(ptr_offset(siblings, 0, "Int"), -1, "Int")
+        0
+    collapse children:
+        mem_store(ptr_offset(children, 0, "Int"), -1, "Int")
+        0
+    collapse is_finals:
+        mem_store(ptr_offset(is_finals, 0, "Int"), 0, "Int")
+        0
+    collapse doc_freqs:
+        mem_store(ptr_offset(doc_freqs, 0, "Int"), 0, "Int")
+        0
+    collapse term_ids:
+        mem_store(ptr_offset(term_ids, 0, "Int"), -1, "Int")
+        0
+
+    SearchIndex.fst_char_codes = char_codes
+    SearchIndex.fst_siblings = siblings
+    SearchIndex.fst_children = children
+    SearchIndex.fst_is_finals = is_finals
+    SearchIndex.fst_doc_freqs = doc_freqs
+    SearchIndex.fst_term_ids = term_ids
+    SearchIndex.fst_cap = cap
+    SearchIndex.fst_count = 1   // root
+    return 0
+
+// ============================================================================
+//  FST INSERT
+// ============================================================================
+
+// Insert a term into the FST trie. Returns the term_id assigned.
+// Creates nodes as needed along the path.
+pub fn fst_insert(term: String, term_id: Int) -> Int with Unsafe:
+    let char_codes: ptr<Int> = SearchIndex.fst_char_codes
+    let siblings: ptr<Int> = SearchIndex.fst_siblings
+    let children: ptr<Int> = SearchIndex.fst_children
+    let is_finals: ptr<Int> = SearchIndex.fst_is_finals
+    let doc_freqs: ptr<Int> = SearchIndex.fst_doc_freqs
+    let term_ids: ptr<Int> = SearchIndex.fst_term_ids
+    if ptr_to_int(char_codes) == 0:
+        let _ = init_fst()
+        char_codes = SearchIndex.fst_char_codes
+        siblings = SearchIndex.fst_siblings
+        children = SearchIndex.fst_children
+        is_finals = SearchIndex.fst_is_finals
+        doc_freqs = SearchIndex.fst_doc_freqs
+        term_ids = SearchIndex.fst_term_ids
+
+    let node_idx: Int = ROOT_NODE_ID
+    let term_len: Int = len(term)
+    let max_len: Int = i_min(term_len, MAX_TERM_LEN)
+
+    collapse char_codes:
+        collapse siblings:
+            collapse children:
+                collapse is_finals:
+                    collapse doc_freqs:
+                        collapse term_ids:
+                            var pos: Int = 0
+                            while pos < max_len:
+                                let ch: Int = ord(char_at(term, pos))
+
+                                // Walk siblings looking for this char
+                                var found: Bool = false
+                                var current: Int = mem_load(ptr_offset(children, node_idx, "Int"), "Int")
+                                var prev: Int = -1
+
+                                while current >= 0:
+                                    let cc: Int = mem_load(ptr_offset(char_codes, current, "Int"), "Int")
+                                    if cc == ch:
+                                        found = true
+                                        node_idx = current
+                                        current = -2  // break
+                                    else:
+                                        prev = current
+                                        current = mem_load(ptr_offset(siblings, current, "Int"), "Int")
+
+                                if found == false:
+                                    // Need to create a new node
+                                    let new_idx: Int = SearchIndex.fst_count
+                                    mem_store(ptr_offset(char_codes, new_idx, "Int"), ch, "Int")
+                                    mem_store(ptr_offset(siblings, new_idx, "Int"), -1, "Int")
+                                    mem_store(ptr_offset(children, new_idx, "Int"), -1, "Int")
+                                    mem_store(ptr_offset(is_finals, new_idx, "Int"), 0, "Int")
+                                    mem_store(ptr_offset(doc_freqs, new_idx, "Int"), 0, "Int")
+                                    mem_store(ptr_offset(term_ids, new_idx, "Int"), -1, "Int")
+                                    SearchIndex.fst_count = new_idx + 1
+
+                                    if prev >= 0:
+                                        // Link from previous sibling
+                                        mem_store(ptr_offset(siblings, prev, "Int"), new_idx, "Int")
+                                    else:
+                                        // First child of parent
+                                        mem_store(ptr_offset(children, node_idx, "Int"), new_idx, "Int")
+
+                                    node_idx = new_idx
+
+                                pos = pos + 1
+
+                            // Mark the final node
+                            mem_store(ptr_offset(is_finals, node_idx, "Int"), 1, "Int")
+                            mem_store(ptr_offset(term_ids, node_idx, "Int"), term_id, "Int")
+
+                            0
+                        0
+                    0
+                0
+            0
+        0
+
+    return term_id
+
+// ============================================================================
+//  FST LOOKUP
+// ============================================================================
+
+// Lookup a term in the FST trie.
+// Returns (term_id, doc_freq) or (-1, 0) if not found.
+pub fn fst_lookup(term: String) -> (Int, Int) with Unsafe:
+    let char_codes: ptr<Int> = SearchIndex.fst_char_codes
+    let siblings: ptr<Int> = SearchIndex.fst_siblings
+    let children: ptr<Int> = SearchIndex.fst_children
+    let is_finals: ptr<Int> = SearchIndex.fst_is_finals
+    let doc_freqs: ptr<Int> = SearchIndex.fst_doc_freqs
+    let term_ids: ptr<Int> = SearchIndex.fst_term_ids
+    if ptr_to_int(char_codes) == 0:
+        return (-1, 0)
+
+    let node_idx: Int = ROOT_NODE_ID
+    let term_len: Int = len(term)
+    var out_term_id: Int = -1
+    var out_doc_freq: Int = 0
+    var out_found: Bool = false
+    let _ = observe char_codes:
+        observe siblings:
+            observe children:
+                observe is_finals:
+                    observe doc_freqs:
+                        observe term_ids:
+                            var current: Int = node_idx
+                            var pos: Int = 0
+                            var keep_going: Bool = true
+                            while pos < term_len and keep_going:
+                                let ch: Int = ord(char_at(term, pos))
+                                var child: Int = mem_load(ptr_offset(children, current, "Int"), "Int")
+                                var found_char: Bool = false
+
+                                while child >= 0:
+                                    let cc: Int = mem_load(ptr_offset(char_codes, child, "Int"), "Int")
+                                    if cc == ch:
+                                        current = child
+                                        found_char = true
+                                        child = -2  // break
+                                    else:
+                                        child = mem_load(ptr_offset(siblings, child, "Int"), "Int")
+
+                                if found_char == false:
+                                    keep_going = false
+                                else:
+                                    pos = pos + 1
+
+                            if keep_going:
+                                let final_flag: Int = mem_load(ptr_offset(is_finals, current, "Int"), "Int")
+                                if final_flag != 0:
+                                    out_term_id = mem_load(ptr_offset(term_ids, current, "Int"), "Int")
+                                    out_doc_freq = mem_load(ptr_offset(doc_freqs, current, "Int"), "Int")
+                                    out_found = true
+                            0
+                        0
+                    0
+                0
+            0
+        0
+
+    if out_found:
+        return (out_term_id, out_doc_freq)
+    return (-1, 0)
+
+// ============================================================================
+//  BUILD TERM RANGES — Scan postings and record start/end per term_id
+//
+//  After all postings are inserted, this function scans the flat postings
+//  array and records the min (start) and max (end) index for each term_id.
+//  The search scoring loop then only touches postings within [start, end),
+//  eliminating the full scan of all 5M postings for every query.
+// ============================================================================
+
+// Build per-term posting ranges by scanning the postings array.
+// postings_start[term_id] = first index in postings array for this term
+// postings_end[term_id]   = one-past-last index for this term
+// Returns number of terms with at least one posting.
+pub fn build_term_ranges() -> Int with Unsafe:
+    let start_arr: ptr<Int> = SearchIndex.postings_start
+    let end_arr: ptr<Int> = SearchIndex.postings_end
+    let posting_tids: ptr<Int> = SearchIndex.posting_term_ids
+    let count: Int = SearchIndex.postings_count
+    let term_count: Int = SearchIndex.term_count
+
+    if ptr_to_int(posting_tids) == 0 or count <= 0:
+        return 0
+
+    // Initialize all term ranges to invalid sentinel values
+    collapse start_arr:
+        collapse end_arr:
+            var t: Int = 0
+            while t < term_count:
+                mem_store(ptr_offset(start_arr, t, "Int"), -1, "Int")
+                mem_store(ptr_offset(end_arr, t, "Int"), -1, "Int")
+                t = t + 1
+            0
+        0
+
+    // Scan all postings once — record min/max index per term_id
+    collapse start_arr:
+        collapse end_arr:
+            collapse posting_tids:
+                var pi: Int = 0
+                while pi < count:
+                    let tid: Int = mem_load(ptr_offset(posting_tids, pi, "Int"), "Int")
+                    if tid >= 0 and tid < term_count:
+                        let cur_start: Int = mem_load(ptr_offset(start_arr, tid, "Int"), "Int")
+                        if cur_start < 0 or pi < cur_start:
+                            mem_store(ptr_offset(start_arr, tid, "Int"), pi, "Int")
+                        // end is always one-past-current, updated to latest+1
+                        mem_store(ptr_offset(end_arr, tid, "Int"), pi + 1, "Int")
+                    pi = pi + 1
+                0
+            0
+        0
+
+    // Count terms with valid ranges
+    var terms_with_postings: Int = 0
+    var ti: Int = 0
+    while ti < term_count:
+        let s: Int = mem_load(ptr_offset(start_arr, ti, "Int"), "Int")
+        if s >= 0:
+            terms_with_postings = terms_with_postings + 1
+            let df: Int = mem_load(ptr_offset(SearchIndex.term_doc_freqs, ti, "Int"), "Int")
+        ti = ti + 1
+
+    return terms_with_postings
+
+// ============================================================================
+//  TERM HASH INDEX — Open-addressing hash table for O(1) term lookup
+// ============================================================================
+
+pub const HASH_EMPTY: Int = -1
+
+// Initialize the term hash index
+pub fn init_term_hash() -> Int with Unsafe:
+    let slots: Int = 1048576  // 2^20
+    let hash_slots: ptr<Int> = alloc_zeroed(slots, "Int")
+    let id_slots: ptr<Int> = alloc_zeroed(slots, "Int")
+
+    collapse hash_slots:
+        var i: Int = 0
+        while i < slots:
+            mem_store(ptr_offset(hash_slots, i, "Int"), HASH_EMPTY, "Int")
+            i = i + 1
+        0
+
+    SearchIndex.term_hash_slots = hash_slots
+    SearchIndex.term_id_slots = id_slots
+    return 0
+
+// Insert a term into the hash index
+pub fn term_hash_insert(term: String, term_id: Int) -> Int with Unsafe:
+    let hash: Int = hash_string(term)
+    let slots: Int = 1048576
+    let mask: Int = slots - 1
+    var idx: Int = hash & mask
+
+    let hash_slots: ptr<Int> = SearchIndex.term_hash_slots
+    let id_slots: ptr<Int> = SearchIndex.term_id_slots
+
+    collapse hash_slots:
+        // Linear probing
+        while true:
+            let existing: Int = mem_load(ptr_offset(hash_slots, idx, "Int"), "Int")
+            if existing == HASH_EMPTY:
+                mem_store(ptr_offset(hash_slots, idx, "Int"), hash, "Int")
+                mem_store(ptr_offset(id_slots, idx, "Int"), term_id, "Int")
+                idx = slots  // break
+            elif existing == hash:
+                let existing_id: Int = mem_load(ptr_offset(id_slots, idx, "Int"), "Int")
+                if existing_id == term_id:
+                    idx = slots
+                else:
+                    idx = (idx + 1) & mask  // probe next
+            else:
+                idx = (idx + 1) & mask
+            if idx == slots:
+                idx = -2  // break outer
+        idx
+
+    return 0
+
+// Lookup a term in the hash index. Returns term_id or -1.
+pub fn term_hash_lookup(term: String) -> Int with Unsafe:
+    let hash: Int = hash_string(term)
+    let slots: Int = 1048576
+    let mask: Int = slots - 1
+    var idx: Int = hash & mask
+
+    let hash_slots: ptr<Int> = SearchIndex.term_hash_slots
+    let id_slots: ptr<Int> = SearchIndex.term_id_slots
+
+    let result: Int = observe hash_slots:
+        while true:
+            let existing: Int = mem_load(ptr_offset(hash_slots, idx, "Int"), "Int")
+            if existing == HASH_EMPTY:
+                idx = -1
+                idx = slots  // break
+            elif existing == hash:
+                let tid: Int = mem_load(ptr_offset(id_slots, idx, "Int"), "Int")
+                idx = tid
+                idx = slots
+            else:
+                idx = (idx + 1) & mask
+            if idx == slots:
+                idx = -2
+            if idx <= -2 and idx >= slots:
+                idx = slots  // break
+        if idx >= 0 and idx < slots:
+            // shouldn't reach here in normal flow
+            -1
+        elif idx <= -2:
+            var probe_idx: Int = hash & mask
+            while true:
+                let ex: Int = mem_load(ptr_offset(hash_slots, probe_idx, "Int"), "Int")
+                if ex == hash:
+                    let tid: Int = mem_load(ptr_offset(id_slots, probe_idx, "Int"), "Int")
+                    probe_idx = (-2) - (slots + 1)  // break
+                    probe_idx = tid  // return tid
+                else:
+                    probe_idx = (probe_idx + 1) & mask
+                if probe_idx == idx:
+                    -1
+                    probe_idx = -2  // break
+            probe_idx
+        else:
+            -1
+
+    return result

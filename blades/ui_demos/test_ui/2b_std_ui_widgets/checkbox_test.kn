@@ -1,0 +1,143 @@
+// ============================================================================
+//  checkbox_test.kn — Checkbox Visual Test (self-contained, native elements only)
+//
+//  Demonstrates checkbox and toggle visual elements using native <box> and <text>.
+//  No imported components.
+//
+//  Usage: kain build checkbox_test.kn --target llvm
+// ============================================================================
+
+use std::runtime
+
+component CheckboxTestApp(width=680, height=520):
+    render <panel title="Checkbox Test" fill_color="bg">
+        <text value="CHECKBOX TEST — Click to toggle" font_size={20} fill_color="accent" />
+
+        <text value="" font_size={8} />
+
+        // ── Audio settings ─────────────────────────────────────────────
+        <text value="AUDIO SETTINGS" font_size={14} fill_color="text" />
+
+        // Checked box with checkmark
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={2} width={18} height={18}>
+                <text value="✓" font_size={12} fill_color="text_inverse" />
+            </box>
+            <text value="Enable Music [ON]" font_size={14} fill_color="text" />
+        </stack>
+
+        <text value="" font_size={4} />
+
+        // Unchecked box
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="button" corner_radius={2} width={18} height={18}>
+                <text value="" font_size={12} />
+            </box>
+            <text value="Sound Effects [OFF]" font_size={14} fill_color="text" />
+        </stack>
+
+        <text value="" font_size={8} />
+
+        // ── Display settings ───────────────────────────────────────────
+        <text value="DISPLAY SETTINGS" font_size={14} fill_color="text" />
+
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="button" corner_radius={2} width={18} height={18}>
+                <text value="" font_size={12} />
+            </box>
+            <text value="Fullscreen Mode [OFF]" font_size={14} fill_color="text" />
+        </stack>
+
+        <text value="" font_size={4} />
+
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={2} width={18} height={18}>
+                <text value="✓" font_size={12} fill_color="text_inverse" />
+            </box>
+            <text value="Dark Mode (always on)" font_size={14} fill_color="text" />
+        </stack>
+
+        <text value="" font_size={8} />
+
+        // ── Application settings ───────────────────────────────────────
+        <text value="APPLICATION SETTINGS" font_size={14} fill_color="text" />
+
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={2} width={18} height={18}>
+                <text value="✓" font_size={12} fill_color="text_inverse" />
+            </box>
+            <text value="Auto-Save Documents [ON]" font_size={14} fill_color="text" />
+        </stack>
+
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={2} width={18} height={18}>
+                <text value="✓" font_size={12} fill_color="text_inverse" />
+            </box>
+            <text value="Desktop Notifications" font_size={14} fill_color="text" />
+        </stack>
+
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={2} width={18} height={18}>
+                <text value="✓" font_size={12} fill_color="text_inverse" />
+            </box>
+            <text value="Spell Check" font_size={14} fill_color="text" />
+        </stack>
+
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="button" corner_radius={2} width={18} height={18}>
+                <text value="" font_size={12} />
+            </box>
+            <text value="Usage Analytics" font_size={14} fill_color="text" />
+        </stack>
+
+        <text value="" font_size={8} />
+
+        // ── Toggle switches (pill-shaped) ──────────────────────────────
+        <text value="TOGGLE SWITCHES (pill-shaped)" font_size={14} fill_color="text" />
+        <text value="Checkbox vs Toggle: Checkbox = square; Toggle = pill" font_size={12} fill_color="text_dim" />
+
+        <text value="" font_size={4} />
+
+        // Toggle ON (accent fill)
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={12} width={44} height={24}>
+                <box fill_color="text" corner_radius={10} width={20} height={20} />
+            </box>
+            <text value="Toggle ON" font_size={14} fill_color="text" />
+        </stack>
+
+        <text value="" font_size={4} />
+
+        // Toggle OFF (slider_track)
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="slider_track" corner_radius={12} width={44} height={24}>
+                <box fill_color="text" corner_radius={10} width={20} height={20} />
+            </box>
+            <text value="Toggle OFF" font_size={14} fill_color="text" />
+        </stack>
+
+        <text value="" font_size={4} />
+
+        // Toggle ON disabled
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="button_disabled" corner_radius={12} width={44} height={24}>
+                <box fill_color="button_disabled" corner_radius={10} width={20} height={20} />
+            </box>
+            <text value="Toggle ON (disabled)" font_size={14} fill_color="text_dim" />
+        </stack>
+
+        <text value="" font_size={8} />
+
+        <text value="COMPONENT INFO" font_size={14} fill_color="text" />
+        <text value="Checkbox: 18x18 px square + label | Checkmark: ✓ | Colors: accent when checked" font_size={12} fill_color="text_dim" />
+        <text value="Toggle: 44x24 px capsule | On=accent fill, Off=slider_track | Thumb=20x20 circle" font_size={12} fill_color="text_dim" />
+    </panel>
+
+world CheckboxTestWorld:
+    surface native_ui => CheckboxTestApp
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+    return 0

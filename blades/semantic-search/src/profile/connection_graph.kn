@@ -1,0 +1,258 @@
+// ============================================================================
+//  profile/connection_graph.kn — Connection Graph Builder/Query
+//
+//  Builds and queries cross-subsystem connections. Every use/import/include/
+//  depend edge is tracked here. The connection graph is what makes this
+//  search semantic rather than purely lexical.
+//
+//  Connections trace concepts across all three domains:
+//    crates/parser.rs  →  stdlib/intent.kn  →  runtime/entangle.h  →  runtime/entangle.c
+// ============================================================================
+
+use std::text
+use types::Connection
+use types::SearchIndex
+use types::SearchResult
+use types::MAX_CONNECTIONS
+use util
+
+// ============================================================================
+//  INITIALIZE CONNECTION GRAPH
+// ============================================================================
+
+pub fn init_connections() -> Int with Unsafe:
+    SearchIndex.connections = []
+    SearchIndex.conn_count = 0
+    return 0
+
+// ============================================================================
+//  REGISTER CONNECTION — Add an edge to the graph
+// ============================================================================
+
+pub fn register_connection(symbol: String, target_path: String,
+                           target_subsys: String, edge_kind: String) -> Int with Unsafe:
+    let idx: Int = SearchIndex.conn_count
+
+    let conn: Connection = Connection {
+        symbol: symbol,
+        target_path: target_path,
+        target_subsys: target_subsys,
+        edge_kind: edge_kind,
+    }
+
+    push(SearchIndex.connections, conn)
+    SearchIndex.conn_count = idx + 1
+    return idx
+
+// ============================================================================
+//  FIND CONNECTIONS — Look up connections for a symbol
+// ============================================================================
+
+pub fn find_connections(symbol: String) -> [Connection] with Unsafe:
+    var results: [Connection] = []
+    let conns: [Connection] = SearchIndex.connections
+    let count: Int = len(conns)
+
+    if count <= 0:
+        return results
+
+    var i: Int = 0
+    while i < count:
+        let conn: Connection = conns[i]
+        if conn.symbol == symbol:
+            push(results, conn)
+        i = i + 1
+
+    return results
+
+// ============================================================================
+//  FIND CONNECTIONS BY SUBSYSTEM
+// ============================================================================
+
+pub fn find_connections_by_subsys(subsys: String) -> [Connection] with Unsafe:
+    var results: [Connection] = []
+    let conns: [Connection] = SearchIndex.connections
+    let count: Int = len(conns)
+
+    if count <= 0:
+        return results
+
+    var i: Int = 0
+    while i < count:
+        let conn: Connection = conns[i]
+        if conn.target_subsys == subsys:
+            push(results, conn)
+        i = i + 1
+
+    return results
+
+// ============================================================================
+//  ENRICH RESULT — Add connection info to search results
+// ============================================================================
+
+pub fn enrich_result(result: SearchResult) -> SearchResult with Unsafe:
+    // Look up connections for each matched term and the result's subsystem
+    var all_conns: [Connection] = result.connections
+
+    // Find connections for matched terms
+    var ti: Int = 0
+    while ti < len(result.matched_terms):
+        let term_conns: [Connection] = find_connections(result.matched_terms[ti])
+        var ci: Int = 0
+        while ci < len(term_conns):
+            // Avoid duplicates
+            var dup: Bool = false
+            var di: Int = 0
+            while di < len(all_conns):
+                if term_conns[ci].symbol == all_conns[di].symbol and term_conns[ci].target_path == all_conns[di].target_path:
+                    dup = true
+                    di = len(all_conns)
+                di = di + 1
+            if dup == false:
+                push(all_conns, term_conns[ci])
+            ci = ci + 1
+        ti = ti + 1
+
+    return SearchResult {
+        doc: result.doc,
+        connections: all_conns,
+        matched_terms: result.matched_terms,
+    }
+
+// ============================================================================
+//  EXTRACT CONNECTIONS FROM SOURCE — Scan file content for imports and definitions
+// ============================================================================
+
+// Scan a file's content and register connections for use/include/import statements
+// and symbol definitions (fn, struct, trait declarations).
+pub fn extract_connections_from_file(
+    file_path: String, domain: String, subsys: String,
+    lang: String, content: String
+) -> Int with Unsafe:
+    var conns_registered: Int = 0
+    let lines: Array<String> = text_split_lines(content)
+    var li: Int = 0
+    while li < len(lines):
+        let line_str: String = text_trim_string(lines[li])
+        let tl: Int = len(line_str)
+        if tl == 0:
+            li = li + 1
+            continue
+
+        if lang == "rust":
+            // use statements: "use std::sync;"
+            if starts_with(line_str, "use ") and text_contains_string(line_str, "::"):
+                // Remove trailing semicolon in one step
+                var use_part: String = substring(line_str, 4, tl)
+                if text_contains_string(use_part, ";"):
+                    var semi_idx: Int = 0
+                    var sci: Int = 0
+                    while sci < len(use_part):
+                        if char_at(use_part, sci) == ";":
+                            semi_idx = sci
+                            sci = len(use_part)
+                        sci = sci + 1
+                    use_part = substring(use_part, 0, semi_idx)
+                let _ = register_connection(use_part, file_path, subsys, "use")
+                conns_registered = conns_registered + 1
+
+            // fn / struct / trait / enum definitions
+            if text_contains_string(line_str, "fn ") or text_contains_string(line_str, "struct ") or text_contains_string(line_str, "trait ") or text_contains_string(line_str, "enum "):
+                var def_kind: String = ""
+                if text_contains_string(line_str, "fn "):       def_kind = "fn"
+                elif text_contains_string(line_str, "struct "):  def_kind = "struct"
+                elif text_contains_string(line_str, "trait "):   def_kind = "trait"
+                elif text_contains_string(line_str, "enum "):    def_kind = "enum"
+
+                // Extract the name following the keyword
+                var kw_start: Int = 0
+                var kwi: Int = 0
+                while kwi < tl:
+                    if starts_with(substring(line_str, kwi, tl), def_kind + " "):
+                        kw_start = kwi + len(def_kind) + 1
+                        kwi = tl
+                    kwi = kwi + 1
+
+                if kw_start > 0 and kw_start < tl:
+                    var name_end: Int = kw_start
+                    while name_end < tl and is_ident_char(char_at(line_str, name_end)):
+                        name_end = name_end + 1
+                    let symbol_name: String = substring(line_str, kw_start, name_end)
+                    if len(symbol_name) > 0:
+                        let _ = register_connection(symbol_name, file_path, subsys, "define")
+                        conns_registered = conns_registered + 1
+
+        elif lang == "c":
+            // #include statements: "#include <header.h>" or '#include "header.h"'
+            if starts_with(line_str, "#include"):
+                let include_target: String = line_str
+                let _ = register_connection(include_target, file_path, subsys, "include")
+                conns_registered = conns_registered + 1
+
+            // Function-like definitions: look for "(" after identifier patterns
+            if text_contains_string(line_str, "(") and text_contains_string(line_str, ")") and char_at(line_str, tl - 1) == ";":
+                // Forward declaration or function pointer typedef
+                let _ = register_connection(line_str, file_path, subsys, "define")
+                conns_registered = conns_registered + 1
+
+        elif lang == "kain":
+            // use statements: "use std::sync"
+            if starts_with(line_str, "use "):
+                let use_part: String = substring(line_str, 4, tl)
+                let _ = register_connection(use_part, file_path, subsys, "use")
+                conns_registered = conns_registered + 1
+
+            // import Python: "import json as py_json"
+            if starts_with(line_str, "import "):
+                let import_part: String = substring(line_str, 7, tl)
+                let _ = register_connection(import_part, file_path, subsys, "import")
+                conns_registered = conns_registered + 1
+
+            // fn / struct / trait / actor / world declarations
+            var def_keywords: [String] = ["fn ", "struct ", "trait ", "actor ", "world ", "enum "]
+            var dki: Int = 0
+            while dki < len(def_keywords):
+                let dk: String = def_keywords[dki]
+                if text_contains_string(line_str, dk):
+                    var kw_start: Int = 0
+                    var kwi: Int = 0
+                    while kwi < tl:
+                        if starts_with(substring(line_str, kwi, tl), dk):
+                            kw_start = kwi + len(dk)
+                            kwi = tl
+                        kwi = kwi + 1
+
+                    if kw_start > 0 and kw_start < tl:
+                        var name_end: Int = kw_start
+                        while name_end < tl and is_ident_char(char_at(line_str, name_end)):
+                            name_end = name_end + 1
+                        let symbol_name: String = substring(line_str, kw_start, name_end)
+                        if len(symbol_name) > 0 and symbol_name != "pub":
+                            let _ = register_connection(symbol_name, file_path, subsys, "define")
+                            conns_registered = conns_registered + 1
+                    dki = len(def_keywords)
+                dki = dki + 1
+
+        li = li + 1
+    return conns_registered
+
+// ============================================================================
+//  CONNECTION STATS
+// ============================================================================
+
+pub fn connection_count() -> Int:
+    return SearchIndex.conn_count
+
+pub fn print_connection_summary() with IO:
+    let count: Int = SearchIndex.conn_count
+    println("Connection graph: " + str(count) + " edges")
+
+// ============================================================================
+//  LAW — Connection invariants
+// ============================================================================
+
+law connection_target_not_empty(conn: Connection) -> Bool:
+    return len(conn.target_path) > 0
+
+law connection_symbol_not_empty(conn: Connection) -> Bool:
+    return len(conn.symbol) > 0

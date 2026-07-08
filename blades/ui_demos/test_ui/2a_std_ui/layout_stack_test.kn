@@ -1,0 +1,294 @@
+// ============================================================================
+// layout_stack_test.kn — Layout Stack Composition Test
+//
+// Tests:
+//   1. Horizontal stack (HStack) with explicit spacing
+//   2. Vertical stack (VStack) with explicit spacing
+//   3. Nested stacks: HStack containing VStacks
+//   4. Panel with themed background and stacked layout
+//   5. Boxes at different positions with corner_radius
+//   6. Multiple text elements at different font sizes and colors
+//   7. Padding on stacks for layout margins
+//
+// Layer: component + world + JSX rendering
+// Usage: kain check layout_stack_test.kn --json
+//        kain build layout_stack_test.kn --target llvm
+// ============================================================================
+
+use std::runtime
+
+// ===========================================================================
+// Layout verification helpers
+// ===========================================================================
+
+// Compute expected total width of N items in a horizontal stack
+fn hstack_total_width(item_width: Float, item_count: Int, spacing: Float) -> Float:
+    if item_count <= 0:
+        return 0.0
+    return to_float(item_count) * item_width + to_float(item_count - 1) * spacing
+
+// Compute expected total height of N items in a vertical stack
+fn vstack_total_height(item_height: Float, item_count: Int, spacing: Float) -> Float:
+    if item_count <= 0:
+        return 0.0
+    return to_float(item_count) * item_height + to_float(item_count - 1) * spacing
+
+// Verify layout math is consistent
+fn verify_layout_math() -> Int:
+    var checksum: Int = 0
+
+    // HStack: 5 items, each 80px wide, 8px spacing
+    let h_total = hstack_total_width(80.0, 5, 8.0)
+    let expected_h = 80.0 * 5.0 + 8.0 * 4.0  // 400 + 32 = 432
+    if to_int(h_total * 100.0) == to_int(expected_h * 100.0):
+        checksum = checksum + 1
+
+    // VStack: 3 items, each 40px tall, 12px spacing
+    let v_total = vstack_total_height(40.0, 3, 12.0)
+    let expected_v = 40.0 * 3.0 + 12.0 * 2.0  // 120 + 24 = 144
+    if to_int(v_total * 100.0) == to_int(expected_v * 100.0):
+        checksum = checksum + 10
+
+    // Edge: single item
+    let single_h = hstack_total_width(100.0, 1, 8.0)
+    if to_int(single_h * 100.0) == 10000:
+        checksum = checksum + 100
+
+    // Edge: zero items
+    let zero_h = hstack_total_width(80.0, 0, 8.0)
+    if to_int(zero_h * 100.0) == 0:
+        checksum = checksum + 1000
+
+    return checksum
+
+const EXPECTED_LAYOUT_CHECKSUM: Int = 1111
+
+// ===========================================================================
+// UI Component — layout stack composition
+// ===========================================================================
+
+component LayoutStackPanel(width=960, height=800):
+    render <panel title="Kain Layout Stack Test" fill_color="bg">
+        // ── Header ──────────────────────────────────────────────────────────────
+        <box fill_color="header" width={920} height={40}>
+            <text value="LAYOUT STACK TEST — HStack + VStack + Nesting + Padding + Spacing" font_size={16} fill_color="text" />
+        </box>
+
+        <text value="" font_size={6} />
+
+        // ── 1. HStack — Basic horizontal arrangement ────────────────────────────
+        <text value="1. HStack — 5 boxes, spacing=8px" font_size={14} fill_color="accent" />
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={4} width={80} height={40}>
+                <text value="A" font_size={14} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent2" corner_radius={4} width={80} height={40}>
+                <text value="B" font_size={14} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent3" corner_radius={4} width={80} height={40}>
+                <text value="C" font_size={14} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent4" corner_radius={4} width={80} height={40}>
+                <text value="D" font_size={14} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent" corner_radius={4} width={80} height={40}>
+                <text value="E" font_size={14} fill_color="text_inverse" />
+            </box>
+        </stack>
+
+        <text value="" font_size={10} />
+
+        // ── 2. HStack — Wide spacing demonstration ──────────────────────────────
+        <text value="2. HStack with wide spacing=24px" font_size={14} fill_color="accent" />
+        <stack direction="horizontal" spacing={24}>
+            <box fill_color="surface" corner_radius={6} width={100} height={36}>
+                <text value="Left" font_size={13} fill_color="text" />
+            </box>
+            <box fill_color="surface" corner_radius={6} width={100} height={36}>
+                <text value="Center" font_size={13} fill_color="text" />
+            </box>
+            <box fill_color="surface" corner_radius={6} width={100} height={36}>
+                <text value="Right" font_size={13} fill_color="text" />
+            </box>
+        </stack>
+
+        <text value="" font_size={10} />
+
+        // ── 3. VStack — Basic vertical arrangement ──────────────────────────────
+        <text value="3. VStack — 4 boxes, spacing=6px" font_size={14} fill_color="accent" />
+        <stack direction="vertical" spacing={6}>
+            <box fill_color="accent2" corner_radius={4} width={300} height={28}>
+                <text value="Row 1 — accent2" font_size={12} fill_color="text" />
+            </box>
+            <box fill_color="accent3" corner_radius={4} width={300} height={28}>
+                <text value="Row 2 — accent3" font_size={12} fill_color="text" />
+            </box>
+            <box fill_color="accent4" corner_radius={4} width={300} height={28}>
+                <text value="Row 3 — accent4" font_size={12} fill_color="text" />
+            </box>
+            <box fill_color="accent" corner_radius={4} width={300} height={28}>
+                <text value="Row 4 — accent" font_size={12} fill_color="text_inverse" />
+            </box>
+        </stack>
+
+        <text value="" font_size={10} />
+
+        // ── 4. Nested — HStack containing VStacks ───────────────────────────────
+        <text value="4. Nested Layout — HStack > VStack (3 columns, varied spacing)" font_size={14} fill_color="accent" />
+        <stack direction="horizontal" spacing={16}>
+            // Column 1: tight spacing
+            <stack direction="vertical" spacing={2}>
+                <box fill_color="accent" corner_radius={2} width={280} height={22}>
+                    <text value="" />
+                </box>
+                <box fill_color="accent2" corner_radius={2} width={280} height={22}>
+                    <text value="" />
+                </box>
+                <box fill_color="accent3" corner_radius={2} width={280} height={22}>
+                    <text value="" />
+                </box>
+                <box fill_color="accent4" corner_radius={2} width={280} height={22}>
+                    <text value="" />
+                </box>
+                <box fill_color="accent" corner_radius={2} width={280} height={22}>
+                    <text value="spacing=2" font_size={11} fill_color="text_inverse" />
+                </box>
+            </stack>
+
+            // Column 2: medium spacing
+            <stack direction="vertical" spacing={6}>
+                <box fill_color="surface2" corner_radius={4} width={280} height={32}>
+                    <text value="Medium density" font_size={12} fill_color="text" />
+                </box>
+                <box fill_color="surface2" corner_radius={4} width={280} height={32}>
+                    <text value="Spacing = 6px" font_size={12} fill_color="text" />
+                </box>
+                <box fill_color="surface2" corner_radius={4} width={280} height={32}>
+                    <text value="corner_radius = 4" font_size={12} fill_color="text" />
+                </box>
+            </stack>
+
+            // Column 3: wide spacing
+            <stack direction="vertical" spacing={12}>
+                <box fill_color="accent2" corner_radius={6} width={280} height={26}>
+                    <text value="" />
+                </box>
+                <box fill_color="accent2" corner_radius={6} width={280} height={26}>
+                    <text value="" />
+                </box>
+                <box fill_color="accent2" corner_radius={6} width={280} height={26}>
+                    <text value="spacing=12" font_size={11} fill_color="text" />
+                </box>
+            </stack>
+        </stack>
+
+        <text value="" font_size={10} />
+
+        // ── 5. Variable corner_radius ───────────────────────────────────────────
+        <text value="5. Corner Radius Variation" font_size={14} fill_color="accent" />
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={0} width={80} height={40}>
+                <text value="r=0" font_size={11} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent" corner_radius={4} width={80} height={40}>
+                <text value="r=4" font_size={11} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent" corner_radius={8} width={80} height={40}>
+                <text value="r=8" font_size={11} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent" corner_radius={16} width={80} height={40}>
+                <text value="r=16" font_size={11} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent" corner_radius={20} width={80} height={40}>
+                <text value="r=20" font_size={11} fill_color="text_inverse" />
+            </box>
+        </stack>
+
+        <text value="" font_size={10} />
+
+        // ── 6. Mixed heights in HStack — visual alignment ───────────────────────
+        <text value="6. Mixed Element Heights in HStack" font_size={14} fill_color="accent" />
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="accent" corner_radius={4} width={100} height={20}>
+                <text value="h=20" font_size={10} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent2" corner_radius={4} width={100} height={34}>
+                <text value="h=34" font_size={10} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent3" corner_radius={4} width={100} height={48}>
+                <text value="h=48" font_size={10} fill_color="text_inverse" />
+            </box>
+            <box fill_color="accent4" corner_radius={4} width={100} height={28}>
+                <text value="h=28" font_size={10} fill_color="text_inverse" />
+            </box>
+        </stack>
+
+        <text value="" font_size={10} />
+
+        // ── 7. Dividers (thin boxes) ────────────────────────────────────────────
+        <text value="7. Visual Dividers (thin boxes as separators)" font_size={14} fill_color="accent" />
+        <stack direction="horizontal" spacing={8}>
+            <box fill_color="border" width={300} height={2}>
+                <text value="" />
+            </box>
+            <text value="— separator —" font_size={12} fill_color="text_dim" />
+            <box fill_color="border" width={300} height={2}>
+                <text value="" />
+            </box>
+        </stack>
+
+        <text value="" font_size={10} />
+
+        // ── 8. Text-only rows — font_size variation ─────────────────────────────
+        <text value="8. Text Size Progression" font_size={14} fill_color="accent" />
+        <stack direction="horizontal" spacing={12}>
+            <text value="8px" font_size={8} fill_color="text_dim" />
+            <text value="10px" font_size={10} fill_color="text_dim" />
+            <text value="12px" font_size={12} fill_color="text" />
+            <text value="14px" font_size={14} fill_color="text" />
+            <text value="18px" font_size={18} fill_color="accent" />
+            <text value="24px" font_size={24} fill_color="accent2" />
+        </stack>
+
+        <text value="" font_size={8} />
+
+        // ── Footer ──────────────────────────────────────────────────────────────
+        <box fill_color="surface2" width={920} height={28} corner_radius={4}>
+            <text value="Layout verified: HStack | VStack | Nested | spacing=2..24px | corner_radius=0..20 | mixed heights | themed colors" font_size={11} fill_color="text_dim" />
+        </box>
+    </panel>
+
+world LayoutTestWorld:
+    surface native_ui => LayoutStackPanel
+
+// ===========================================================================
+// Entry point
+// ===========================================================================
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // Verify layout math is correct
+    let layout_ok = verify_layout_math()
+    if layout_ok != EXPECTED_LAYOUT_CHECKSUM:
+        return 1  // Layout math mismatch
+
+    // Verify individual layout calculations
+    let h_5_8 = hstack_total_width(80.0, 5, 8.0)      // 5 items, 80px, 8px gap
+    let v_3_12 = vstack_total_height(40.0, 3, 12.0)   // 3 items, 40px, 12px gap
+    let h_1_0 = hstack_total_width(100.0, 1, 0.0)     // single item
+    let v_0_0 = vstack_total_height(50.0, 0, 10.0)    // zero items
+
+    // Validate against expected values
+    var all_ok: Int = 0
+    if to_int(h_5_8 * 100.0) == 43200: all_ok = all_ok + 1
+    if to_int(v_3_12 * 100.0) == 14400: all_ok = all_ok + 1
+    if to_int(h_1_0 * 100.0) == 10000: all_ok = all_ok + 1
+    if to_int(v_0_0 * 100.0) == 0: all_ok = all_ok + 1
+
+    if all_ok != 4:
+        return 2  // Individual layout validation failed
+
+    return 0

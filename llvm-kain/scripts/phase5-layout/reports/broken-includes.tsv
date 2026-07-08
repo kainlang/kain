@@ -1,0 +1,501 @@
+status	source_file	line	include_path	new_target_path	classification
+dropped-library	clang/include/clang/Frontend/CompilerInvocation.h	12	clang/APINotes/APINotesOptions.h	(DROPPED) clang/APINotes/APINotesOptions.h	mapped
+dropped-library	clang/include/clang/Frontend/CompilerInvocation.h	23	clang/StaticAnalyzer/Core/AnalyzerOptions.h	(DROPPED) clang/StaticAnalyzer/Core/AnalyzerOptions.h	mapped
+dropped-library	clang/include/clang/Sema/Sema.h	17	clang/APINotes/APINotesManager.h	(DROPPED) clang/APINotes/APINotesManager.h	mapped
+dropped-library	clang/lib/Analysis/plugins/CheckerDependencyHandling/CheckerDependencyHandling.cpp	1	clang/StaticAnalyzer/Core/Checker.h	(DROPPED) clang/StaticAnalyzer/Core/Checker.h	mapped
+dropped-library	clang/lib/Analysis/plugins/CheckerDependencyHandling/CheckerDependencyHandling.cpp	2	clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h	(DROPPED) clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h	mapped
+dropped-library	clang/lib/Analysis/plugins/CheckerDependencyHandling/CheckerDependencyHandling.cpp	3	clang/StaticAnalyzer/Frontend/CheckerRegistry.h	(DROPPED) clang/StaticAnalyzer/Frontend/CheckerRegistry.h	mapped
+dropped-library	clang/lib/Analysis/plugins/CheckerOptionHandling/CheckerOptionHandling.cpp	1	clang/StaticAnalyzer/Core/Checker.h	(DROPPED) clang/StaticAnalyzer/Core/Checker.h	mapped
+dropped-library	clang/lib/Analysis/plugins/CheckerOptionHandling/CheckerOptionHandling.cpp	2	clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h	(DROPPED) clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h	mapped
+dropped-library	clang/lib/Analysis/plugins/CheckerOptionHandling/CheckerOptionHandling.cpp	3	clang/StaticAnalyzer/Frontend/CheckerRegistry.h	(DROPPED) clang/StaticAnalyzer/Frontend/CheckerRegistry.h	mapped
+dropped-library	clang/lib/Analysis/plugins/SampleAnalyzer/MainCallChecker.cpp	1	clang/StaticAnalyzer/Core/BugReporter/BugType.h	(DROPPED) clang/StaticAnalyzer/Core/BugReporter/BugType.h	mapped
+dropped-library	clang/lib/Analysis/plugins/SampleAnalyzer/MainCallChecker.cpp	2	clang/StaticAnalyzer/Core/Checker.h	(DROPPED) clang/StaticAnalyzer/Core/Checker.h	mapped
+dropped-library	clang/lib/Analysis/plugins/SampleAnalyzer/MainCallChecker.cpp	3	clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h	(DROPPED) clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h	mapped
+dropped-library	clang/lib/Analysis/plugins/SampleAnalyzer/MainCallChecker.cpp	4	clang/StaticAnalyzer/Frontend/CheckerRegistry.h	(DROPPED) clang/StaticAnalyzer/Frontend/CheckerRegistry.h	mapped
+dropped-library	clang/lib/CodeGen/CodeGenAction.cpp	26	clang/Driver/DriverDiagnostic.h	(DROPPED) clang/Driver/DriverDiagnostic.h	mapped
+dropped-library	clang/lib/Frontend/CompilerInvocation.cpp	43	clang/StaticAnalyzer/Core/AnalyzerOptions.h	(DROPPED) clang/StaticAnalyzer/Core/AnalyzerOptions.h	mapped
+dropped-library	clang/lib/Frontend/CompilerInvocation.cpp	949	clang/StaticAnalyzer/Core/Analyses.def	(DROPPED) clang/StaticAnalyzer/Core/Analyses.def	mapped
+dropped-library	clang/lib/Frontend/CompilerInvocation.cpp	961	clang/StaticAnalyzer/Core/Analyses.def	(DROPPED) clang/StaticAnalyzer/Core/Analyses.def	mapped
+dropped-library	clang/lib/Frontend/CompilerInvocation.cpp	973	clang/StaticAnalyzer/Core/Analyses.def	(DROPPED) clang/StaticAnalyzer/Core/Analyses.def	mapped
+dropped-library	clang/lib/Frontend/CompilerInvocation.cpp	985	clang/StaticAnalyzer/Core/Analyses.def	(DROPPED) clang/StaticAnalyzer/Core/Analyses.def	mapped
+dropped-library	clang/lib/Frontend/CompilerInvocation.cpp	1059	clang/StaticAnalyzer/Core/Analyses.def	(DROPPED) clang/StaticAnalyzer/Core/Analyses.def	mapped
+dropped-library	clang/lib/Frontend/CompilerInvocation.cpp	1079	clang/StaticAnalyzer/Core/Analyses.def	(DROPPED) clang/StaticAnalyzer/Core/Analyses.def	mapped
+dropped-library	clang/lib/Frontend/CompilerInvocation.cpp	1094	clang/StaticAnalyzer/Core/Analyses.def	(DROPPED) clang/StaticAnalyzer/Core/Analyses.def	mapped
+dropped-library	clang/lib/Frontend/CompilerInvocation.cpp	1109	clang/StaticAnalyzer/Core/Analyses.def	(DROPPED) clang/StaticAnalyzer/Core/Analyses.def	mapped
+dropped-library	clang/lib/Frontend/CompilerInvocation.cpp	1258	clang/StaticAnalyzer/Core/AnalyzerOptions.def	(DROPPED) clang/StaticAnalyzer/Core/AnalyzerOptions.def	mapped
+dropped-library	clang/lib/Frontend/CompilerInvocation.cpp	1268	clang/StaticAnalyzer/Core/AnalyzerOptions.def	(DROPPED) clang/StaticAnalyzer/Core/AnalyzerOptions.def	mapped
+dropped-library	clang/lib/Frontend/Rewrite/FixItRewriter.cpp	15	clang/Rewrite/Frontend/FixItRewriter.h	(DROPPED) clang/Rewrite/Frontend/FixItRewriter.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/FixItRewriter.cpp	23	clang/Rewrite/Core/Rewriter.h	(DROPPED) clang/Rewrite/Core/Rewriter.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/FrontendActions.cpp	9	clang/Rewrite/Frontend/FrontendActions.h	(DROPPED) clang/Rewrite/Frontend/FrontendActions.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/FrontendActions.cpp	19	clang/Rewrite/Frontend/ASTConsumers.h	(DROPPED) clang/Rewrite/Frontend/ASTConsumers.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/FrontendActions.cpp	20	clang/Rewrite/Frontend/FixItRewriter.h	(DROPPED) clang/Rewrite/Frontend/FixItRewriter.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/FrontendActions.cpp	21	clang/Rewrite/Frontend/Rewriters.h	(DROPPED) clang/Rewrite/Frontend/Rewriters.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/HTMLPrint.cpp	19	clang/Rewrite/Core/HTMLRewrite.h	(DROPPED) clang/Rewrite/Core/HTMLRewrite.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/HTMLPrint.cpp	20	clang/Rewrite/Core/Rewriter.h	(DROPPED) clang/Rewrite/Core/Rewriter.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/HTMLPrint.cpp	21	clang/Rewrite/Frontend/ASTConsumers.h	(DROPPED) clang/Rewrite/Frontend/ASTConsumers.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/InclusionRewriter.cpp	14	clang/Rewrite/Frontend/Rewriters.h	(DROPPED) clang/Rewrite/Frontend/Rewriters.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/RewriteMacros.cpp	16	clang/Rewrite/Core/Rewriter.h	(DROPPED) clang/Rewrite/Core/Rewriter.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/RewriteMacros.cpp	17	clang/Rewrite/Frontend/Rewriters.h	(DROPPED) clang/Rewrite/Frontend/Rewriters.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/RewriteModernObjC.cpp	24	clang/Rewrite/Core/Rewriter.h	(DROPPED) clang/Rewrite/Core/Rewriter.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/RewriteModernObjC.cpp	25	clang/Rewrite/Frontend/ASTConsumers.h	(DROPPED) clang/Rewrite/Frontend/ASTConsumers.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/RewriteObjC.cpp	13	clang/Rewrite/Frontend/ASTConsumers.h	(DROPPED) clang/Rewrite/Frontend/ASTConsumers.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/RewriteObjC.cpp	24	clang/Rewrite/Core/Rewriter.h	(DROPPED) clang/Rewrite/Core/Rewriter.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/RewriteTest.cpp	14	clang/Rewrite/Core/TokenRewriter.h	(DROPPED) clang/Rewrite/Core/TokenRewriter.h	mapped
+dropped-library	clang/lib/Frontend/Rewrite/RewriteTest.cpp	15	clang/Rewrite/Frontend/Rewriters.h	(DROPPED) clang/Rewrite/Frontend/Rewriters.h	mapped
+dropped-library	clang/lib/FrontendTool/ExecuteCompilerInvocation.cpp	17	clang/ExtractAPI/FrontendActions.h	(DROPPED) clang/ExtractAPI/FrontendActions.h	mapped
+dropped-library	clang/lib/FrontendTool/ExecuteCompilerInvocation.cpp	26	clang/Rewrite/Frontend/FrontendActions.h	(DROPPED) clang/Rewrite/Frontend/FrontendActions.h	mapped
+dropped-library	clang/lib/FrontendTool/ExecuteCompilerInvocation.cpp	29	clang/StaticAnalyzer/Frontend/AnalyzerHelpFlags.h	(DROPPED) clang/StaticAnalyzer/Frontend/AnalyzerHelpFlags.h	mapped
+dropped-library	clang/lib/FrontendTool/ExecuteCompilerInvocation.cpp	30	clang/StaticAnalyzer/Frontend/FrontendActions.h	(DROPPED) clang/StaticAnalyzer/Frontend/FrontendActions.h	mapped
+dropped-library	clang/lib/FrontendTool/ExecuteCompilerInvocation.cpp	40	clang/CIR/Dialect/Passes.h	(DROPPED) clang/CIR/Dialect/Passes.h	mapped
+dropped-library	clang/lib/FrontendTool/ExecuteCompilerInvocation.cpp	41	clang/CIR/FrontendAction/CIRGenAction.h	(DROPPED) clang/CIR/FrontendAction/CIRGenAction.h	mapped
+needs-review	clang/include/clang/AST/Attr.h	28	clang/Support/Compiler.h		needs-review
+needs-review	clang/include/clang/AST/HLSLResource.h	22	clang/Support/Compiler.h		needs-review
+needs-review	clang/include/clang/ASTMatchers/ASTMatchersMacros.h	52	clang/Support/Compiler.h		needs-review
+needs-review	clang/include/clang/Analysis/FlowSensitive/NoopLattice.h	17	clang/Support/Compiler.h		needs-review
+needs-review	clang/include/clang/Basic/ParsedAttrInfo.h	20	clang/Support/Compiler.h		needs-review
+needs-review	clang/include/clang/Frontend/FrontendPluginRegistry.h	17	clang/Support/Compiler.h		needs-review
+needs-review	clang/include/clang/Frontend/Utils.h	19	clang/Options/OptionUtils.h		needs-review
+needs-review	clang/include/clang/Lex/Preprocessor.h	35	clang/Support/Compiler.h		needs-review
+needs-review	clang/include/clang/Options/Options.h	46	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Analysis/FlowSensitive/TypeErasedDataflowAnalysis.cpp	36	clang/Support/Compiler.h		needs-review
+needs-review	clang/lib/Basic/LangOptions.cpp	15	clang/Config/config.h		needs-review
+needs-review	clang/lib/Basic/LangStandards.cpp	10	clang/Config/config.h		needs-review
+needs-review	clang/lib/Basic/Version.cpp	15	clang/Config/config.h		needs-review
+needs-review	clang/lib/CodeGen/BackendUtil.cpp	41	llvm/LTO/LTOBackend.h		needs-review
+needs-review	clang/lib/CodeGen/BackendUtil.cpp	46	llvm/Plugins/PassPlugin.h		needs-review
+needs-review	clang/lib/CodeGen/CodeGenAction.cpp	46	llvm/LTO/LTOBackend.h		needs-review
+needs-review	clang/lib/CodeGen/CodeGenAction.cpp	48	llvm/Pass.h		needs-review
+needs-review	clang/lib/Frontend/CompilerInstance.cpp	23	clang/Config/config.h		needs-review
+needs-review	clang/lib/Frontend/CompilerInstance.cpp	51	llvm/Plugins/PassPlugin.h		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	29	clang/Config/config.h		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	40	clang/Options/Options.h		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	264	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	272	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	940	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	1025	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	1037	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	1051	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	1558	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	1853	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	2354	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	2389	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	2517	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	2529	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	2540	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	2552	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	2564	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	2673	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	2879	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	3049	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	3330	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	3445	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	3782	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	4130	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	4814	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	4888	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	4981	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	5002	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	5017	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/CompilerInvocation.cpp	5036	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Frontend/Rewrite/FrontendActions.cpp	13	clang/Config/config.h		needs-review
+needs-review	clang/lib/Frontend/Rewrite/RewriteModernObjC.cpp	22	clang/Config/config.h		needs-review
+needs-review	clang/lib/Frontend/Rewrite/RewriteObjC.cpp	22	clang/Config/config.h		needs-review
+needs-review	clang/lib/FrontendTool/ExecuteCompilerInvocation.cpp	16	clang/Config/config.h		needs-review
+needs-review	clang/lib/FrontendTool/ExecuteCompilerInvocation.cpp	24	clang/FrontendTool/Utils.h		needs-review
+needs-review	clang/lib/FrontendTool/ExecuteCompilerInvocation.cpp	25	clang/Options/Options.h		needs-review
+needs-review	clang/lib/FrontendTool/ExecuteCompilerInvocation.cpp	27	clang/ScalableStaticAnalysis/Frontend/TUSummaryExtractorFrontendAction.h		needs-review
+needs-review	clang/lib/FrontendTool/ExecuteCompilerInvocation.cpp	28	clang/ScalableStaticAnalysis/SSAFForceLinker.h		needs-review
+needs-review	clang/lib/Lex/InitHeaderSearch.cpp	15	clang/Config/config.h		needs-review
+needs-review	clang/lib/Options/DriverOptions.cpp	9	clang/Options/Options.h		needs-review
+needs-review	clang/lib/Options/DriverOptions.cpp	17	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Options/DriverOptions.cpp	21	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Options/DriverOptions.cpp	25	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Options/DriverOptions.cpp	29	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Options/DriverOptions.cpp	34	clang/Options/Options.inc		needs-review
+needs-review	clang/lib/Options/OptionUtils.cpp	9	clang/Options/OptionUtils.h		needs-review
+needs-review	clang/lib/Options/OptionUtils.cpp	13	clang/Config/config.h		needs-review
+needs-review	clang/lib/Options/OptionUtils.cpp	14	clang/Options/Options.h		needs-review
+needs-review	clang/lib/Sema/SemaRISCV.cpp	27	clang/Support/RISCVVIntrinsicUtils.h		needs-review
+needs-review	lld/COFF/COFFLinkerContext.h	20	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/COFF/COFFLinkerContext.h	21	lld/Common/Timer.h		needs-review
+needs-review	lld/COFF/Chunks.h	14	lld/Common/LLVM.h		needs-review
+needs-review	lld/COFF/Config.h	12	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/COFF/DebugTypes.cpp	15	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/COFF/DebugTypes.cpp	16	lld/Common/Memory.h		needs-review
+needs-review	lld/COFF/DebugTypes.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/COFF/Driver.cpp	20	lld/Common/Args.h		needs-review
+needs-review	lld/COFF/Driver.cpp	21	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/COFF/Driver.cpp	22	lld/Common/Filesystem.h		needs-review
+needs-review	lld/COFF/Driver.cpp	23	lld/Common/Timer.h		needs-review
+needs-review	lld/COFF/Driver.cpp	24	lld/Common/Version.h		needs-review
+needs-review	lld/COFF/Driver.cpp	30	llvm/LTO/LTO.h		needs-review
+needs-review	lld/COFF/Driver.cpp	50	llvm/ToolDrivers/llvm-lib/LibDriver.h		needs-review
+needs-review	lld/COFF/Driver.h	14	lld/Common/LLVM.h		needs-review
+needs-review	lld/COFF/Driver.h	15	lld/Common/Reproduce.h		needs-review
+needs-review	lld/COFF/Driver.h	24	llvm/WindowsDriver/MSVCPaths.h		needs-review
+needs-review	lld/COFF/DriverUtils.cpp	18	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/COFF/DriverUtils.cpp	19	lld/Common/Memory.h		needs-review
+needs-review	lld/COFF/DriverUtils.cpp	34	llvm/WindowsManifest/WindowsManifestMerger.h		needs-review
+needs-review	lld/COFF/ICF.cpp	24	lld/Common/Timer.h		needs-review
+needs-review	lld/COFF/ICF.h	13	lld/Common/LLVM.h		needs-review
+needs-review	lld/COFF/InputFiles.cpp	17	lld/Common/DWARF.h		needs-review
+needs-review	lld/COFF/InputFiles.cpp	28	llvm/LTO/LTO.h		needs-review
+needs-review	lld/COFF/InputFiles.h	13	lld/Common/LLVM.h		needs-review
+needs-review	lld/COFF/LLDMapFile.cpp	26	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/COFF/LTO.cpp	14	lld/Common/Args.h		needs-review
+needs-review	lld/COFF/LTO.cpp	15	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/COFF/LTO.cpp	16	lld/Common/Filesystem.h		needs-review
+needs-review	lld/COFF/LTO.cpp	17	lld/Common/Strings.h		needs-review
+needs-review	lld/COFF/LTO.cpp	18	lld/Common/TargetOptionsCommandFlags.h		needs-review
+needs-review	lld/COFF/LTO.cpp	23	llvm/DTLTO/DTLTO.h		needs-review
+needs-review	lld/COFF/LTO.cpp	25	llvm/LTO/Config.h		needs-review
+needs-review	lld/COFF/LTO.cpp	26	llvm/LTO/LTO.h		needs-review
+needs-review	lld/COFF/LTO.h	23	lld/Common/LLVM.h		needs-review
+needs-review	lld/COFF/MapFile.cpp	35	lld/Common/Timer.h		needs-review
+needs-review	lld/COFF/MarkLive.cpp	12	lld/Common/Timer.h		needs-review
+needs-review	lld/COFF/MarkLive.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/COFF/MinGW.h	14	lld/Common/LLVM.h		needs-review
+needs-review	lld/COFF/PDB.cpp	19	lld/Common/Timer.h		needs-review
+needs-review	lld/COFF/SymbolTable.cpp	16	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/COFF/SymbolTable.cpp	17	lld/Common/Memory.h		needs-review
+needs-review	lld/COFF/SymbolTable.cpp	18	lld/Common/Timer.h		needs-review
+needs-review	lld/COFF/SymbolTable.cpp	22	llvm/LTO/LTO.h		needs-review
+needs-review	lld/COFF/Symbols.cpp	12	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/COFF/Symbols.h	14	lld/Common/LLVM.h		needs-review
+needs-review	lld/COFF/Symbols.h	15	lld/Common/Memory.h		needs-review
+needs-review	lld/COFF/TypeMerger.h	15	lld/Common/Timer.h		needs-review
+needs-review	lld/COFF/Writer.cpp	20	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/COFF/Writer.cpp	21	lld/Common/Memory.h		needs-review
+needs-review	lld/COFF/Writer.cpp	22	lld/Common/Timer.h		needs-review
+needs-review	lld/Common/Args.cpp	9	lld/Common/Args.h		needs-review
+needs-review	lld/Common/Args.cpp	10	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/Common/CommonLinkerContext.cpp	9	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/Common/CommonLinkerContext.cpp	10	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/Common/CommonLinkerContext.cpp	11	lld/Common/Memory.h		needs-review
+needs-review	lld/Common/DWARF.cpp	9	lld/Common/DWARF.h		needs-review
+needs-review	lld/Common/DWARF.cpp	10	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/Common/DriverDispatcher.cpp	9	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/Common/DriverDispatcher.cpp	10	lld/Common/Driver.h		needs-review
+needs-review	lld/Common/DriverDispatcher.cpp	11	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/Common/DriverDispatcher.cpp	12	lld/Common/Memory.h		needs-review
+needs-review	lld/Common/ErrorHandler.cpp	9	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/Common/ErrorHandler.cpp	11	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/Common/Filesystem.cpp	13	lld/Common/Filesystem.h		needs-review
+needs-review	lld/Common/Filesystem.cpp	14	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/Common/Memory.cpp	9	lld/Common/Memory.h		needs-review
+needs-review	lld/Common/Memory.cpp	10	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/Common/Reproduce.cpp	9	lld/Common/Reproduce.h		needs-review
+needs-review	lld/Common/Strings.cpp	9	lld/Common/Strings.h		needs-review
+needs-review	lld/Common/Strings.cpp	10	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/Common/Strings.cpp	11	lld/Common/LLVM.h		needs-review
+needs-review	lld/Common/TargetOptionsCommandFlags.cpp	9	lld/Common/TargetOptionsCommandFlags.h		needs-review
+needs-review	lld/Common/Timer.cpp	9	lld/Common/Timer.h		needs-review
+needs-review	lld/Common/Timer.cpp	10	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/Common/Utils.cpp	12	lld/Common/Utils.h		needs-review
+needs-review	lld/Common/Version.cpp	13	lld/Common/Version.h		needs-review
+needs-review	lld/ELF/AArch64ErrataFix.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/ARMErrataFix.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/Arch/AMDGPU.cpp	12	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/ELF/Arch/ARM.cpp	16	lld/Common/Filesystem.h		needs-review
+needs-review	lld/ELF/Arch/Hexagon.cpp	17	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/ELF/BPSectionOrderer.cpp	14	lld/Common/BPSectionOrdererBase.inc		needs-review
+needs-review	lld/ELF/BPSectionOrderer.h	17	lld/Common/BPSectionOrdererBase.h		needs-review
+needs-review	lld/ELF/Config.h	12	lld/Common/BPSectionOrdererBase.h		needs-review
+needs-review	lld/ELF/Config.h	13	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/ELF/Config.h	14	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/ELF/Driver.cpp	40	lld/Common/Args.h		needs-review
+needs-review	lld/ELF/Driver.cpp	41	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/ELF/Driver.cpp	42	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/ELF/Driver.cpp	43	lld/Common/Filesystem.h		needs-review
+needs-review	lld/ELF/Driver.cpp	44	lld/Common/Memory.h		needs-review
+needs-review	lld/ELF/Driver.cpp	45	lld/Common/Strings.h		needs-review
+needs-review	lld/ELF/Driver.cpp	46	lld/Common/Version.h		needs-review
+needs-review	lld/ELF/Driver.cpp	52	llvm/LTO/LTO.h		needs-review
+needs-review	lld/ELF/Driver.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/DriverUtils.cpp	17	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/ELF/DriverUtils.cpp	18	lld/Common/Reproduce.h		needs-review
+needs-review	lld/ELF/EhFrame.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/InputFiles.cpp	19	lld/Common/DWARF.h		needs-review
+needs-review	lld/ELF/InputFiles.cpp	22	llvm/LTO/LTO.h		needs-review
+needs-review	lld/ELF/InputFiles.h	14	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/ELF/InputFiles.h	15	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/InputFiles.h	16	lld/Common/Reproduce.h		needs-review
+needs-review	lld/ELF/InputSection.cpp	18	lld/Common/DWARF.h		needs-review
+needs-review	lld/ELF/InputSection.h	14	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/ELF/InputSection.h	15	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/InputSection.h	16	lld/Common/Memory.h		needs-review
+needs-review	lld/ELF/LTO.cpp	14	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/ELF/LTO.cpp	15	lld/Common/Filesystem.h		needs-review
+needs-review	lld/ELF/LTO.cpp	16	lld/Common/Strings.h		needs-review
+needs-review	lld/ELF/LTO.cpp	17	lld/Common/TargetOptionsCommandFlags.h		needs-review
+needs-review	lld/ELF/LTO.cpp	22	llvm/DTLTO/DTLTO.h		needs-review
+needs-review	lld/ELF/LTO.cpp	23	llvm/LTO/Config.h		needs-review
+needs-review	lld/ELF/LTO.cpp	24	llvm/LTO/LTO.h		needs-review
+needs-review	lld/ELF/LTO.h	23	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/LinkerScript.cpp	23	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/ELF/LinkerScript.cpp	24	lld/Common/Strings.h		needs-review
+needs-review	lld/ELF/LinkerScript.h	15	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/LinkerScript.h	16	lld/Common/Strings.h		needs-review
+needs-review	lld/ELF/MarkLive.cpp	30	lld/Common/Strings.h		needs-review
+needs-review	lld/ELF/OutputSections.cpp	16	lld/Common/Arrays.h		needs-review
+needs-review	lld/ELF/OutputSections.cpp	17	lld/Common/Memory.h		needs-review
+needs-review	lld/ELF/OutputSections.h	14	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/Relocations.cpp	39	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/ELF/Relocations.cpp	40	lld/Common/Memory.h		needs-review
+needs-review	lld/ELF/Relocations.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/ScriptLexer.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/ScriptParser.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/SymbolTable.cpp	20	lld/Common/Memory.h		needs-review
+needs-review	lld/ELF/SymbolTable.cpp	21	lld/Common/Strings.h		needs-review
+needs-review	lld/ELF/Symbols.h	17	lld/Common/LLVM.h		needs-review
+needs-review	lld/ELF/Symbols.h	18	lld/Common/Memory.h		needs-review
+needs-review	lld/ELF/SyntheticSections.cpp	28	lld/Common/Version.h		needs-review
+needs-review	lld/ELF/Target.cpp	32	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/ELF/Target.h	14	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/ELF/Thunks.cpp	31	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/ELF/Writer.cpp	24	lld/Common/Arrays.h		needs-review
+needs-review	lld/ELF/Writer.cpp	25	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/ELF/Writer.cpp	26	lld/Common/Filesystem.h		needs-review
+needs-review	lld/ELF/Writer.cpp	27	lld/Common/Strings.h		needs-review
+needs-review	lld/MachO/Arch/ARM64.cpp	15	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/Arch/ARM64Common.cpp	11	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/Arch/ARM64_32.cpp	15	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/Arch/X86_64.cpp	14	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/BPSectionOrderer.cpp	14	lld/Common/BPSectionOrdererBase.inc		needs-review
+needs-review	lld/MachO/BPSectionOrderer.h	17	lld/Common/BPSectionOrdererBase.h		needs-review
+needs-review	lld/MachO/ConcatOutputSection.cpp	16	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/MachO/ConcatOutputSection.h	15	lld/Common/LLVM.h		needs-review
+needs-review	lld/MachO/Config.h	12	lld/Common/BPSectionOrdererBase.h		needs-review
+needs-review	lld/MachO/Config.h	24	llvm/TextAPI/Architecture.h		needs-review
+needs-review	lld/MachO/Config.h	25	llvm/TextAPI/Platform.h		needs-review
+needs-review	lld/MachO/Config.h	26	llvm/TextAPI/Target.h		needs-review
+needs-review	lld/MachO/Driver.cpp	26	lld/Common/Args.h		needs-review
+needs-review	lld/MachO/Driver.cpp	27	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/MachO/Driver.cpp	28	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/Driver.cpp	29	lld/Common/LLVM.h		needs-review
+needs-review	lld/MachO/Driver.cpp	30	lld/Common/Memory.h		needs-review
+needs-review	lld/MachO/Driver.cpp	31	lld/Common/Reproduce.h		needs-review
+needs-review	lld/MachO/Driver.cpp	32	lld/Common/Version.h		needs-review
+needs-review	lld/MachO/Driver.cpp	39	llvm/CGData/CodeGenDataWriter.h		needs-review
+needs-review	lld/MachO/Driver.cpp	41	llvm/LTO/LTO.h		needs-review
+needs-review	lld/MachO/Driver.cpp	55	llvm/TextAPI/Architecture.h		needs-review
+needs-review	lld/MachO/Driver.cpp	56	llvm/TextAPI/PackedVersion.h		needs-review
+needs-review	lld/MachO/Driver.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/MachO/DriverUtils.cpp	13	lld/Common/Args.h		needs-review
+needs-review	lld/MachO/DriverUtils.cpp	14	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/MachO/DriverUtils.cpp	15	lld/Common/Reproduce.h		needs-review
+needs-review	lld/MachO/DriverUtils.cpp	18	llvm/LTO/LTO.h		needs-review
+needs-review	lld/MachO/DriverUtils.cpp	25	llvm/TextAPI/InterfaceFile.h		needs-review
+needs-review	lld/MachO/DriverUtils.cpp	26	llvm/TextAPI/TextAPIReader.h		needs-review
+needs-review	lld/MachO/EhFrame.cpp	12	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/EhFrame.h	15	lld/Common/LLVM.h		needs-review
+needs-review	lld/MachO/ExportTrie.cpp	40	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/ICF.cpp	16	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/MachO/ICF.h	13	lld/Common/LLVM.h		needs-review
+needs-review	lld/MachO/InputFiles.cpp	59	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/MachO/InputFiles.cpp	60	lld/Common/DWARF.h		needs-review
+needs-review	lld/MachO/InputFiles.cpp	61	lld/Common/Reproduce.h		needs-review
+needs-review	lld/MachO/InputFiles.cpp	64	llvm/LTO/LTO.h		needs-review
+needs-review	lld/MachO/InputFiles.cpp	71	llvm/TextAPI/Architecture.h		needs-review
+needs-review	lld/MachO/InputFiles.cpp	72	llvm/TextAPI/InterfaceFile.h		needs-review
+needs-review	lld/MachO/InputFiles.h	15	lld/Common/DWARF.h		needs-review
+needs-review	lld/MachO/InputFiles.h	16	lld/Common/LLVM.h		needs-review
+needs-review	lld/MachO/InputFiles.h	17	lld/Common/Memory.h		needs-review
+needs-review	lld/MachO/InputFiles.h	26	llvm/TextAPI/TextAPIReader.h		needs-review
+needs-review	lld/MachO/InputSection.cpp	20	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/InputSection.cpp	21	lld/Common/Memory.h		needs-review
+needs-review	lld/MachO/InputSection.h	16	lld/Common/LLVM.h		needs-review
+needs-review	lld/MachO/InputSection.h	17	lld/Common/Memory.h		needs-review
+needs-review	lld/MachO/LTO.cpp	16	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/MachO/LTO.cpp	17	lld/Common/Filesystem.h		needs-review
+needs-review	lld/MachO/LTO.cpp	18	lld/Common/Strings.h		needs-review
+needs-review	lld/MachO/LTO.cpp	19	lld/Common/TargetOptionsCommandFlags.h		needs-review
+needs-review	lld/MachO/LTO.cpp	21	llvm/LTO/Config.h		needs-review
+needs-review	lld/MachO/LTO.cpp	22	llvm/LTO/LTO.h		needs-review
+needs-review	lld/MachO/LTO.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/MachO/LinkerOptimizationHints.cpp	12	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/MapFile.cpp	40	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/MarkLive.cpp	16	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/ObjC.cpp	18	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/OutputSection.h	13	lld/Common/LLVM.h		needs-review
+needs-review	lld/MachO/OutputSegment.cpp	16	lld/Common/Memory.h		needs-review
+needs-review	lld/MachO/OutputSegment.h	14	lld/Common/LLVM.h		needs-review
+needs-review	lld/MachO/Relocations.cpp	15	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/SectionPriorities.cpp	21	lld/Common/Args.h		needs-review
+needs-review	lld/MachO/SectionPriorities.cpp	22	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/MachO/SectionPriorities.cpp	23	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/SectionPriorities.cpp	24	lld/Common/Utils.h		needs-review
+needs-review	lld/MachO/SymbolTable.cpp	16	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/SymbolTable.cpp	17	lld/Common/Memory.h		needs-review
+needs-review	lld/MachO/SymbolTable.h	14	lld/Common/LLVM.h		needs-review
+needs-review	lld/MachO/SyntheticSections.cpp	21	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/MachO/UnwindInfoSection.cpp	19	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/MachO/UnwindInfoSection.cpp	20	lld/Common/Memory.h		needs-review
+needs-review	lld/MachO/Writer.cpp	25	lld/Common/Arrays.h		needs-review
+needs-review	lld/MachO/Writer.cpp	26	lld/Common/CommonLinkerContext.h		needs-review
+needs-review	lld/include/lld/Common/Args.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/include/lld/Common/CommonLinkerContext.h	22	lld/Common/ErrorHandler.h		needs-review
+needs-review	lld/include/lld/Common/CommonLinkerContext.h	23	lld/Common/Memory.h		needs-review
+needs-review	lld/include/lld/Common/DWARF.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/include/lld/Common/ErrorHandler.h	71	lld/Common/LLVM.h		needs-review
+needs-review	lld/include/lld/Common/Filesystem.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/include/lld/Common/Reproduce.h	12	lld/Common/LLVM.h		needs-review
+needs-review	lld/include/lld/Common/Version.h	16	lld/Common/Version.inc		needs-review
+needs-review	llvm/include/llvm/Analysis/AliasAnalysis.h	46	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/AssumptionCache.h	24	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/BasicAliasAnalysis.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/BlockFrequencyInfo.h	17	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/BranchProbabilityInfo.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/CallGraph.h	51	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/CallGraphSCCPass.h	24	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/CycleAnalysis.h	20	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/DXILMetadataAnalysis.h	15	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/DXILResource.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/DependenceAnalysis.h	46	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/DominanceFrontier.h	28	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/GlobalsModRef.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/IRSimilarityIdentifier.h	55	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/LazyBlockFrequencyInfo.h	21	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/LazyBranchProbabilityInfo.h	20	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/LazyValueInfo.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/LoopInfo.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/LoopPass.h	18	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/MemoryDependenceAnalysis.h	27	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/MemorySSA.h	100	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/ModuleSummaryAnalysis.h	18	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/OptimizationRemarkEmitter.h	21	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/PhiValues.h	27	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/PostDominators.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/ProfileSummaryInfo.h	22	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/RegionInfo.h	46	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/RegionPass.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/RuntimeLibcallInfo.h	13	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/ScalarEvolution.h	38	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/ScalarEvolutionAliasAnalysis.h	17	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/ScopedNoAliasAA.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/StackSafetyAnalysis.h	18	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/StaticDataProfileInfo.h	8	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/TargetLibraryInfo.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/TargetTransformInfo.h	33	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/TypeBasedAliasAnalysis.h	20	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Analysis/UniformityAnalysis.h	20	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/AssignmentTrackingAnalysis.h	16	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/BasicBlockSectionsProfileReader.h	24	llvm/InitializePasses.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/BasicBlockSectionsProfileReader.h	25	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/BasicTTIImpl.h	34	llvm/CodeGenTypes/MachineValueType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/CFIFixup.h	19	llvm/InitializePasses.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/CostTable.h	19	llvm/CodeGenTypes/MachineValueType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/FastISel.h	23	llvm/CodeGenTypes/MachineValueType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/GCMetadata.h	43	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/GlobalISel/CallLowering.h	23	llvm/CodeGenTypes/LowLevelType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/GlobalISel/CallLowering.h	24	llvm/CodeGenTypes/MachineValueType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/GlobalISel/CombinerHelper.h	25	llvm/CodeGenTypes/LowLevelType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/GlobalISel/GIMatchTableExecutor.h	26	llvm/CodeGenTypes/LowLevelType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/GlobalISel/GISelValueTracking.h	24	llvm/InitializePasses.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/GlobalISel/LegacyLegalizerInfo.h	20	llvm/CodeGenTypes/LowLevelType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/GlobalISel/LegalizerInfo.h	22	llvm/CodeGenTypes/LowLevelType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/GlobalISel/Utils.h	21	llvm/CodeGenTypes/LowLevelType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/GlobalMergeFunctions.h	28	llvm/CGData/StableFunctionMap.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/GlobalMergeFunctions.h	31	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/LibcallLoweringInfo.h	15	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/LiveStacks.h	21	llvm/InitializePasses.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/LiveStacks.h	22	llvm/PassRegistry.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/LiveVariables.h	40	llvm/PassRegistry.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/LowLevelTypeUtils.h	20	llvm/CodeGenTypes/LowLevelType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/MIR2Vec.h	52	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/MachineBranchProbabilityInfo.h	18	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/MachineFunctionPass.h	22	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/MachineMemOperand.h	22	llvm/CodeGenTypes/LowLevelType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/MachineModuleInfo.h	38	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/ReachingDefAnalysis.h	30	llvm/InitializePasses.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/RegAllocEvictionAdvisor.h	22	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/RegAllocPriorityAdvisor.h	16	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/RegisterBankInfo.h	23	llvm/CodeGenTypes/LowLevelType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/RegisterUsageInfo.h	24	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/RegisterUsageInfo.h	25	llvm/PassRegistry.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/ReplaceWithVeclib.h	18	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/ReplaceWithVeclib.h	19	llvm/PassRegistry.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/SDNodeInfo.h	15	llvm/CodeGenTypes/MachineValueType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/SelectionDAG.h	33	llvm/CodeGenTypes/MachineValueType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/SelectionDAGNodes.h	35	llvm/CodeGenTypes/MachineValueType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/StackProtector.h	23	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/TargetCallingConv.h	17	llvm/CodeGenTypes/MachineValueType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/TargetLowering.h	41	llvm/CodeGenTypes/MachineValueType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/TargetPassConfig.h	16	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/ValueTypes.h	18	llvm/CodeGenTypes/MachineValueType.h		needs-review
+needs-review	llvm/include/llvm/CodeGen/VirtRegMap.h	24	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/CodeGenTypes/LowLevelType.h	34	llvm/CodeGenTypes/MachineValueType.h		needs-review
+needs-review	llvm/include/llvm/DTLTO/DTLTO.h	20	llvm/LTO/LTO.h		needs-review
+needs-review	llvm/include/llvm/IR/Dominators.h	30	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/IR/LegacyPassManagers.h	20	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/IR/LegacyPassNameParser.h	29	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Object/TapiFile.h	23	llvm/TextAPI/Architecture.h		needs-review
+needs-review	llvm/include/llvm/Object/TapiFile.h	24	llvm/TextAPI/InterfaceFile.h		needs-review
+needs-review	llvm/include/llvm/Object/TapiUniversal.h	21	llvm/TextAPI/Architecture.h		needs-review
+needs-review	llvm/include/llvm/Object/TapiUniversal.h	22	llvm/TextAPI/InterfaceFile.h		needs-review
+needs-review	llvm/include/llvm/Pass.h	347	llvm/PassAnalysisSupport.h		needs-review
+needs-review	llvm/include/llvm/Pass.h	348	llvm/PassSupport.h		needs-review
+needs-review	llvm/include/llvm/PassSupport.h	28	llvm/PassInfo.h		needs-review
+needs-review	llvm/include/llvm/PassSupport.h	29	llvm/PassRegistry.h		needs-review
+needs-review	llvm/include/llvm/ProfileData/InstrProfCorrelator.h	18	llvm/Debuginfod/BuildIDFetcher.h		needs-review
+needs-review	llvm/include/llvm/Transforms/IPO/SampleProfile.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/InstCombine/InstCombine.h	21	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Instrumentation/LowerAllowCheckPass.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Instrumentation/NumericalStabilitySanitizer.h	18	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Utils/Debugify.h	26	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Utils/TriggerCrashPass.h	19	llvm/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/DependencyGraph.h	28	llvm/SandboxIR/Instruction.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/DependencyGraph.h	29	llvm/SandboxIR/IntrinsicInst.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/InstrMaps.h	16	llvm/SandboxIR/Context.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/InstrMaps.h	17	llvm/SandboxIR/Instruction.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/InstrMaps.h	18	llvm/SandboxIR/Value.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Interval.h	24	llvm/SandboxIR/Instruction.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/BottomUpVec.h	17	llvm/SandboxIR/Constant.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/BottomUpVec.h	18	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/LoadStoreVec.h	18	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/NullPass.h	15	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/PackReuse.h	16	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/PackReuse.h	17	llvm/SandboxIR/Region.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/PrintInstructionCount.h	4	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/PrintInstructionCount.h	5	llvm/SandboxIR/Region.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/PrintRegion.h	4	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/PrintRegion.h	5	llvm/SandboxIR/Region.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/RegionsFromBBs.h	18	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/RegionsFromBBs.h	19	llvm/SandboxIR/PassManager.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/RegionsFromMetadata.h	18	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/RegionsFromMetadata.h	19	llvm/SandboxIR/PassManager.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/SeedCollection.h	15	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/SeedCollection.h	16	llvm/SandboxIR/PassManager.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/TransactionAcceptOrRevert.h	17	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/TransactionAcceptOrRevert.h	18	llvm/SandboxIR/Region.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/TransactionAlwaysAccept.h	16	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/TransactionAlwaysAccept.h	17	llvm/SandboxIR/Region.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/TransactionAlwaysRevert.h	16	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/TransactionAlwaysRevert.h	17	llvm/SandboxIR/Region.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/TransactionSave.h	15	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Passes/TransactionSave.h	16	llvm/SandboxIR/Region.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/RegionWithScore.h	16	llvm/SandboxIR/Region.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/SandboxVectorizer.h	17	llvm/SandboxIR/Context.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/SandboxVectorizer.h	18	llvm/SandboxIR/PassManager.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/SandboxVectorizerIR.h	16	llvm/SandboxIR/Context.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/SandboxVectorizerIR.h	17	llvm/SandboxIR/Instruction.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/SandboxVectorizerPassBuilder.h	16	llvm/SandboxIR/Pass.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/Scheduler.h	24	llvm/SandboxIR/Instruction.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/SeedCollector.h	18	llvm/SandboxIR/Instruction.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/SeedCollector.h	19	llvm/SandboxIR/Utils.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/SeedCollector.h	20	llvm/SandboxIR/Value.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/VecUtils.h	17	llvm/SandboxIR/Type.h		needs-review
+needs-review	llvm/include/llvm/Transforms/Vectorize/SandboxVectorizer/VecUtils.h	18	llvm/SandboxIR/Utils.h		needs-review
+needs-review	llvm/lib/Analysis/AliasAnalysis.cpp	44	llvm/InitializePasses.h		needs-review
+needs-review	llvm/lib/Analysis/AliasAnalysis.cpp	45	llvm/Pass.h		needs-review
+needs-review	llvm/lib/Analysis/AliasSetTracker.cpp	27	llvm/Pass.h		needs-review
+needs-review	llvm/lib/Analysis/Analysis.cpp	12	llvm/InitializePasses.h		needs-review
+needs-review	llvm/lib/Analysis/Analysis.cpp	13	llvm/PassRegistry.h		needs-review
+needs-review	llvm/lib/Analysis/AssumptionCache.cpp	28	llvm/InitializePasses.h		needs-review
+needs-review	llvm/lib/Analysis/AssumptionCache.cpp	29	llvm/Pass.h		needs-review
+needs-review	llvm/lib/Analysis/BasicAliasAnalysis.cpp	52	llvm/InitializePasses.h		needs-review
+needs-review	llvm/lib/Analysis/BasicAliasAnalysis.cpp	53	llvm/Pass.h		needs-review
+needs-review	llvm/lib/Analysis/BlockFrequencyInfo.cpp	22	llvm/InitializePasses.h		needs-review
+needs-review	llvm/lib/Analysis/BlockFrequencyInfo.cpp	23	llvm/Pass.h		needs-review
+needs-review	llvm/lib/Analysis/BranchProbabilityInfo.cpp	37	llvm/InitializePasses.h		needs-review
+needs-review	llvm/lib/Analysis/BranchProbabilityInfo.cpp	38	llvm/Pass.h		needs-review

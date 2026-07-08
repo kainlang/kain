@@ -1,0 +1,64 @@
+id	layer	name	what	how	phase	done
+L0-001	0	kt_init_single	Call kt_init() once, verify no crash	kt_init() returns void; no assertion except it doesn't segfault	A	no
+L0-002	0	kt_make_valid	Create session with valid params	kt_make("test", 800, 600) returns non-NULL A	no
+L0-003	0	kt_make_extreme	Create session with extreme dimensions	kt_make("tiny", 1, 1) returns non-NULL; kt_make("huge", 0, 0) returns NULL	A	no
+L0-004	0	kt_free_null	Free NULL session, verify null safety	kt_free(NULL) no-ops without crash	A	no
+L0-005	0	kt_free_then_reuse	Free session then create another	kt_free(s0); s1 = kt_make("reborn", 320, 240); verify s1 != NULL and works	A	no
+L0-006	0	kt_free_double	Free session twice	kt_free(s); kt_free(s); second call is safe (no double-free)	A	no
+L1-001	1	kt_row_single	Create a single root element	kt_row(s, -1, "box", "root") returns id=1	A	no
+L1-002	1	kt_row_nested	Create parent-child element tree	kt_row(parent=-1)→kt_row(parent=1)→kt_end_row→kt_end_row; verify child linked to parent	A	no
+L1-003	1	kt_row_stable_key	Reuse stable key returns same node	kt_row(s, -1, "box", "key1") returns id=1; kt_row(s, -1, "box", "key1") returns id=1 (not 2)	A	no
+L1-004	1	kt_row_depth_limit	Push 64 elements deep, verify limit	kt_row nested 64 times; kt_end_row 64 times; no error	A	no
+L1-005	1	kt_row_depth_overflow	Push 65 elements, verify error handler	kt_row nested 65 times; error handler fires on 65th push; stack not corrupted	A	no
+L1-006	1	kt_text_content	Set text on an element	kt_row→kt_text(s, e, "Hello")→kt_end_row; verify no crash, text stored correctly	A	no
+L1-007	1	kt_row_invalid_parent	Row with invalid parent index falls back gracefully	kt_row(s, 9999, "box", "orphan"); returns valid id (parent becomes root); no crash	A	no
+L2-001	2	kt_width_height	Set width and height on element	kt_width(s, e, 200.0); kt_height(s, e, 100.0); kt_end; kt_cmd_get(0).bounds.w == 200.0, .h == 100.0	A	no
+L2-002	2	kt_pad_layout	Set uniform padding on container	kt_pad(s, e, 10.0); child's bounds shift inward by 10px on all sides	A	no
+L2-003	2	kt_pad_xy_asymmetric	Set independent X/Y padding	kt_pad_xy(s, e, 10.0, 20.0); horizontal pad=10, vertical pad=20	A	no
+L2-004	2	kt_gap_between	Set gap between children	Two children under parent with kt_gap(s, p, 8.0); cmd bounds show 8px separation	A	no
+L2-005	2	kt_direction_column	Set column direction	kt_direction(s, e, KT_DIR_COLUMN); two children stack vertically, verify y-positions	A	no
+L2-006	2	kt_direction_row_reverse	Set row-reverse direction	kt_direction(s, e, KT_DIR_ROW_REVERSE); two children appear in reversed x-order	A	no
+L3-001	3	kt_fill_hex_color	Set fill color from hex string	kt_fill(s, e, "#21D4A1"); kt_end; cmd.color == 0xFF21D4A1 (premultiplied ARGB)	A	no
+L3-002	3	kt_fill_short_hex	Set fill from 3-char hex	kt_fill(s, e, "#FA0"); cmd.color computed == 0xFFFFAA00	A	no
+L3-003	3	kt_fill_named_color	Set fill from named theme color	kt_fill(s, e, "accent"); resolves to correct named color uint32 from theme table	A	no
+L3-004	3	kt_radius_corner	Set corner radius	kt_radius(s, e, 8.0); kt_end; cmd.radius == 8.0 (or fixed-point equivalent)	A	no
+L3-005	3	kt_opacity_apply	Set opacity on element	kt_opacity(s, e, 0.5); fill with #FF0000; framebuffer pixel alpha is ~128 (premultiplied)	A	no
+L3-006	3	kt_stroke_rect	Set stroke on element	kt_stroke(s, e, "#FF0000", 2.0); kt_end; cmd.type == KT_CMD_STROKE, cmd.thickness == 2.0	A	no
+L3-007	3	kt_font_size	Set font size	kt_font(s, e, 14.0); kt_text(s, e, "hi"); kt_end; cmd references correct font size (no crash)	A	no
+L4-001	4	kt_put_get_i64	Integer state round-trip	kt_put(s, "counter", 42); let v = kt_get(s, "counter", -1); assert v == 42	A	no
+L4-002	4	kt_put_get_f64	Float state round-trip	kt_put_f(s, "pi", 3.14159); let v = kt_get_f(s, "pi", 0.0); assert abs(v - 3.14159) < 1e-6	A	no
+L4-003	4	kt_put_get_string	String state round-trip	kt_put_s(s, "name", "hello"); let v = kt_get_s(s, "name", ""); assert v == "hello"	A	no
+L4-004	4	kt_get_fallback	Get returns default for missing key	kt_get(s, "nope", 42) returns 42; kt_get_f(s, "nope", 3.14) returns 3.14; kt_get_s(s, "nope", "def") returns "def"	A	no
+L4-005	4	kt_state_survives_frame	State persists across kt_begin/kt_end boundary	kt_put(s, "x", 1); kt_begin(s, 16); kt_end(s); kt_get(s, "x", 0) returns 1 (not 0)	A	no
+L4-006	4	kt_state_capacity_limit	128-entry capacity enforced	fill 128 unique keys; 129th returns error or is silently dropped; no crash	A	no
+L5-001	5	kt_cmd_count_empty	Empty frame produces 0 draw commands	kt_begin(s, 16); kt_end(s); kt_cmd_count(s) == 0	A	no
+L5-002	5	kt_cmd_count_filled	One filled box produces >=1 commands	kt_begin; kt_row; kt_fill; kt_end_row; kt_end; kt_cmd_count(s) >= 1	A	no
+L5-003	5	kt_cmd_get_first	First command is KT_CMD_FILL with correct color	kt_fill(s, e, "#FF0000"); kt_end; kt_cmd_get(s, 0).type == KT_CMD_FILL; .color == 0xFFFF0000	A	no
+L5-004	5	kt_cmd_count_multi_frame	Frame count resets each frame	Frame 1: 1 cmd; Frame 2: 0 cmds; kt_cmd_count consistently returns per-frame count	A	no
+L5-005	5	kt_pixel_golden_match	Framebuffer matches golden .bin	Render known layout; compare g_fb byte-for-byte against golden/<test>.bin; 0 mismatches	A	no
+L5-006	5	kt_pixel_golden_mismatch	Framebuffer differs from wrong golden	Render layout; compare against wrong golden; first mismatch byte > 0 (negative test)	A	no
+L5-007	5	kt_draw_merge_adjacent	Adjacent same-color fills auto-merge into one cmd	Two adjacent same-color rects; cmd_count < 2; merged cmd bounds covers both rects	A	no
+L6-001	6	kt_clip_single	Single clip rect restricts fill	CLIP at (10,10,100,100); FILL at (0,0,200,200); pixel at (5,5) is background (unwritten)	A	no
+L6-002	6	kt_clip_nested_parenthesis	Nested clip (CLIP→CLIP) produces intersection	CLIP(0,0,200,200)→CLIP(50,50,100,100); fill covers only intersection (50,50,100,100)	A	no
+L6-003	6	kt_clip_unclip_restore	CLIP→UNCLIP restores previous clip	CLIP(10,10,50,50); CLIP(200,200,10,10); UNCLIP; FILL; verify second clip released	A	no
+L6-004	6	kt_clip_stack_depth	16-deep clip stack enforced	Push 16 clips; verify each intersects correctly; no crash	A	no
+L6-005	6	kt_clip_stack_overflow	17th clip silently ignored	Push 17 clips; 17th clip is no-op; stack not corrupted; subsequent POP still works	A	no
+L6-006	6	kt_clip_degenerate	Degenerate clip (w=0 or h=0) suppresses fill	CLIP(10,10,0,0); FILL(0,0,800,600); no pixels written (all stay background)	A	no
+L6-007	6	kt_clip_framebuffer_edge	Clip at framebuffer edge clamped correctly	CLIP(-100,-50,1000,900); clamped to (0,0,800,600); fill works inside clamped region	A	no
+L7-001	7	stress_max_nodes	4096 nodes created without error	Create 4096 unique elements within session capacity; no crash, no alloc failure	A	no
+L7-002	7	stress_overflow_nodes	4097th node triggers error	Create 4097 elements; error handler fires at 4097th; session state intact	A	no
+L7-003	7	stress_deep_tree	1000 levels of nested elements	1000 nested kt_row→kt_end_row pairs; tree integrity verified via cmd_count > 0	A	no
+L7-004	7	stress_multi_frame	60 frames of random layout ops	60 frames of kt_begin→random tree→kt_end; no accumulation, no leak, framebuffer valid	A	no
+L7-005	7	stress_large_framebuffer	Large framebuffer allocation	triple/kt_make("big", 4096, 4096); single fill; kt_cmd_count >= 1; allocation not rejected	A	no
+L7-006	7	stress_oversized_fb	Oversize framebuffer rejected	kt_make("too_big", 32000, 24000) returns NULL (allocation refused)	A	no
+L8-001	8	backend_register_null	Register null backend by name	kt_backend_register(s, "null", &vtable) returns 0 (success)	A	no
+L8-002	8	backend_select_null	Select null backend	kt_backend_register + kt_backend_select(s, "null") returns 0; subsequent frames use null	A	no
+L8-003	8	backend_select_bogus	Select unregistered backend returns error	kt_backend_select(s, "bogus_gpu") returns -1; no crash	A	no
+L8-004	8	backend_probe	Probe returns bitmask of registered backends	kt_backend_probe(s) returns non-zero after registering one backend	A	no
+L8-005	8	backend_register_terminal	Register terminal backend	kt_backend_register(s, "terminal", &term_vtable) returns 0	A	no
+L8-006	8	input_mouse_move	Mouse move updates input state	kt_input_mouse_move(s, 400, 300); next frame input.mouse_x == 400, input.mouse_y == 300	A	no
+L8-007	8	input_mouse_down_up	Mouse down/up toggles button state	kt_input_mouse_down(s, 0); next frame mouse_down[0]==1; kt_input_mouse_up(s, 0); mouse_down[0]==0	A	no
+L8-008	8	input_key_down_up	Key down/up toggles key state	kt_input_key_down(s, 0x41); keys_down[0x41]==1; kt_input_key_up(s, 0x41); keys_down[0x41]==0	A	no
+L8-009	8	input_scroll_accumulate	Scroll delta accumulated	kt_input_scroll(s, 0.0, -120.0); next frame input.scroll_dy == -120.0	A	no
+L8-010	8	input_text_buffer	Text input populates buffer	kt_input_text(s, "hello"); text_input == "hello", text_len == 5	A	no
+L8-011	8	should_close_null	Null backend never closes	kt_should_close(s) returns 0 (null backend has no close mechanism)	A	no

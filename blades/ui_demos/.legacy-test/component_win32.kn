@@ -1,0 +1,144 @@
+// ============================================================================
+//  component_win32.kn — MINIMAL Win32 GDI + component demo
+//  ============================================================================
+
+use std::runtime
+
+@extern @link_name("CreateWindowExA")
+fn win_CreateWindowExA(dwExStyle: Int, lpClassName: String, lpWindowName: String, dwStyle: Int, x: Int, y: Int, nWidth: Int, nHeight: Int, hWndParent: Int, hMenu: Int, hInstance: Int, lpParam: Int) -> Int
+@extern @link_name("DefWindowProcA")
+fn win_DefWindowProcA(hWnd: Int, Msg: Int, wParam: Int, lParam: Int) -> Int
+@extern @link_name("DispatchMessageA")
+fn win_DispatchMessageA(lpMsg: ptr<Int>) -> Int
+@extern @link_name("GetModuleHandleA")
+fn win_GetModuleHandleA(lpModuleName: Int) -> Int
+@extern @link_name("InvalidateRect")
+fn win_InvalidateRect(hWnd: Int, lpRect: Int, bErase: Int) -> Int
+@extern @link_name("PeekMessageA")
+fn win_PeekMessageA(lpMsg: ptr<Int>, hWnd: Int, wMsgFilterMin: Int, wMsgFilterMax: Int, wRemoveMsg: Int) -> Int
+@extern @link_name("PostQuitMessage")
+fn win_PostQuitMessage(nExitCode: Int)
+@extern @link_name("RegisterClassExA")
+fn win_RegisterClassExA(lpWndClassEx: ptr<Int>) -> Int
+@extern @link_name("ShowWindow")
+fn win_ShowWindow(hWnd: Int, nCmdShow: Int) -> Int
+@extern @link_name("TranslateMessage")
+fn win_TranslateMessage(lpMsg: ptr<Int>) -> Int
+@extern @link_name("UpdateWindow")
+fn win_UpdateWindow(hWnd: Int) -> Int
+@extern @link_name("BeginPaint")
+fn win_BeginPaint(hWnd: Int, lpPaint: ptr<Int>) -> Int
+@extern @link_name("EndPaint")
+fn win_EndPaint(hWnd: Int, lpPaint: ptr<Int>) -> Int
+@extern @link_name("FillRect")
+fn win_FillRect(hDC: Int, lprc: ptr<Int>, hbr: Int) -> Int
+@extern @link_name("CreateSolidBrush")
+fn win_CreateSolidBrush(color: Int) -> Int
+@extern @link_name("DeleteObject")
+fn win_DeleteObject(hObject: Int) -> Int
+@extern @link_name("SetTextColor")
+fn win_SetTextColor(hdc: Int, color: Int) -> Int
+@extern @link_name("SetBkMode")
+fn win_SetBkMode(hdc: Int, mode: Int) -> Int
+@extern @link_name("TextOutA")
+fn win_TextOutA(hdc: Int, x: Int, y: Int, lpString: String, cchString: Int) -> Int
+
+const APP_W: Int = 800
+const APP_H: Int = 600
+const TITLE: String = "Kain Component + Win32"
+const C_BG: Int = 0x0E0806
+const C_TOP: Int = 0x060402
+const C_ACCENT: Int = 0x4C80FF
+const C_TEXT: Int = 0xD6EAF4
+const C_DIM: Int = 0xA4BEC6
+
+var g_hwnd: Int = 0
+var g_frame: Int = 0
+var g_running: Int = 1
+
+fn fill_rect(hdc: Int, x: Int, y: Int, w: Int, h: Int, color: Int) -> Int with Unsafe:
+    let brush = win_CreateSolidBrush(color)
+    let r: ptr<Int> = alloc_zeroed(4, "Int")
+    mem_store(ptr_offset(r, 0, "Int"), x, "Int")
+    mem_store(ptr_offset(r, 1, "Int"), y, "Int")
+    mem_store(ptr_offset(r, 2, "Int"), x + w, "Int")
+    mem_store(ptr_offset(r, 3, "Int"), y + h, "Int")
+    let result = win_FillRect(hdc, r, brush)
+    decay r
+    let _ = win_DeleteObject(brush)
+    return result
+
+fn draw_text(hdc: Int, x: Int, y: Int, text: String, color: Int) -> Int with Unsafe:
+    let _ = win_SetTextColor(hdc, color)
+    let _ = win_SetBkMode(hdc, 1)
+    return win_TextOutA(hdc, x, y, text, len(text))
+
+fn render_frame(hdc: Int) -> Int with Unsafe:
+    let _ = fill_rect(hdc, 0, 0, APP_W, APP_H, C_BG)
+    let _ = fill_rect(hdc, 0, 0, APP_W, 48, C_TOP)
+    let _ = draw_text(hdc, 16, 12, TITLE, C_ACCENT)
+    let _ = draw_text(hdc, 16, 30, "Win32 GDI + component keyword", C_DIM)
+    let _ = draw_text(hdc, 16, 50, "Frame: " + str(g_frame), C_TEXT)
+    let _ = fill_rect(hdc, 16, 72, APP_W - 32, 2, C_ACCENT)
+    let _ = draw_text(hdc, 16, 90, "This is drawn by GDI. Components below go through the vtable.", C_DIM)
+    g_frame = g_frame + 1
+    return 0
+
+fn wndproc(hwnd: Int, msg: Int, wparam: Int, lparam: Int) -> Int with Unsafe:
+    if msg == 15:
+        let ps: ptr<Int> = alloc_zeroed(8, "Int")
+        let hdc = win_BeginPaint(hwnd, ps)
+        let _ = render_frame(hdc)
+        let _ = win_EndPaint(hwnd, ps)
+        decay ps
+        return 0
+    if msg == 2:
+        win_PostQuitMessage(0)
+        g_running = 0
+        return 0
+    return win_DefWindowProcA(hwnd, msg, wparam, lparam)
+
+component StatusLine():
+    render <text value={"Frame: " + str(g_frame)} />
+
+component MyApp():
+    render <panel title={TITLE}>
+        <stack direction="vertical">
+            <StatusLine />
+            <text value="Component tree via vtable" />
+        </stack>
+    </panel>
+
+fn main() -> Int with Unsafe:
+    let init = runtime_init()
+    if init != 0: return 100 + init
+
+    let hinstance = win_GetModuleHandleA(0)
+    let wc: ptr<Int> = alloc_zeroed(40, "Int")
+    mem_store(ptr_offset(wc, 0, "Int"), 40, "Int")
+    mem_store(ptr_offset(wc, 4, "Int"), 3, "Int")
+    let wp = ptr_to_int(ref(wndproc))
+    mem_store(ptr_offset(wc, 8, "Int"), wp, "Int")
+    mem_store(ptr_offset(wc, 12, "Int"), 0, "Int")
+    mem_store(ptr_offset(wc, 16, "Int"), 0, "Int")
+    mem_store(ptr_offset(wc, 20, "Int"), hinstance, "Int")
+    let _ = win_RegisterClassExA(wc)
+
+    let hwnd = win_CreateWindowExA(0, TITLE, TITLE, 0xCF0000, 100, 100, APP_W, APP_H, 0, 0, hinstance, 0)
+    g_hwnd = hwnd
+    let _ = win_ShowWindow(hwnd, 1)
+    let _ = win_UpdateWindow(hwnd)
+
+    let msg: ptr<Int> = alloc_zeroed(8, "Int")
+    while g_running != 0:
+        while win_PeekMessageA(msg, 0, 0, 0, 1) != 0:
+            let _ = win_TranslateMessage(msg)
+            let _ = win_DispatchMessageA(msg)
+        let _ = win_InvalidateRect(hwnd, 0, 0)
+
+    decay msg
+    decay wc
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0: return 200 + shutdown
+    return 0
