@@ -6,13 +6,12 @@
 //  Declares its own @extern bindings for the interaction query C API.
 // ============================================================================
 
-use std::kaintana::core as core
+use std::kaintana::KtSession
 
-// ── @extern bindings (interaction query from kaintana.h §11b) ─────────
-
-@extern fn kt_hovered(s: core::KtSession, elem: core::KtElementId) -> Int
-@extern fn kt_clicked(s: core::KtSession, elem: core::KtElementId) -> Int
-@extern fn kt_active(s: core::KtSession, elem: core::KtElementId) -> Int
+use std::kaintana::core::kt_hovered
+use std::kaintana::KtElementId
+use std::kaintana::core::kt_clicked
+use std::kaintana::core::kt_active
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  InputState — per-frame interaction state reader
@@ -21,33 +20,33 @@ use std::kaintana::core as core
 /// Per-frame input state. Read interaction state each frame from C.
 pub struct InputState:
     /// Session handle for all queries.
-    session: core::KtSession
+    session: KtSession
 
 pub impl InputState:
     /// Create InputState for a session.
-    pub fn init(s: core::KtSession) -> InputState:
+    pub fn init(s: KtSession) -> InputState:
         return InputState { session: s }
 
     /// True if pointer is over this element.
-    pub fn hovered(_self: Self_, elem: core::KtElementId) -> Bool:
+    pub fn hovered(_self: Self_, elem: KtElementId) -> Bool:
         return kt_hovered(_self.session, elem) != 0
 
     /// True if element was clicked this frame.
-    pub fn clicked(_self: Self_, elem: core::KtElementId) -> Bool:
+    pub fn clicked(_self: Self_, elem: KtElementId) -> Bool:
         return kt_clicked(_self.session, elem) != 0
 
     /// True if element has pointer capture.
-    pub fn active(_self: Self_, elem: core::KtElementId) -> Bool:
+    pub fn active(_self: Self_, elem: KtElementId) -> Bool:
         return kt_active(_self.session, elem) != 0
 
     /// True if pointer is over AND element has capture.
-    pub fn hovered_active(_self: Self_, elem: core::KtElementId) -> Bool:
+    pub fn hovered_active(_self: Self_, elem: KtElementId) -> Bool:
         let h = kt_hovered(_self.session, elem) != 0
         let a = kt_active(_self.session, elem) != 0
         return h and a
 
     /// True if element was just pressed this frame.
-    pub fn just_pressed(_self: Self_, elem: core::KtElementId) -> Bool:
+    pub fn just_pressed(_self: Self_, elem: KtElementId) -> Bool:
         let h = kt_hovered(_self.session, elem) != 0
         let a = kt_active(_self.session, elem) != 0
         return h and a
@@ -65,28 +64,28 @@ pub const MOD_SUPER: Int = 8
 //  Modifier Key Query Helpers (stubs until keyboard query API available)
 // ═══════════════════════════════════════════════════════════════════════════
 
-pub fn mod_shift(s: core::KtSession) -> Bool:
+pub fn mod_shift(s: KtSession) -> Bool:
     let _ = s
     return false
 
-pub fn mod_ctrl(s: core::KtSession) -> Bool:
+pub fn mod_ctrl(s: KtSession) -> Bool:
     let _ = s
     return false
 
-pub fn mod_alt(s: core::KtSession) -> Bool:
+pub fn mod_alt(s: KtSession) -> Bool:
     let _ = s
     return false
 
-pub fn mod_super(s: core::KtSession) -> Bool:
+pub fn mod_super(s: KtSession) -> Bool:
     let _ = s
     return false
 
-pub fn mod_any(s: core::KtSession, mask: Int) -> Bool:
+pub fn mod_any(s: KtSession, mask: Int) -> Bool:
     let _ = s
     let _ = mask
     return false
 
-pub fn mod_any_key(s: core::KtSession) -> Bool:
+pub fn mod_any_key(s: KtSession) -> Bool:
     let _ = s
     return false
 

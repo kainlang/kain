@@ -164,11 +164,11 @@ component ListDemo():
     </box>
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  WORLD — ties ListDemo to the native_ui surface
+//  WORLD — ties ListDemo to the kaintana surface
 // ═══════════════════════════════════════════════════════════════════════════
 
 world ScrollableListWorld:
-    surface native_ui => ListDemo
+    surface kaintana => ListDemo
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  MAIN — Session lifecycle and program entry

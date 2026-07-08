@@ -193,11 +193,11 @@ component DemoScene():
         </box>
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  WORLD — ties DemoScene to the native_ui surface
+//  WORLD — ties DemoScene to the kaintana surface
 // ═══════════════════════════════════════════════════════════════════════════
 
 world AnimatedButtonWorld:
-    surface native_ui => DemoScene
+    surface kaintana => DemoScene
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  MAIN — Session lifecycle and program entry

@@ -1,7 +1,7 @@
 // ============================================================================
 //  examples/dashboard.kn — Themed Dashboard Example
 //  §15.4: Stat panels, progress bars, animated stats, data table chart.
-//  Full app with world, native_ui surface, win32 backend, session loop.
+//  Full app with world, kaintana surface, win32 backend, session loop.
 //  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
 // ============================================================================
 
@@ -177,11 +177,11 @@ component Dashboard():
     </VStack>
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  WORLD with native_ui surface
+//  WORLD with kaintana surface
 // ═══════════════════════════════════════════════════════════════════════════════
 
 world DashboardWorld:
-    surface native_ui => Dashboard
+    surface kaintana => Dashboard
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  MAIN — Register backend, run session loop

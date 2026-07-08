@@ -12,16 +12,15 @@
 //  Declares its own @extern bindings for the DPI C API.
 // ============================================================================
 
-use std::kaintana::core as core
+use std::kaintana::KtSession
 
-// ── @extern bindings (DPI functions from kaintana.h §20) ──────────────
-
-@extern fn kt_scale_factor_x(s: core::KtSession) -> Float
-@extern fn kt_scale_factor_y(s: core::KtSession) -> Float
-@extern fn kt_native_scale_x(s: core::KtSession) -> Float
-@extern fn kt_native_scale_y(s: core::KtSession) -> Float
-@extern fn kt_set_native_scale(s: core::KtSession, sx: Float, sy: Float) -> Void
-@extern fn kt_set_zoom(s: core::KtSession, zoom: Float) -> Void
+use std::kaintana::core::kt_scale_factor_x
+use std::kaintana::core::kt_scale_factor_y
+use std::kaintana::core::kt_native_scale_x
+use std::kaintana::core::kt_native_scale_y
+use std::kaintana::core::kt_set_native_scale
+use std::kaintana::core::kt_set_zoom
+use std::kaintana::KtSession
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Constants
@@ -54,10 +53,10 @@ pub struct DpiContext:
     scale_x: Float
     scale_y: Float
     zoom:    Float
-    session: core::KtSession
+    session: KtSession
 
 /// Create a DpiContext by querying the session's current scale factors.
-pub fn dpi_context(s: core::KtSession) -> DpiContext:
+pub fn dpi_context(s: KtSession) -> DpiContext:
     return DpiContext {
         scale_x: kt_scale_factor_x(s),
         scale_y: kt_scale_factor_y(s),
@@ -67,7 +66,7 @@ pub fn dpi_context(s: core::KtSession) -> DpiContext:
 
 /// Create a DpiContext with explicit scale and zoom values.
 pub fn dpi_context_explicit(
-    sx: Float, sy: Float, zoom: Float, s: core::KtSession,
+    sx: Float, sy: Float, zoom: Float, s: KtSession,
 ) -> DpiContext:
     return DpiContext {
         scale_x: sx,

@@ -17,19 +17,16 @@
 //    - widgets/Label.kn: Label component
 // ============================================================================
 
-// ── Self-contained @extern bindings for session lifecycle ─────────────────
-//  These are declared here so counter.kn compiles standalone.
-//  The actual C implementations live in kaintana.h (tree.c).
-
-@extern fn kt_init() -> Int
-@extern fn kt_make(name: String, w: Int, h: Int) -> Int
-@extern fn kt_free(s: Int) -> Void
-@extern fn kt_begin(s: Int, delta_ms: Float) -> Void
-@extern fn kt_end(s: Int) -> Void
-@extern fn kt_present(s: Int) -> Void
-@extern fn kt_should_close(s: Int) -> Int
-@extern fn kt_backend_register(s: Int, name: String, vtable: Int) -> Int
-@extern fn kt_backend_select(s: Int, name: String) -> Int
+// ── Session lifecycle functions (from std::kaintana::core) ─────────────
+use std::kaintana::core::kt_init
+use std::kaintana::core::kt_make
+use std::kaintana::core::kt_free
+use std::kaintana::core::kt_begin
+use std::kaintana::core::kt_end
+use std::kaintana::core::kt_present
+use std::kaintana::core::kt_should_close
+use std::kaintana::core::kt_backend_register
+use std::kaintana::core::kt_backend_select
 
 // ── Theme imports (from std::kaintana) ────────────────────────────────────
 
@@ -58,7 +55,7 @@ use std::kaintana::Label
 world CounterWorld:
     state count: Int = 0
     state theme: KtTheme = DEFAULT_THEME
-    surface native_ui => CounterApp
+    surface kaintana => CounterApp
 
 // ============================================================================
 //  Component: CounterApp

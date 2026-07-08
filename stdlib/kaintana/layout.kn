@@ -23,13 +23,16 @@
 
 use std::kaintana::core as core
 use std::kaintana::theme as theme
+use std::kaintana::core::KT_DIR_COLUMN
 
 // ============================================================================
-//  LAYOUT DIRECTION CONSTANTS (re-exported from core.kn)
-pub use KT_DIR_ROW
-pub use KT_DIR_COLUMN
-pub use KT_DIR_ROW_REVERSE
-pub use KT_DIR_COLUMN_REVERSE
+//  LAYOUT DIRECTION CONSTANTS
+//  Matches KaintanaLayoutDir C enum in kaintana.h
+//  These are re-exports from core.kn for convenience in this module.
+// ============================================================================
+
+// Direction constants are in core.kn. Use `use std::kaintana::core` and core.KT_DIR_ROW etc.
+
 // ============================================================================
 //  JUSTIFY CONTENT CONSTANTS (main-axis alignment)
 //  Matches KaintanaJustify C enum in kaintana.h
@@ -89,7 +92,7 @@ component HStack(
     height: Float = 0.0,
     key: String = "hstack",
 ):
-    render <box kind="stack" key={key} direction={KT_DIR_ROW} gap={spacing} pad={padding} alignment={alignment} width={width} height={height}>
+    render <box kind="stack" key={key} direction={0} gap={spacing} pad={padding} alignment={alignment} width={width} height={height}>
     </box>
 
 // ============================================================================
@@ -169,7 +172,7 @@ component Grid(
     height: Float = 0.0,
     key: String = "grid",
 ):
-    render <box kind="grid" key={key} direction={KT_DIR_ROW} gap={spacing} pad={padding} width={width} height={height}>
+    render <box kind="grid" key={key} direction={0} gap={spacing} pad={padding} width={width} height={height}>
     </box>
 
 // ============================================================================

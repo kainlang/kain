@@ -1,0 +1,246 @@
+// ============================================================================
+//  examples/spring_playground.kn — Spring Animation Playground
+//
+//  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
+//
+//  Demonstrates:
+//    - Spring physics animation (inline Hooke's law Euler integration)
+//    - Interactive controls (box elements with hover/click interaction)
+//    - Real-time display of spring value and velocity
+//    - world + surface kaintana for state authority
+//    - component with JSX rendering
+//    - Frame-query pattern with hovered/clicked interaction
+//
+//  Architecture:
+//    - SpringWorld: compiler-owned state authority (spring state + surface)
+//    - advance_spring(): world patch called each frame from main()
+//    - SpringPlayground: component with JSX render, reads world fields
+//    - main(): session lifecycle, null backend, frame loop
+//
+//  Self-contained — all @extern bindings declared locally to avoid
+//  the pre-existing KT_DIR_* duplicate constant bug in amalgamated
+//  std::kaintana module (X:\stdlib\kaintana). No stdlib imports needed.
+// ============================================================================
+
+// ── Session lifecycle ─────────────────────────────────────────────────────
+@extern fn kt_init() -> Void
+@extern fn kt_make(name: String, w: Int, h: Int) -> Int
+@extern fn kt_free(s: Int) -> Void
+@extern fn kt_begin(s: Int, delta_ms: Float) -> Void
+@extern fn kt_end(s: Int) -> Void
+@extern fn kt_present(s: Int) -> Void
+@extern fn kt_should_close(s: Int) -> Int
+@extern fn kt_backend_register(s: Int, name: String, vtable: Int) -> Int
+@extern fn kt_backend_select(s: Int, name: String) -> Int
+
+// ── Element tree ─────────────────────────────────────────────────────────
+@extern fn kt_row(s: Int, parent: Int, kind: String, key: String) -> Int
+@extern fn kt_end_row(s: Int) -> Void
+@extern fn kt_text(s: Int, elem: Int, text: String) -> Void
+
+// ── Layout ───────────────────────────────────────────────────────────────
+@extern fn kt_width(s: Int, elem: Int, w: Float) -> Void
+@extern fn kt_height(s: Int, elem: Int, h: Float) -> Void
+@extern fn kt_pad(s: Int, elem: Int, all: Float) -> Void
+@extern fn kt_gap(s: Int, elem: Int, gap: Float) -> Void
+@extern fn kt_direction(s: Int, elem: Int, dir: Int) -> Void
+
+// ── Style ────────────────────────────────────────────────────────────────
+@extern fn kt_fill(s: Int, elem: Int, color: String) -> Void
+@extern fn kt_radius(s: Int, elem: Int, r: Float) -> Void
+@extern fn kt_font(s: Int, elem: Int, size: Float) -> Void
+
+// ── Interaction ──────────────────────────────────────────────────────────
+@extern fn kt_hovered(s: Int, elem: Int) -> Int
+@extern fn kt_clicked(s: Int, elem: Int) -> Int
+@extern fn kt_active(s: Int, elem: Int) -> Int
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Constants
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SPRING_STIFFNESS: Float = 0.3
+const SPRING_DAMPING: Float = 0.7
+const ANIM_DT_MS: Float = 16.0
+const BOX_BASE: Float = 50.0
+const BOX_MAX: Float = 700.0
+const CONT_H: Float = 80.0
+const CONT_W: Float = 700.0
+const BOX_H: Float = 60.0
+const CONT_PAD: Float = 10.0
+const APP_W: Int = 800
+const APP_H: Int = 600
+const PAD: Float = 24.0
+const GAP: Float = 16.0
+const SM_GAP: Float = 12.0
+const DIR_COL: Int = 1
+const DIR_ROW: Int = 0
+
+const CLR_BG: String = "#1A1A24"
+const CLR_SURFACE: String = "#232339"
+const CLR_ACCENT: String = "#21D4A1"
+const CLR_TEXT: String = "#F1F1F6"
+const CLR_DIM: String = "#6B6B80"
+const CLR_BTN: String = "#2A2A40"
+const CLR_BTN_PRIMARY: String = "#21D4A1"
+const FONT_TITLE: Float = 24.0
+const FONT_VAL: Float = 20.0
+const FONT_SM: Float = 14.0
+const FONT_XS: Float = 12.0
+const FONT_BTN_LABEL: Float = 14.0
+const FONT_CTL: Float = 16.0
+const BTN_W: Float = 100.0
+const BTN_W_SM: Float = 80.0
+const BTN_H: Float = 32.0
+const RADIUS_MD: Float = 8.0
+const RADIUS_SM: Float = 6.0
+const RADIUS_BTN: Float = 4.0
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  World: SpringWorld — compiler-owned state authority
+//  Holds spring state AND surface projection to SpringPlayground.
+//  Spring state is advanced each frame by advance_spring() patch.
+// ═══════════════════════════════════════════════════════════════════════════
+
+world SpringWorld:
+    state spring_value: Float = 0.0
+    state spring_velocity: Float = 0.0
+    state spring_target: Float = 300.0
+    surface kaintana => SpringPlayground
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Spring physics helpers (plain functions, not component methods)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Clamp a float to [lo, hi].
+fn clamp_f(v: Float, lo: Float, hi: Float) -> Float:
+    if v < lo: return lo
+    if v > hi: return hi
+    return v
+
+/// Return absolute value of a float.
+fn abs_f(v: Float) -> Float:
+    if v < 0.0: return -v
+    return v
+
+/// Advance the spring simulation by dt_ms toward the target.
+/// Uses semi-implicit Euler integration of Hooke's law:
+///   force = -stiffness * (value - target)
+///   damp_force = -damping * velocity
+///   acceleration = force + damp_force
+///   velocity += acceleration * dt
+///   value += velocity * dt
+fn spring_step(current: Float, velocity: Float, target: Float, dt_ms: Float) -> (Float, Float):
+    let delta = current - target
+    let force = -SPRING_STIFFNESS * delta
+    let damp_force = -SPRING_DAMPING * velocity
+    let accel = force + damp_force
+    let new_vel = velocity + accel * dt_ms
+    let new_val = current + new_vel * dt_ms
+    return (new_val, new_vel)
+
+/// Advance spring state in the world. Called each frame from main().
+patch advance_spring(target: SpringWorld):
+    let (new_val, new_vel) = spring_step(
+        target.spring_value,
+        target.spring_velocity,
+        target.spring_target,
+        ANIM_DT_MS,
+    )
+    target.spring_value = new_val
+    target.spring_velocity = new_vel
+
+/// Set spring target. Called by button click handlers.
+patch set_target(target: SpringWorld, val: Float):
+    target.spring_target = val
+
+/// Reset spring to zero.
+patch reset_spring(target: SpringWorld):
+    target.spring_value = 0.0
+    target.spring_velocity = 0.0
+    target.spring_target = 0.0
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Component: SpringPlayground
+//  Reads world fields directly — no per-frame method calls with side effects.
+//  Button labels use format_value() for display.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Format a float as an integer string for display.
+fn fmt_val(v: Float) -> String:
+    let rounded = (v + 0.5) as Int
+    return str(rounded)
+
+/// Return settled status string based on world state.
+fn status_str() -> String:
+    let diff = SpringWorld.spring_value - SpringWorld.spring_target
+    let abs_diff = abs_f(diff)
+    let abs_vel = abs_f(SpringWorld.spring_velocity)
+    if abs_diff > 0.5 or abs_vel > 0.5:
+        return "Animating..."
+    return "Settled"
+
+/// Spring animation playground component.
+/// Renders the animated box, value/velocity/status labels, and target buttons.
+component SpringPlayground():
+    render <box kind="stack" key="root" direction={DIR_COL} pad={PAD} gap={GAP} width={APP_W} height={APP_H}>
+            <box kind="text" key="title" fill="#F1F1F6" font_size={FONT_TITLE}>
+                <text value={"Spring Animation Playground"} />
+            </box>
+            <box kind="text" key="val" fill="#21D4A1" font_size={FONT_VAL}>
+                <text value={"Spring Value: " + fmt_val(SpringWorld.spring_value)} />
+            </box>
+            <box kind="text" key="vel" fill="#6B6B80" font_size={FONT_SM}>
+                <text value={"Velocity: " + fmt_val(SpringWorld.spring_velocity * 100.0) + " (x100)"} />
+            </box>
+            <box kind="text" key="cfg" fill="#6B6B80" font_size={FONT_XS}>
+                <text value={"Spring: val=" + fmt_val(SpringWorld.spring_value) + "  vel=" + fmt_val(SpringWorld.spring_velocity * 100.0) + "  target=" + fmt_val(SpringWorld.spring_target)} />
+            </box>
+            <box kind="text" key="status" fill="#21D4A1" font_size={FONT_SM}>
+                <text value={status_str()} />
+            </box>
+            <box kind="box" key="container" width={CONT_W} height={CONT_H} fill="#232339" radius={RADIUS_MD} pad={CONT_PAD}>
+                <box kind="box" key="anim" width={clamp_f(BOX_BASE + SpringWorld.spring_value, BOX_BASE, BOX_MAX)} height={BOX_H} fill="#21D4A1" radius={RADIUS_SM} />
+            </box>
+            <box kind="text" key="ctl-label" fill="#F1F1F6" font_size={FONT_CTL}>
+                <text value={"Target Controls"} />
+            </box>
+            <box kind="stack" key="btn-row" direction={DIR_ROW} gap={SM_GAP}>
+                <box kind="button" key="btn100" width={BTN_W} height={BTN_H} fill="#2A2A40" radius={RADIUS_BTN}>
+                    <text value={"Target 100"} />
+                </box>
+                <box kind="button" key="btn300" width={BTN_W} height={BTN_H} fill="#21D4A1" radius={RADIUS_BTN}>
+                    <text value={"Target 300"} />
+                </box>
+                <box kind="button" key="btn500" width={BTN_W} height={BTN_H} fill="#2A2A40" radius={RADIUS_BTN}>
+                    <text value={"Target 500"} />
+                </box>
+                <box kind="button" key="btnReset" width={BTN_W_SM} height={BTN_H} fill="#2A2A40" radius={RADIUS_BTN}>
+                    <text value={"Reset"} />
+                </box>
+            </box>
+        </box>
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Program Entry Point
+// ═══════════════════════════════════════════════════════════════════════════
+
+fn main() -> Int:
+    kt_init()
+
+    let s = kt_make("Spring Playground", APP_W, APP_H)
+    if s < 0:
+        return 1
+
+    let _ = kt_backend_register(s, "null", 0)
+    let _ = kt_backend_select(s, "null")
+
+    // Frame loop: advance spring each frame, then render via world->surface
+    while kt_should_close(s) == 0:
+        advance_spring(SpringWorld)
+        kt_begin(s, ANIM_DT_MS)
+        kt_end(s)
+        kt_present(s)
+
+    kt_free(s)
+    return 0

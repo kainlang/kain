@@ -5,17 +5,15 @@
 //  Layer: L3 of 4-layer stack — Pure Kain atop the 24-slot vtable.
 // ============================================================================
 
-pub type KtSession   = Int
-pub type KtElementId = Int
-
-// ── @extern bindings (from core.kn) ──────────────────────────────────────
-@extern fn kt_row(s: KtSession, parent: KtElementId, kind: String, key: String) -> KtElementId
-@extern fn kt_end_row(s: KtSession) -> Void
-@extern fn kt_fill(s: KtSession, elem: KtElementId, color: String) -> Void
-@extern fn kt_width(s: KtSession, elem: KtElementId, w: Float) -> Void
-@extern fn kt_height(s: KtSession, elem: KtElementId, h: Float) -> Void
-@extern fn kt_radius(s: KtSession, elem: KtElementId, r: Float) -> Void
-@extern fn kt_text(s: KtSession, elem: KtElementId, text: String) -> Void
+use std::kaintana::core::KtSession
+use std::kaintana::core::KtElementId
+use std::kaintana::core::kt_row
+use std::kaintana::core::kt_end_row
+use std::kaintana::core::kt_fill
+use std::kaintana::core::kt_width
+use std::kaintana::core::kt_height
+use std::kaintana::core::kt_radius
+use std::kaintana::core::kt_text
 
 // ── Widget trait (from Widget.kn) ────────────────────────────────────────
 pub trait Widget:

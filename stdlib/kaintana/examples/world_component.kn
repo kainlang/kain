@@ -1,0 +1,56 @@
+@extern fn kt_init() -> Void
+@extern fn kt_make(n: String, w: Int, h: Int) -> Int
+@extern fn kt_free(s: Int) -> Void
+@extern fn kt_begin(s: Int, dt: Float) -> Void
+@extern fn kt_end(s: Int) -> Void
+@extern fn kt_present(s: Int) -> Void
+@extern fn kt_should_close(s: Int) -> Int
+@extern fn kt_host_pump(s: Int) -> Int
+@extern fn kt_backend_register(s: Int, name: String, vtable: Int) -> Int
+@extern fn kt_backend_select(s: Int, name: String) -> Int
+@extern fn kt_row(s: Int, parent: Int, kind: String, key: String) -> Int
+@extern fn kt_end_row(s: Int) -> Void
+@extern fn kt_text(s: Int, elem: Int, text: String) -> Void
+@extern fn kt_fill(s: Int, elem: Int, color: String) -> Void
+@extern fn kt_width(s: Int, elem: Int, w: Float) -> Void
+@extern fn kt_height(s: Int, elem: Int, h: Float) -> Void
+@extern fn kt_radius(s: Int, elem: Int, r: Float) -> Void
+@extern fn kt_pad(s: Int, elem: Int, all: Float) -> Void
+@extern fn kt_gap(s: Int, elem: Int, gap: Float) -> Void
+@extern fn kt_direction(s: Int, elem: Int, dir: Int) -> Void
+@extern fn kt_put(s: Int, key: String, v: Int) -> Void
+@extern fn kt_get(s: Int, key: String, fallback: Int) -> Int
+
+const KT_DIR_COLUMN: Int = 1
+const KT_DIR_ROW: Int = 0
+
+component Demo():
+    state _count: Int = 0
+
+    pulse tick every 500ms:
+        _count = _count + 1
+
+    render <box kind="column" key="root" fill="#1A1A24" width={400} height={300} pad={16} gap={8} direction={KT_DIR_COLUMN}>
+        <text value="Hello Kaintana" />
+        <box kind="row" key="count-row" gap={8} direction={KT_DIR_ROW}>
+            <text value="Count:" />
+            <text value={str(_count)} />
+        </box>
+    </box>
+
+world DemoWorld:
+    surface kaintana => Demo
+
+fn main() -> Int:
+    kt_init()
+    let sid = kt_make("Demo", 400, 300)
+    if sid < 0: return 1
+    let _ = kt_backend_register(sid, "null", 0)
+    let _ = kt_backend_select(sid, "null")
+    while kt_should_close(sid) == 0:
+        let _ = kt_host_pump(sid)
+        kt_begin(sid, 16.0)
+        kt_end(sid)
+        kt_present(sid)
+    kt_free(sid)
+    return 0

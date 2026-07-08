@@ -12,15 +12,13 @@
 //    - Keys are scoped by component stable_key + field name to avoid collisions
 // ============================================================================
 
-pub type KtSession = Int
-
-// ── @extern bindings for state persistence (from core.kn) ────────────────
-@extern fn kt_put(s: KtSession, key: String, v: Int) -> Void
-@extern fn kt_put_f(s: KtSession, key: String, v: Float) -> Void
-@extern fn kt_put_s(s: KtSession, key: String, v: String) -> Void
-@extern fn kt_get(s: KtSession, key: String, fallback: Int) -> Int
-@extern fn kt_get_f(s: KtSession, key: String, fallback: Float) -> Float
-@extern fn kt_get_s(s: KtSession, key: String, fallback: String) -> String
+use std::kaintana::core::KtSession
+use std::kaintana::core::kt_put
+use std::kaintana::core::kt_put_f
+use std::kaintana::core::kt_put_s
+use std::kaintana::core::kt_get
+use std::kaintana::core::kt_get_f
+use std::kaintana::core::kt_get_s
 
 // ============================================================================
 //  SpringState — local definition (animation.kn is a separate P1 file)
