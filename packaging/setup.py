@@ -117,17 +117,19 @@ def windows_env_commands(kain_home: str, system_wide: bool):
     """PowerShell commands to add Kain to PATH."""
     scope = "Machine" if system_wide else "User"
     bin_path = os.path.join(kain_home, "bin")
+    # PowerShell uses backtick as escape, not backslash.
+    # Single-quoted strings in PowerShell are verbatim (no escape processing).
+    # We use single quotes for paths to avoid backslash issues.
     return [
-        f'[Environment]::SetEnvironmentVariable("KAIN_HOME", r"{kain_home}", "{scope}")',
+        f'[Environment]::SetEnvironmentVariable("KAIN_HOME", \'{kain_home}\', "{scope}")',
         f'$path = [Environment]::GetEnvironmentVariable("PATH", "{scope}")',
-        f'if ($path -notlike "*{bin_path}*") {{',
+        f'if ($path -notlike \"*{bin_path}*\") {{',
         f'    [Environment]::SetEnvironmentVariable("PATH", "$path;{bin_path}", "{scope}")',
-        f'    Write-Host "✓ Added {bin_path} to {scope} PATH"',
+        f'    Write-Host "Added {bin_path} to {scope} PATH"',
         f'}} else {{',
-        f'    Write-Host "ℹ {bin_path} already in {scope} PATH"',
+        f'    Write-Host "{bin_path} already in {scope} PATH"',
         f'}}',
     ]
-
 
 def windows_uninstall_commands(system_wide: bool):
     """PowerShell commands to remove Kain from PATH."""
