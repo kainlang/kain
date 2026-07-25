@@ -1,17 +1,3 @@
-<div align="center">
-
-```text
-                    ▄█   ▄█▄   ▄████████   ▄█   ███▄▄▄▄
-                    ███ ▄███▀   ███    ███   ███   ███▀▀▀██▄
-                    ███▐███▀    ███    ███   ███▌  ███   ███
-                   ▄█████▀      ███    ███   ███▌  ███   ███
-                  ▀▀█████▄      ██████████   ███▌  ███   ███
-                    ███▐███▄    ███    ███   ███   ███   ███
-                    ███ ▀███▄   ███    ███   █▀    ███   ███
-                    ██    ▀█▀   ██     ██           ▀█   █▀
-                                        v0.8
-```
-
 ## Why Kain?
 
 **Safety without the therapy.** Explicit ownership: `collapse`, `observe`, `decay`. No borrow checker. No lifetime annotations. No `Rc<RefCell<Arc<Mutex<Box<dyn>>>>>>`. You say what you mean, the compiler proves you aren't wrong.
