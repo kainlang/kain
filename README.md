@@ -9,51 +9,82 @@
            ███▐███▄    ███    ███   ███   ███   ███
            ███ ▀███▄   ███    ███   █▀    ███   ███
            ██    ▀█▀   ██     ██           ▀█   █▀
+v0.8
+``` 
 
-       
+</div>
+
+---
+
+## Why Kain?
+
+**Safety without the therapy.** Explicit ownership: `collapse`, `observe`, `decay`. No borrow checker. No lifetime annotations. No `Rc<RefCell<Arc<Mutex<Box<dyn>>>>>>`. You say what you mean, the compiler proves you aren't wrong.
+
+**One language, all of it.** Python syntax. GPU shaders in the same file as host code. React-style UI compiled to native. `include C` headers like you're writing C. `import python as py` like you're writing Python. One file, 18 targets.
+
+**The compiler owns the glue.** State, mutation tracking, dispatch, timing, coupling, layout, handoff -- 15 constructs the compiler manages so you stop writing boilerplate.
+
+## What You Get
+
+| You love... | Kain gives you... |
+|---|---|
+| Python | The syntax. Significant whitespace, colons, zero ceremony and native py import. |
+| Rust | Safety. Explicit ownership (`collapse`/`observe`/`decay`). No borrow checker. |
+| Erlang | Actors. `spawn`, `send`, `ask`. Supervision trees. Mailbox backpressure. |
+| Koka / Eff | Effects lattice. `Pure`, `IO`, `Async`, `GPU`, `Reactive`, `Unsafe`. |
+| Lisp | Hygienic macros. Code as data. DSL-friendly surface. |
+| React | JSX components. Typed props, local state, methods. Compiled to native. |
+| Slang / Vulkan / CUDA | GPU shaders unified with host code. One file emits SPIR-V, PTX, HLSL, WGSL. |
+| Zig | `comptime` blocks. `build.kn` as the project authority. No Makefile, no CMake. |
+| SQLite | Amalgamation. `kain amalgamate` packs everything into one portable capsule. |
+| F* / Dafny | Formal verification. 500+ Z3 proof packs across 16 directories. 6,000+ proof artifacts. 380+ SMT-LIB2 files. 10,000+ CBMC assertions. Proofs ship with the compiler. |
+| Jupyter / Neovim | The `kain repl` TUI. A fully integrated terminal IDE built in. Multi-pane editor, live evaluation diagnostics, mouse support, file chips, and block-level execution (F6/F7/F8). |
+| (Novel) | Compiler-owned semantics. 15 constructs that don't exist anywhere else: `world`, `patch`, `law`, `converge`, `orchestrate`, `pulse`, `resonate`, `axiom`, `shatter`, `teleport`, and more. 111 keywords total. |
+
+## Performance 
+
+In strict, deterministic benchmarks (with fair constants) against C++, Rust, Zig, and Go, Kain wins 24 out of 30 cases -- often by staggering margins. 
+
+The key goal of Kain was to abandon UNIX-esque constraints and embrace a non-Von Neumann approach. Most modern languages are still built on legacy foundations instead of moving towards a new paradigm. Because of how Kain's architecture works from the ground up, the language hits performance metrics that simply shouldn't be possible:
+
+*   **Contention Wall:** >220x faster than C++
+*   **Large Object Allocation:** 140x faster than C++ and Rust
+*   **Evolutionary Loop:** 100x faster than C++
+*   **Async Ready Pipeline:** 94x faster
+*   **File Read & I/O:** 77x faster than C++
+*   **B-Tree Scans:** 22x faster than C++
+*   **Zero-Copy Wire Protocol:** 10x faster than Rust/C++
+
+On most tests, Kain hits the CLI measurement floor (~7ms) while other languages clock in at hundreds or thousands of milliseconds. 
+
+It's not a VM. It's not a GC. It's LLVM native code lowered through KNIR, backed by a Z3-proven runtime and a custom LLVM IR generator built entirely from scratch for Kain's explicit ownership model and semantics. No LLVM dependencies. No generic codegen compromises. No legacy baggage.
+
+## Quick Start
+
+```powershell
+kain check file.kn          # typecheck
+kain run file.kn --target llvm   # compile + run as native .exe
+kain run dev file.kn         # watch mode
+kain amalgamate src/ -o out.kn  # pack into portable capsule
+kain gpu-artifacts shaders.kn --target all  # SPIR-V + PTX + HLSL + WGSL
 ```
-KAIN is an all new way to program. Its surface looks familiar (Python-like syntax, Rust-like safety), but its innovation is a **compiler-owned semantic stack**: 15+ constructs where the compiler -- not the programmer -- owns the truth about state, mutation, dispatch, timing, coupling, layout, and handoff.
 
-### Paradigm Lineage
+---
 
-| Paradigm | Inspiration | Kain Implementation |
-|----------|------------|-------------------|
-| **Safety** | Rust | Explicit ownership via `collapse`/`observe`/`decay` (no borrow checker inference), no null, no data races, `Unsafe` effect gates raw operations |
-| **Syntax** | Python | Significant newlines as statement terminators, minimal ceremony, `:` for blocks |
-| **Metaprogramming** | Lisp | Hygienic macros (`macro name!(param: kind):`), code-as-data, DSL-friendly surface |
-| **Compile-Time** | Koka/Eff, Zig | `comptime` blocks, effect system (`Pure`, `IO`, `Async`, `GPU`, `Reactive`, `Unsafe`), no separate macro language |
-| **Concurrency** | Erlang | First-class `actor` with typed message contracts, `spawn`/`send`/`ask`, supervision trees, mailbox backpressure |
-| **State Management** | Novel | `world` (compiler-owned state authority), `entangle` (bidirectional state sync), `patch` (journaled mutation), `law` (invariant predicates) |
-| **Dispatch** | Novel | `converge` (spec + platform-gated fast lanes with `verify random(N)` fuzzing), `orchestrate` (typed multi-runtime stage graphs: CPU→GPU→law→patch→world) |
-| **Temporal** | Novel | `pulse` (jitter-tolerant timed recurrence), `resonate` (compiler-owned reactive tripwires with dampening) |
-| **Memory Layout** | Novel | `shatter struct` (Structure-of-Arrays layout intent), `teleport` (zero-copy cross-world handoff), `axiom` (capability assumptions with fallback) |
-| **GPU** | CUDA/Vulkan/HLSL | First-class `shader` (vertex/fragment/compute), `dispatch` keyword, SPIR-V/PTX/HLSL/WGSL emission, `StorageBuffer`, `workgroup` |
-| **UI** | React/JSX | Native `component` with typed props, local state, methods, JSX composition (`<Component />` dispatch by case), `for`/`if` in JSX |
-| **FFI** | Novel | `include <windows.h> as win` (605 functions from real SDK via libclang), `include <vulkan/vulkan.h> as vk` (755 functions), `import` for Python, `use rust::` for Rust crates |
-| **Targets** | Universal | LLVM native (.exe/.dll/.lib), WASM, SPIR-V shaders, PTX (CUDA), HLSL, WGSL, Rust/C++ transpilation, JavaScript/TypeScript, UE5 C++ |
+## Repo
 
-### The Compiler-Owned Semantic Stack
+| Directory | What |
+|---|---|
+| `blades/` | 40+ full projects and applications. Including **MarkScript**: a new language built with Kain that turns markdown into a into a JIT-compiled language. Also other examples such as a portable 3D engine, Python interop bridges, a semantic search engine, filesystem tools, weird experimental test and a DAW (still WIP)
+| `benchmark/` | Three generations of benchmarks (v1, v2, v3). Hundreds of cases. Kain vs C++ vs Rust vs Zig vs Go vs Erlang vs Markcript vs JS vs Python. Fair constants. Deterministic checksums. |
+| `stdlib/` | 65+ modules. 3,500+ public symbols. Everything from `std::gpu` to `std::actor` to `std::json` to `std::machine` (inline asm, fences, VM ops, CPUID). |
+| `runtime/native/` | The C11 execution substrate. Arena/buddy allocators. Actor scheduler with work-stealing. GPU dispatch. Ownership state machine. Crash forensics. |
+| `crates/` | The Rust bootstrap compiler. 67 crates. Parser, typechecker, LLVM codegen, SPIR-V/PTX/HLSL/WGSL backends, WASM emitter, LSP service. |
+| `smoketest/` | Every feature interacting together in one workspace. Not isolated snippets. Proof that the layers compose. |
+| `docs/` | Language reference. Rule book. "Kain By Example" (every feature, one compilable snippet). |
 
-Kain's core innovation is the **decision ladder** -- 8 layers of compiler-owned constructs above plain code:
+---
 
-```
-LAYER 7: SYSTEMS     actor · collapse/observe/decay
-LAYER 6: MACHINE     axiom · shatter · teleport
-  STONES
-LAYER 5: TEMPORAL    pulse · resonate
-LAYER 4: STAGE       orchestrate
-  GRAPH
-LAYER 3: DISPATCH    converge
-LAYER 2: STATE       patch · law
-  INTEGRITY
-LAYER 1: STATE       world · entangle
-  AUTHORITY
-LAYER 0: PLAIN       fn · struct · let · enum · trait · impl
-  CODE
-```
+## By The Numbers
 
-When you use `fn` and `let` for a problem that should be a `world`, `patch`, `converge`, or `pulse`, you're paying the semantic cost without getting the compiler's help. The ladder exists so the compiler can reason about, optimize, and prove properties of your program that it can't see in plain code.
-
-### The Runtime
-
-Underneath the language sits a **portable C11 native runtime** (`runtime/native/`) -- providing the execution substrate: arena/buddy allocators, full actor scheduler with supervision trees, async task/future runtime, GPU compute dispatch (Vulkan + CUDA/PTX), ownership state machine, machine-stones substrate (axiom/pulse/shatter/teleport), crash forensics with compiler-emitted symbol tables, and a 50-service registry. Verified with **hundreds of Z3 proof packs** and **10,000+ CBMC assertions** (arena + actor subsystems proven exhaustively).
+111 keywords · 65+ stdlib modules · 3,500+ public symbols · 67 compiler crates · 47 runtime files · 530+ Z3 proof packs · 6,509 CBMC assertions · 9 compilation targets
