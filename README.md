@@ -43,12 +43,12 @@ Completing heavy tasks in sub-10ms bursts keeps execution well below hardware th
 ## Quick Start
 
 ```powershell
-kain check file.kn          # typecheck
+kain check file.kn               # typecheck
 kain run file.kn --target llvm   # compile + run as native .exe
-kain run dev file.kn         # watch mode
-kain amalgamate src/ -o out.kn  # pack into portable capsule
+kain run dev file.kn             # watch mode
+kain amalgamate src/ -o out.kn   # pack into portable capsule
 kain gpu-artifacts shaders.kn --target all  # SPIR-V + PTX + HLSL + WGSL
-kain repl                       # launches TUI IDE: multi-pane editor & live diagnostics
+kain repl                        # launches TUI IDE: multi-pane editor & live diagnostics
 ```
 
 ---
