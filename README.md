@@ -11,6 +11,7 @@
                     ██    ▀█▀   ██     ██           ▀█   █▀
                                         v0.8
 ```
+
 ## Why Kain?
 
 **Safety without the therapy.** Explicit ownership: `collapse`, `observe`, `decay`. No borrow checker. No lifetime annotations. No `Rc<RefCell<Arc<Mutex<Box<dyn>>>>>>`. You say what you mean, the compiler proves you aren't wrong.
@@ -36,23 +37,22 @@
 | Jupyter / Neovim | The `kain repl` TUI. A fully integrated terminal IDE built in. Multi-pane editor, live evaluation diagnostics, mouse support, file chips, and block-level execution (F6/F7/F8). |
 | (Novel) | Compiler-owned semantics. 15 constructs that don't exist anywhere else: `world`, `patch`, `law`, `converge`, `orchestrate`, `pulse`, `resonate`, `axiom`, `shatter`, `teleport`, and more. 111 keywords total. |
 
-## Performance 
+## Performance & System Efficiency
 
-In strict, deterministic benchmarks (with fair constants) against C++, Rust, Zig, and Go, Kain wins 24 out of 30 cases -- often by staggering margins. 
+In /benchmarks (fair constants across 30 stress cases and hundreds of other cases), Kain wins **24 out of 30 benchmarks** against C++, Rust, Zig, and Go—dominating across compute, memory, async, and systems I/O:
 
-The key goal of Kain was to abandon UNIX-esque constraints and embrace a non-Von Neumann approach. Most modern languages are still built on legacy foundations instead of moving towards a new paradigm. Because of how Kain's architecture works from the ground up, the language hits performance metrics that simply shouldn't be possible:
+* **Large Object Allocation:** **140x faster** than C++ and Rust (38ms vs 5,300ms+)
+* **Async & Networking:** Beats **Rust’s Tokio by 24x** on TCP loopback throughput (115ms vs 2,754ms) and **Go's async pipeline by 94x** (37ms vs 3,469ms).
+* **File Read & Streaming:** **77x faster** than C++ (18ms vs 1,455ms)
+* **B-Tree Scans:** **22x faster** than C++ (21ms vs 469ms)
+* **Parallel Concurrency:** **18x faster** on parallel reduce, **9x faster** on mutex contention
+* **Tree & Graph Search:** **7x faster** on binary trees, **6x faster** on BFS graph scans
 
-*   **Contention Wall:** >220x faster than C++
-*   **Large Object Allocation:** 140x faster than C++ and Rust
-*   **Evolutionary Loop:** 100x faster than C++
-*   **Async Ready Pipeline:** 94x faster
-*   **File Read & I/O:** 77x faster than C++
-*   **B-Tree Scans:** 22x faster than C++
-*   **Zero-Copy Wire Protocol:** 10x faster than Rust/C++
+### The Cold Silicon Advantage
 
-On most tests, Kain hits the CLI measurement floor (~7ms) while other languages clock in at hundreds or thousands of milliseconds. 
+Because Kain lowers LLVM native code through KNIR with zero GC or VM overhead, most workloads hit execution floors (~7ms to 38ms) where legacy runtimes spin CPU cycles for seconds. 
 
-It's not a VM. It's not a GC. It's LLVM native code lowered through KNIR, backed by a Z3-proven runtime and a custom LLVM IR generator built entirely from scratch for Kain's explicit ownership model and semantics. No LLVM dependencies. No generic codegen compromises. No legacy baggage.
+Completing heavy tasks in sub-10ms bursts keeps execution well below hardware thermal mass response times. Across the suite, finishing work up to 140x faster translates to **dramatically lower cumulative energy draw (Joules consumed per operation)**, zero fan spin, and minimal silicon thermal stress under load.
 
 ## Quick Start
 
@@ -62,6 +62,7 @@ kain run file.kn --target llvm   # compile + run as native .exe
 kain run dev file.kn         # watch mode
 kain amalgamate src/ -o out.kn  # pack into portable capsule
 kain gpu-artifacts shaders.kn --target all  # SPIR-V + PTX + HLSL + WGSL
+kain repl                       # launches TUI IDE: multi-pane editor & live diagnostics
 ```
 
 ---
