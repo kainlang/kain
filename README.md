@@ -64,9 +64,3 @@ kain repl                        # launches TUI IDE: multi-pane editor & live di
 | `crates/` | The Rust bootstrap compiler. 67 crates. Parser, typechecker, LLVM codegen, SPIR-V/PTX/HLSL/WGSL backends, WASM emitter, LSP service. |
 | `smoketest/` | Every feature interacting together in one workspace. Not isolated snippets. Proof that the layers compose. |
 | `docs/` | Language reference. Rule book. "Kain By Example" (every feature, one compilable snippet). |
-
----
-
-## By The Numbers
-
-111 keywords · 65+ stdlib modules · 3,500+ public symbols · 67 compiler crates · 47 runtime files · 530+ Z3 proof packs · 6,509 CBMC assertions · 9 compilation targets
