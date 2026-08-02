@@ -60,3 +60,4 @@ kain build file.kn --emit object            # → .obj / .o
 | `crates/` | The Rust bootstrap compiler. 67 crates. Parser, typechecker, LLVM codegen, SPIR-V/PTX/HLSL/WGSL backends, WASM emitter, LSP service. |
 | `smoketest/` | Every feature interacting together in one workspace. Not isolated snippets. Proof that the layers compose. |
 | `docs/` | Language reference. Rule book. "Kain By Example" (every feature, one compilable snippet). |
+| `z3/` | Folders containing mathematical proofs scattered throughout the repo (eg. runtime/native/src/core/z3)  |
