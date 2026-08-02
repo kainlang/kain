@@ -10,7 +10,7 @@
 
 **Built in REPL.** that lets you instantly iterate on code that compiles down machine code with a full IDE layout, keybinds, and the ability to open existing files and save current ones you are working on all without leaving the REPL TUI.
 
-**Paranoid by design.** Kain operates on the assumption that all code is fundamentally broken until mathematically proven otherwise. Driven by an intentionally paranoid design philosophy, Z3 theorem provers and CBMC formal assertions are integrated throughout the compiler and runtime--proving state transitions, memory bounds, and execution paths before your logic ever touches hardware.
+**Paranoid by design.** Kain operates on the assumption that all code is fundamentally broken until mathematically proven otherwise. Driven by an intentionally paranoid design philosophy, Z3 theorem provers and CBMC formal assertions are integrated throughout the compiler and runtime--proving state transitions, memory bounds, and execution paths.
 ![Kain REPL](.github/repl.png)
 
 ## What You Get
