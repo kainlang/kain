@@ -28,13 +28,18 @@
 
 ## Quick Start
 
-```powershell
-kain check file.kn               # typecheck
-kain run file.kn --target llvm   # compile + run as native .exe
-kain run dev file.kn             # watch mode
-kain amalgamate src/ -o out.kn   # pack into portable capsule
+```
+kain check file.kn                          # typecheck
+kain run file.kn --target llvm              # compile + run as native .exe
+kain run dev file.kn                        # watch mode
+kain amalgamate src/ -o out.kn              # pack into portable capsule
 kain gpu-artifacts shaders.kn --target all  # SPIR-V + PTX + HLSL + WGSL
-kain repl                        # launches TUI IDE: multi-pane editor & live diagnostics
+kain repl                                   # launches TUI IDE: multi-pane editor & live diagnostics, ctrl+enter to compile to LLVM when working on code within REPL 
+kain build file.kn --target llvm            # Build executable
+kain build file.kn --emit sharedlib         # → .dll / .so / .dylib
+kain build file.kn --emit staticlib         # → .lib / .a
+kain build file.kn --emit object            # → .obj / .o
+
 ```
 
 ---
