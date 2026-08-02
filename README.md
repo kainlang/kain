@@ -1,5 +1,3 @@
-![Kain REPL](.github/repl.png)
-
 ## Why Kain? 
 
 **Safety without the therapy.** Explicit ownership: `collapse`, `observe`, `decay`. No borrow checker. No lifetime annotations. No `Rc<RefCell<Arc<Mutex<Box<dyn>>>>>>`. You say what you mean, the compiler proves you aren't wrong.
@@ -7,6 +5,9 @@
 **One language, all of it.** Python syntax. GPU shaders in the same file as host code. React-style UI compiled to native. `include C` headers like you're writing C. `import python as py` like you're writing Python. One file, 18 targets.
 
 **The compiler owns the glue.** State, mutation tracking, dispatch, timing, coupling, layout, handoff -- 15 constructs the compiler manages so you stop writing boilerplate.
+
+**Built in REPL** that lets you instantly iterate on code that compiles to machine code with a full IDE layout, keybinds, and the ability to open existing files and save current ones you are working on all without leaving the REPL TUI.
+![Kain REPL](.github/repl.png)
 
 ## What You Get
 
