@@ -6,7 +6,9 @@
 
 **The compiler owns the glue.** State, mutation tracking, dispatch, timing, coupling, layout, handoff -- 15 constructs the compiler manages so you stop writing boilerplate.
 
-**Built in REPL** that lets you instantly iterate on code that compiles to machine code with a full IDE layout, keybinds, and the ability to open existing files and save current ones you are working on all without leaving the REPL TUI.
+**Orchestrate the Silicon** Kain takes a different approach to programming: rather than fighting hardware with defensive wrappers, heavy garbage collectors, or endless boilerplate, Kain gives you direct control over bare-metal execution from host code to GPU shaders in a single file. The compiler owns the state transitions and thread coordination, proving your logic is mathematically valid before it ever touches hardware.
+
+**Built in REPL** that lets you instantly iterate on code that compiles down machine code with a full IDE layout, keybinds, and the ability to open existing files and save current ones you are working on all without leaving the REPL TUI.
 ![Kain REPL](.github/repl.png)
 
 ## What You Get
