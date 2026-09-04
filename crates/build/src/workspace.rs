@@ -7574,7 +7574,9 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
     #[test]
     fn shader_artifact_source_extracts_kain_example_shaders_without_native_body() {
-        let source = include_str!("../../../blades/example/src/main.kn");
+        // Fixture lives in-crate (tests/fixtures/) so Bazel tracks it as a
+        // compile-data input and rebuilds this test when it changes.
+        let source = include_str!("../tests/fixtures/kain_example_main.kn");
 
         let extracted = shader_artifact_source(source)
             .expect("kain-example native source should yield shader-only source");

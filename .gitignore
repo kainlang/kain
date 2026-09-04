@@ -205,6 +205,8 @@ plans/
 /bazel-*
 /.bazel-cache/
 /.bazelrc.local
+# Repo scratch: winenv launcher, build logs, local-only helpers
+/.cache/
 # WSL-backed Bazel cache root on this machine
 /F/_b/
 smoketest/telemetry/attrition/tracks/attrition.iter.6.json
@@ -387,3 +389,4 @@ runtime/native/extras/_stb-truetype/z3/RESEARCH_FINDINGS.md
 /packaging/windows/
 /packaging/linux/
 /packaging/darwin/
+*.db

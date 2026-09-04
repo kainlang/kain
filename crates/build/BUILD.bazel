@@ -67,6 +67,7 @@ rust_test(
         "//crates/host:kain-host",
         "//crates/omni:kain-omni",
         "//crates/sys-codegen:kain-sys-codegen",
+        "//crates/target-triple:kain-target",
         "//crates/test:kain-test",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),

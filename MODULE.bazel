@@ -41,8 +41,10 @@ crate.annotation_select(
     crate = "pyo3-build-config",
     triples = ["x86_64-pc-windows-msvc"],
     build_script_env = {
-        # PYO3_PYTHON — set to path on this machine via .bazelrc.local or build env
-        "PYO3_PYTHON": "C:/Users/ephemara/AppData/Local/Programs/Python/Python312/python.exe",
+        # PYO3_PYTHON — Scoop-managed Python 3.12 on this machine.
+        # ([for tool] build scripts do NOT inherit --action_env, so the
+        # interpreter must be pinned here per docs/SETUP.md section 3.5.)
+        "PYO3_PYTHON": "C:/scoop/apps/python312/current/python.exe",
     },
 )
 crate.annotation_select(
@@ -57,7 +59,8 @@ crate.annotation_select(
     crate = "pyo3-ffi",
     triples = ["x86_64-pc-windows-msvc"],
     build_script_env = {
-        "PYO3_PYTHON": "C:/Users/ephemara/AppData/Local/Programs/Python/Python312/python.exe",
+        # Same Scoop Python as above (see docs/SETUP.md section 3.5).
+        "PYO3_PYTHON": "C:/scoop/apps/python312/current/python.exe",
     },
 )
 crate.annotation_select(

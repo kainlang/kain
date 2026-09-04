@@ -1064,6 +1064,7 @@ fn ensure_bitcast_compatible(
 pub struct TypeEnv<'a> {
     scopes: Vec<HashMap<String, ResolvedType>>,
     moved_scopes: Vec<HashSet<String>>,
+    heap_idents: Vec<HashSet<String>>,
     types: HashMap<String, ResolvedType>,
     type_origins: HashMap<String, SymbolOrigin>,
     trait_origins: HashMap<String, SymbolOrigin>,
@@ -1116,6 +1117,7 @@ impl<'a> TypeEnv<'a> {
         let mut env = Self {
             scopes: vec![HashMap::new()],
             moved_scopes: vec![HashSet::new()],
+            heap_idents: vec![HashSet::new()],
             types: HashMap::new(),
             type_origins: HashMap::new(),
             trait_origins: HashMap::new(),
@@ -1309,11 +1311,13 @@ impl<'a> TypeEnv<'a> {
     pub fn push_scope(&mut self) {
         self.scopes.push(HashMap::new());
         self.moved_scopes.push(HashSet::new());
+        self.heap_idents.push(HashSet::new());
     }
 
     pub fn pop_scope(&mut self) {
         self.scopes.pop();
         self.moved_scopes.pop();
+        self.heap_idents.pop();
     }
 
     pub fn define(&mut self, name: String, ty: ResolvedType) {
@@ -1323,6 +1327,58 @@ impl<'a> TypeEnv<'a> {
         if let Some(scope) = self.scopes.last_mut() {
             scope.insert(name, ty);
         }
+    }
+
+    /// Mark a local as heap-backed (`alloc`/`alloc_zeroed`/`realloc_mem` init-site
+    /// or provably heap-propagated alias). Consulted by `infer_ownership_region`
+    /// so `share <heap-ident>:` classifies as `HeapAllocation` instead of
+    /// `LocalAlloca`. Stack allocas stay rejected.
+    pub fn mark_heap_ident(&mut self, name: &str) {
+        if let Some(heap) = self.heap_idents.last_mut() {
+            heap.insert(name.to_string());
+        }
+    }
+
+    pub fn unmark_heap_ident(&mut self, name: &str) {
+        if let Some(heap) = self.heap_idents.last_mut() {
+            heap.remove(name);
+        }
+        // Also clear any same-name entry in deeper scopes is NOT done here:
+        // `is_heap_ident` resolves via the innermost defining scope, so an
+        // inner non-heap re-let naturally shadows an outer heap binding once
+        // the inner scope defines the name without marking it. This only
+        // needs to clear a same-scope re-let (e.g. `let buf = stack` after
+        // `let buf = alloc(..)` in one scope).
+        // For reassignments (`buf = stack_ptr`) the target lives in an outer
+        // scope — clear it there too so `share buf:` stays sound.
+        if self
+            .scopes
+            .last()
+            .is_none_or(|scope| !scope.contains_key(name))
+        {
+            for heap in self.heap_idents.iter_mut() {
+                if heap.contains(name) {
+                    heap.remove(name);
+                    break;
+                }
+            }
+        }
+    }
+
+    /// True iff the innermost scope defining `name` marked it heap-backed.
+    /// Respects shadowing: an inner non-heap `let` shadows an outer heap `let`.
+    pub fn is_heap_ident(&self, name: &str) -> bool {
+        for (scope, heap) in self
+            .scopes
+            .iter()
+            .rev()
+            .zip(self.heap_idents.iter().rev())
+        {
+            if scope.contains_key(name) {
+                return heap.contains(name);
+            }
+        }
+        false
     }
 
     pub fn define_global(&mut self, name: String, ty: ResolvedType) {
@@ -5459,6 +5515,7 @@ fn infer_expr_type_read_only(env: &TypeEnv, expr: &Expr) -> KainResult<ResolvedT
     let mut read_only_env = TypeEnv {
         scopes: env.scopes.clone(),
         moved_scopes: env.moved_scopes.clone(),
+        heap_idents: env.heap_idents.clone(),
         types: env.types.clone(),
         type_origins: env.type_origins.clone(),
         trait_origins: env.trait_origins.clone(),
@@ -8490,6 +8547,18 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
             }
             let binding_ty = declared.unwrap_or(inferred);
             bind_pattern_types(env, pattern, &binding_ty)?;
+            // Init-site heap tracking for `share <ident>:` (bugreport001).
+            // `let mut buf = alloc_zeroed(..)` / `let b = heap_alias` marks
+            // the bound names heap-backed; any other init clears a same-scope
+            // re-let so stack bindings stay LocalAlloca (share rejected).
+            let heap_init = value
+                .as_ref()
+                .is_some_and(|init| expr_is_heap_backed(env, init));
+            if heap_init {
+                mark_heap_pattern(env, pattern);
+            } else {
+                unmark_heap_pattern(env, pattern);
+            }
         }
         Stmt::Expr(expr) => {
             let _ = infer_expr_type(env, expr, Some(ctx))?;
@@ -9074,6 +9143,16 @@ fn infer_expr_type(
             let target_ty = infer_assignment_target_type(env, target, ctx)?;
             let value_ty = infer_expr_type(env, value, ctx)?;
             ensure_type_compatible(env, &target_ty, &value_ty, *span, "assignment")?;
+            // Keep heap tracking sound across reassignments:
+            // `buf = alloc(..)` / `buf = heap_alias` re-marks heap,
+            // any other value clears so a stack reassign blocks `share`.
+            if let Expr::Ident(name, _) = target.as_ref() {
+                if expr_is_heap_backed(env, value) {
+                    env.mark_heap_ident(name);
+                } else {
+                    env.unmark_heap_ident(name);
+                }
+            }
             Ok(ResolvedType::Unit)
         }
         Expr::Struct {
@@ -10037,6 +10116,12 @@ fn infer_ownership_region(
         if env.lookup_type(name).is_some() {
             return OwnershipRegionKind::WorldState;
         }
+        // Heap-backed locals (init-site tracked `alloc`/`alloc_zeroed`/
+        // `realloc_mem` or provably heap-propagated alias) share as heap.
+        // Stack allocas and params stay LocalAlloca (share rejected).
+        if env.is_heap_ident(name) {
+            return OwnershipRegionKind::HeapAllocation;
+        }
         // If NOT a type but resolves to a Ptr/Ref type, treat as local
         // alloca (stack variable or function parameter).
         if let Some(ty) = env.lookup(name) {
@@ -10062,6 +10147,102 @@ fn is_alloc_call(expr: &Expr) -> bool {
         }
     }
     false
+}
+
+/// True iff `expr` provably yields a heap allocation:
+/// `alloc`/`alloc_zeroed`/`realloc_mem` calls, `Alloc`/`Realloc` AST nodes,
+/// paren-wrapped heap exprs, or a direct alias of a heap-tracked ident.
+/// Single-level aliasing is enough for the corpus (`let b = a`).
+fn expr_is_heap_backed(env: &TypeEnv, expr: &Expr) -> bool {
+    match expr {
+        Expr::Paren(inner, _) => expr_is_heap_backed(env, inner),
+        Expr::Alloc { .. } | Expr::Realloc { .. } => true,
+        Expr::Ident(name, _) => env.is_heap_ident(name),
+        _ => is_alloc_call(expr),
+    }
+}
+
+/// Mark every plain binding in `pattern` as heap-backed (single `let x = alloc(..)`
+/// is the common case; destructured patterns fall back to per-binding marking
+/// which is still sound: all bindings provably come from one heap init-site).
+fn mark_heap_pattern(env: &mut TypeEnv, pattern: &Pattern) {
+    match pattern {
+        Pattern::Binding { name, .. } => env.mark_heap_ident(name),
+        Pattern::Tuple(patterns, _) => {
+            for p in patterns {
+                mark_heap_pattern(env, p);
+            }
+        }
+        Pattern::Struct { fields, .. } => {
+            for (_, p) in fields {
+                mark_heap_pattern(env, p);
+            }
+        }
+        Pattern::Variant { fields, .. } => match fields {
+            VariantPatternFields::Tuple(patterns) => {
+                for p in patterns {
+                    mark_heap_pattern(env, p);
+                }
+            }
+            VariantPatternFields::Struct(patterns) => {
+                for (_, p) in patterns {
+                    mark_heap_pattern(env, p);
+                }
+            }
+            VariantPatternFields::Unit => {}
+        },
+        Pattern::Slice { patterns, .. } => {
+            for p in patterns {
+                mark_heap_pattern(env, p);
+            }
+        }
+        Pattern::Or(patterns, _) => {
+            for p in patterns {
+                mark_heap_pattern(env, p);
+            }
+        }
+        Pattern::Wildcard(_) | Pattern::Literal(_) | Pattern::Range { .. } => {}
+    }
+}
+
+fn unmark_heap_pattern(env: &mut TypeEnv, pattern: &Pattern) {
+    match pattern {
+        Pattern::Binding { name, .. } => env.unmark_heap_ident(name),
+        Pattern::Tuple(patterns, _) => {
+            for p in patterns {
+                unmark_heap_pattern(env, p);
+            }
+        }
+        Pattern::Struct { fields, .. } => {
+            for (_, p) in fields {
+                unmark_heap_pattern(env, p);
+            }
+        }
+        Pattern::Variant { fields, .. } => match fields {
+            VariantPatternFields::Tuple(patterns) => {
+                for p in patterns {
+                    unmark_heap_pattern(env, p);
+                }
+            }
+            VariantPatternFields::Struct(patterns) => {
+                for (_, p) in patterns {
+                    unmark_heap_pattern(env, p);
+                }
+            }
+            VariantPatternFields::Unit => {}
+        },
+        Pattern::Slice { patterns, .. } => {
+            for p in patterns {
+                unmark_heap_pattern(env, p);
+            }
+        }
+        Pattern::Or(patterns, _) => {
+            for p in patterns {
+                unmark_heap_pattern(env, p);
+            }
+        },
+        Pattern::Wildcard(_) | Pattern::Literal(_) | Pattern::Range { .. } => {}
+    }
 }
 
 /// Try to extract a world name from an expression (e.g., MyWorld.field → "MyWorld").

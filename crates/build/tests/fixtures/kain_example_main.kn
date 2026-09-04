@@ -1,0 +1,13 @@
+// Kain example source for shader-artifact extraction tests.
+// The extractor keeps the shader stanzas and drops the native body (`fn main`).
+// NOTE: shaders stay uniform-free — the SPIR-V push-constant AccessChain
+// path (codegen_spirv.rs) currently panics on scalar/vector uniforms.
+shader fragment NativeExampleGradient(uv: Vec2) -> Vec4:
+    return vec4(uv.x, uv.y, 0.0, 1.0)
+
+shader compute NativeExampleBlendKernel() -> Void:
+    return
+
+fn main() -> Int:
+    let status = native_runtime_heap_validate()
+    return status

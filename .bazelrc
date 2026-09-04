@@ -3,18 +3,22 @@ common --announce_rc
 common --color=yes
 common --curses=yes
 common --experimental_convenience_symlinks=ignore
-# Hermetic build: Bazel cache/output lives in a sibling directory .bazel-cache/kain/
-# outside the repo root (Bazel forbids caches inside the workspace).
+# Hermetic build: all Bazel mutable state lives in the sibling directory
+# T:/toolchain/.bazel-cache/kain/ (Bazel forbids caches inside the workspace).
+# Everything stays on the T: drive next to the repo — no F:/Z:/X: drives,
+# no per-user C:/Users/<name> paths. See docs/SETUP.md section 3.
 common --repository_cache=../.bazel-cache/kain/repo
 startup --output_user_root=../.bazel-cache/kain/output-user-root
-common --repo_env=TMP=F:/.bazel-cache/kain/tmp
-common --repo_env=TEMP=F:/.bazel-cache/kain/tmp
-common --repo_env=TMPDIR=F:/.bazel-cache/kain/tmp
+# TMP must be ABSOLUTE (cargo_build_script resolves relative paths against
+# deep exec roots and fails with LNK1104). Points at the sibling cache on T:.
+common --repo_env=TMP=T:/toolchain/.bazel-cache/kain/tmp
+common --repo_env=TEMP=T:/toolchain/.bazel-cache/kain/tmp
+common --repo_env=TMPDIR=T:/toolchain/.bazel-cache/kain/tmp
 # clang-sys needs LIBCLANG_PATH for crate resolution and build scripts
 common --repo_env=LIBCLANG_PATH
-common --action_env=TMP=F:/.bazel-cache/kain/tmp
-common --action_env=TEMP=F:/.bazel-cache/kain/tmp
-common --action_env=TMPDIR=F:/.bazel-cache/kain/tmp
+common --action_env=TMP=T:/toolchain/.bazel-cache/kain/tmp
+common --action_env=TEMP=T:/toolchain/.bazel-cache/kain/tmp
+common --action_env=TMPDIR=T:/toolchain/.bazel-cache/kain/tmp
 # rules_rust's Windows process wrapper reconstructs the rustc child environment
 # from Bazel's action env, so we must explicitly preserve the normal loader and
 # per-user process variables that MSVC-target proc-macro DLLs expect.
@@ -41,6 +45,7 @@ common --action_env=PROCESSOR_IDENTIFIER
 common --action_env=LIBCLANG_PATH
 
 build --disk_cache=../.bazel-cache/kain/disk
+# Self-contained tmp for build actions (sibling cache on T:, absolute).
 build --jobs=HOST_CPUS*.625
 build --loading_phase_threads=HOST_CPUS*.5
 build --local_resources=cpu=HOST_CPUS*.625
@@ -66,9 +71,9 @@ build:warnings --@rules_rust//rust/settings:extra_rustc_flags=-Dwarnings
 test --test_output=errors
 test --test_summary=short
 test --local_test_jobs=HOST_CPUS*.25
-test --test_env=TMP=F:/.bazel-cache/kain/tmp
-test --test_env=TEMP=F:/.bazel-cache/kain/tmp
-test --test_env=TMPDIR=F:/.bazel-cache/kain/tmp
+test --test_env=TMP=T:/toolchain/.bazel-cache/kain/tmp
+test --test_env=TEMP=T:/toolchain/.bazel-cache/kain/tmp
+test --test_env=TMPDIR=T:/toolchain/.bazel-cache/kain/tmp
 test --test_env=PATH
 test --test_env=PATHEXT
 

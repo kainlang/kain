@@ -3,4 +3,5 @@
 .tmp
 target
 tmp
+.cache
 runtime/3rdparty/skia-core

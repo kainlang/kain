@@ -3872,3 +3872,130 @@ int64_t abi_fs_flush(void* handle) {
     return (int64_t)fflush((FILE*)handle);
 }
 
+
+/* -- Legacy unprefixed fs_* shims for the LLVM backend ----------------
+ * The LLVM codegen lowers Kain fs_* calls to these unprefixed symbols
+ * (same convention as the pre-existing fs_exists / fs_path_join / ...
+ * shims above). Canonical implementations live in stdlib_abi.c as
+ * abi_fs_*; these thin wrappers only adapt the legacy ABI to them. */
+const char* abi_fs_read_text(const char* path);
+const char* abi_fs_read_text_range(const char* path, int64_t offset, int64_t length);
+int64_t abi_fs_write_text(const char* path, const char* content);
+int64_t abi_fs_append_text(const char* path, const char* content);
+const char* abi_fs_read_byte_range_hex(const char* path, int64_t offset, int64_t length);
+const char* abi_fs_read_bytes_hex(const char* path);
+const char* abi_fs_metadata_text(const char* path);
+const char* abi_fs_read_dir_paths_text(const char* path);
+const char* abi_fs_hash_file(const char* path);
+int64_t abi_fs_copy_file_streaming(const char* src, const char* dest, int64_t chunk_size);
+int64_t abi_fs_remove_dir_all(const char* path);
+const char* abi_fs_temp_dir(const char* prefix);
+
+char* fs_temp_dir(char* prefix) {
+    return (char*)abi_fs_temp_dir(prefix ? (const char*)prefix : "kain");
+}
+
+void fs_write_text(char* path, char* content) {
+    if (path && content) abi_fs_write_text((const char*)path, (const char*)content);
+}
+
+void fs_append_text(char* path, char* content) {
+    if (path && content) abi_fs_append_text((const char*)path, (const char*)content);
+}
+
+char* fs_read_text(char* path) {
+    if (!path) return string_new("");
+    return (char*)abi_fs_read_text((const char*)path);
+}
+
+char* fs_read_text_range(char* path, long long offset, long long length) {
+    if (!path) return string_new("");
+    return (char*)abi_fs_read_text_range((const char*)path, (int64_t)offset, (int64_t)length);
+}
+
+char* fs_read_byte_range_hex(char* path, long long offset, long long length) {
+    if (!path) return string_new("");
+    return (char*)abi_fs_read_byte_range_hex((const char*)path, (int64_t)offset, (int64_t)length);
+}
+
+char* fs_read_bytes_hex(char* path) {
+    if (!path) return string_new("");
+    return (char*)abi_fs_read_bytes_hex((const char*)path);
+}
+
+char* fs_metadata_text(char* path) {
+    if (!path) return string_new("");
+    return (char*)abi_fs_metadata_text((const char*)path);
+}
+
+char* fs_read_dir_paths_text(char* path) {
+    if (!path) return string_new("");
+    return (char*)abi_fs_read_dir_paths_text((const char*)path);
+}
+
+char* fs_hash_file(char* path) {
+    if (!path) return string_new("");
+    return (char*)abi_fs_hash_file((const char*)path);
+}
+
+long long fs_copy_file_streaming(char* src, char* dest, long long chunk_size) {
+    if (!src || !dest) return -1;
+    return (long long)abi_fs_copy_file_streaming((const char*)src, (const char*)dest, (int64_t)chunk_size);
+}
+
+void fs_remove_dir_all(char* path) {
+    if (path) abi_fs_remove_dir_all((const char*)path);
+}
+
+void fs_write_bytes(char* path, KainArray* arr) {
+    FILE* f = NULL;
+    unsigned char* buf = NULL;
+    long long i;
+    if (!path || !arr) return;
+    if (arr->len > 0) {
+        buf = (unsigned char*)malloc((size_t)arr->len);
+        if (!buf) return;
+        for (i = 0; i < arr->len; i++) buf[i] = (unsigned char)(arr->data[i] & 0xFF);
+    }
+#ifdef _WIN32
+    if (fopen_s(&f, path, "wb") != 0) f = NULL;
+#else
+    f = fopen(path, "wb");
+#endif
+    if (f) {
+        if (buf && arr->len > 0) fwrite(buf, 1, (size_t)arr->len, f);
+        fclose(f);
+    }
+    free(buf);
+}
+
+KainArray* fs_read_bytes(char* path) {
+    FILE* f = NULL;
+    long size = 0;
+    unsigned char* buf = NULL;
+    KainArray* arr;
+    long i;
+    if (!path) return array_new(0);
+#ifdef _WIN32
+    if (fopen_s(&f, path, "rb") != 0) f = NULL;
+#else
+    f = fopen(path, "rb");
+#endif
+    if (!f) return array_new(0);
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    arr = array_new((long long)(size > 0 ? size : 0));
+    if (!arr) { fclose(f); return array_new(0); }
+    if (size > 0) {
+        buf = (unsigned char*)malloc((size_t)size);
+        if (buf) {
+            if (fread(buf, 1, (size_t)size, f) == (size_t)size) {
+                for (i = 0; i < size; i++) array_push(arr, (long long)buf[i]);
+            }
+            free(buf);
+        }
+    }
+    fclose(f);
+    return arr;
+}
