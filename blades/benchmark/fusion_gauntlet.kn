@@ -1,0 +1,137 @@
+// ============================================================================
+//  FUSION GAUNTLET — The Impossible Benchmark
+//  Zero-GC Buddy-Arena Churn + Cross-World Reactive Entanglement + SoA Physics
+// ============================================================================
+
+use std::time
+use std::runtime
+
+// ----------------------------------------------------------------------------
+// 1. Worlds & Reactive Entanglement Graph
+// ----------------------------------------------------------------------------
+
+world MasterAuthority:
+    state total_energy: Int = 0
+    state cycles_completed: Int = 0
+    state sync_bus: Int = 0
+
+world ShadowMirror:
+    state total_energy_copy: Int = 0
+    state cycles_completed_copy: Int = 0
+    state sync_bus_copy: Int = 0
+
+entangle MasterAuthority.total_energy <-> ShadowMirror.total_energy_copy with single_writer
+entangle MasterAuthority.cycles_completed <-> ShadowMirror.cycles_completed_copy with single_writer
+entangle MasterAuthority.sync_bus <-> ShadowMirror.sync_bus_copy with single_writer
+
+// ----------------------------------------------------------------------------
+// 2. Shatter Struct (Structure-of-Arrays Layout)
+// ----------------------------------------------------------------------------
+
+shatter struct ParticleShard:
+    id: Int
+    pos_x: Int
+    pos_y: Int
+    vel_x: Int
+    vel_y: Int
+    energy: Int
+
+// ----------------------------------------------------------------------------
+// 3. Patch Mutation (Atomic World Update)
+// ----------------------------------------------------------------------------
+
+patch commit_cycle(w: MasterAuthority, energy_delta: Int) -> Int:
+    w.total_energy = (w.total_energy + energy_delta) % 1000000007
+    w.cycles_completed = w.cycles_completed + 1
+    return w.total_energy
+
+// ----------------------------------------------------------------------------
+// 4. Converge Engine (Fast LLVM Arithmetic Lane)
+// ----------------------------------------------------------------------------
+
+fn reference_physics(x: Int, y: Int, vx: Int, vy: Int) -> Int:
+    return ((x * 31 + y * 17) ^ (vx * 13 + vy * 7)) % 1000000007
+
+converge calculate_flux(x: Int, y: Int, vx: Int, vy: Int) -> Int:
+    spec reference:
+        return reference_physics(x, y, vx, vy)
+    fast llvm_lane when target("llvm"):
+        return ((x * 31 + y * 17) ^ (vx * 13 + vy * 7)) % 1000000007
+    verify random(8)
+
+// ----------------------------------------------------------------------------
+// 5. Main Gauntlet Loop
+// ----------------------------------------------------------------------------
+
+fn main() -> Void with Unsafe:
+    println("==================================================================")
+    println("      KAIN FUSION GAUNTLET — THE IMPOSSIBLE BENCHMARK             ")
+    println("==================================================================")
+
+    let total_alloc_cycles: Int = 100000
+    let start_time = now_millis()
+    var grand_checksum: Int = 0
+
+    println("[1] Commencing " + str(total_alloc_cycles) + " Rapid Alloc/Collapse/Decay Cycles...")
+    println("    Each cycle performs: Alloc(16) -> Collapse -> Observe -> Teleport -> Decay -> Patch")
+
+    var i: Int = 0
+    while i < total_alloc_cycles:
+        // A. Ultra-fast Buddy Allocator (Zero-GC Arena)
+        let scratch: ptr<Int> = alloc_zeroed(16, "Int")
+
+        // B. Exclusive Ownership Mutation (Collapse Scope)
+        collapse scratch:
+            mem_store(scratch, (i * 37) % 1000000007, "Int")
+            mem_store(ptr_offset(scratch, 1, "Int"), (i * 53) % 1000000007, "Int")
+            mem_store(ptr_offset(scratch, 2, "Int"), (i * 19) % 500, "Int")
+            mem_store(ptr_offset(scratch, 3, "Int"), (i * 23) % 500, "Int")
+
+        // C. Read-only Observation Scope (Observe)
+        var s_x: Int = 0
+        var s_y: Int = 0
+        var s_vx: Int = 0
+        var s_vy: Int = 0
+        observe scratch:
+            s_x = mem_load(scratch, "Int")
+            s_y = mem_load(ptr_offset(scratch, 1, "Int"), "Int")
+            s_vx = mem_load(ptr_offset(scratch, 2, "Int"), "Int")
+            s_vy = mem_load(ptr_offset(scratch, 3, "Int"), "Int")
+
+        // D. Create Shatter Struct from observed state
+        let shard = ParticleShard {
+            id: i,
+            pos_x: s_x,
+            pos_y: s_y,
+            vel_x: s_vx,
+            vel_y: s_vy,
+            energy: (s_x + s_y) % 1000000007
+        }
+
+        // E. Zero-Copy Teleport across worlds
+        let teleported = teleport shard from MasterAuthority to ShadowMirror via sync_bus
+
+        // F. Run Converge Math on the teleported SoA fields
+        let flux = calculate_flux(teleported.pos_x, teleported.pos_y, teleported.vel_x, teleported.vel_y)
+        grand_checksum = (grand_checksum + flux + teleported.energy) % 1000000007
+
+        // G. Deterministic Ownership Teardown (Zero Free-list overhead)
+        decay scratch
+
+        // H. Patch Authority World and trigger reactive entanglement
+        commit_cycle(MasterAuthority, flux)
+
+        i = i + 1
+
+    let end_time = now_millis()
+    let elapsed_ms = end_time - start_time
+
+    println("[2] Gauntlet Completed Successfully!")
+    println("------------------------------------------------------------------")
+    println("Total Alloc/Decay Cycles:        " + str(total_alloc_cycles))
+    println("Total Reactive Entangle Syncs:   " + str(ShadowMirror.cycles_completed_copy))
+    println("Grand Mathematical Checksum:     " + str(grand_checksum))
+    println("Final Entangled Master Energy:   " + str(ShadowMirror.total_energy_copy))
+    println("TOTAL TIME ELAPSED:              " + str(elapsed_ms) + " ms")
+    println("AVERAGE LATENCY PER CYCLE:       " + str((elapsed_ms * 1000000) / total_alloc_cycles) + " ns/cycle")
+    println("==================================================================")
