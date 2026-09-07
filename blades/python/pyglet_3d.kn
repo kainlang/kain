@@ -243,7 +243,7 @@ fn numpy_matrix_checksum(rx: Float, ry: Float, frame: Int) -> Int with Unsafe:
 fn main() -> Int with Unsafe:
     // Ensure Python DLL can be found by the native runtime
     // Scoop-installed Python 3.12 has the DLL in its directory
-    os_setenv("KAIN_PYTHON_DLL", "F:/Scoop/apps/python312/current/python312.dll")
+    os_setenv("KAIN_PYTHON_DLL", "C:/scoop/apps/python312/current/python312.dll")
 
     let init_code = runtime_init()
     if init_code != 0:

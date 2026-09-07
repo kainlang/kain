@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Once, RwLock};
+use std::sync::{Arc, Once, OnceLock, RwLock};
 
 use kain_core::error::{KainError, KainResult};
 use kain_core::runtime::{register_env_extension, Env, Value};
@@ -18,8 +18,98 @@ static REGISTER: Once = Once::new();
 
 const IMAGE_CHANNEL_COUNTS: &[i64] = &[1, 2, 3, 4];
 
+struct ScopeWrapper {
+    cell: OnceLock<Result<RwLock<PyObject>, String>>,
+}
+
+impl ScopeWrapper {
+    fn new() -> Self {
+        Self {
+            cell: OnceLock::new(),
+        }
+    }
+
+    fn read(&self) -> std::sync::LockResult<std::sync::RwLockReadGuard<'_, PyObject>> {
+        self.cell
+            .get()
+            .and_then(|res| res.as_ref().ok())
+            .expect("Python scope accessed before initialization")
+            .read()
+    }
+
+    #[allow(dead_code)]
+    fn write(&self) -> std::sync::LockResult<std::sync::RwLockWriteGuard<'_, PyObject>> {
+        self.cell
+            .get()
+            .and_then(|res| res.as_ref().ok())
+            .expect("Python scope accessed before initialization")
+            .write()
+    }
+}
+
 struct PythonScopeState {
-    scope: RwLock<PyObject>,
+    scope: ScopeWrapper,
+}
+
+impl PythonScopeState {
+    fn new_lazy() -> Self {
+        Self {
+            scope: ScopeWrapper::new(),
+        }
+    }
+
+    fn ensure_initialized(&self) -> KainResult<()> {
+        let result = self.scope.cell.get_or_init(|| {
+            // 1. Resolve Python installation using robust discovery
+            let diag = kain_core::python_discovery::diagnose_python();
+            if let Some(install) = &diag.installation {
+                kain_core::python_discovery::apply_python_environment(install);
+            } else {
+                let msg = if !diag.stale_registry_entries.is_empty() {
+                    format!(
+                        "Python runtime not found or misconfigured. Stale Windows registry entries detected:\n  - {}\n\
+                         Run 'kain doctor --fix-python' to clean up stale entries and configure Python.",
+                        diag.stale_registry_entries.join("\n  - ")
+                    )
+                } else {
+                    "Python runtime not found. No valid Python standard library detected.\n\
+                     Run 'kain doctor' or 'kain doctor --set-python-path <path>' to configure Python."
+                        .to_string()
+                };
+                return Err(msg);
+            }
+
+            // 2. Initialize PyO3 safely inside catch_unwind
+            let init_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                Python::with_gil(|py| -> Result<PyObject, String> {
+                    let scope = PyDict::new(py);
+                    let builtins = py
+                        .import("builtins")
+                        .map_err(|err| format!("Failed to import Python builtins: {err}"))?;
+                    scope
+                        .set_item("__builtins__", builtins)
+                        .map_err(|err| format!("Failed to install Python builtins: {err}"))?;
+                    Ok(scope.into())
+                })
+            }));
+
+            match init_result {
+                Ok(Ok(scope_obj)) => Ok(RwLock::new(scope_obj)),
+                Ok(Err(err)) => Err(format!(
+                    "Python runtime initialization failed: {err}. Run 'kain doctor' to diagnose."
+                )),
+                Err(_) => Err(
+                    "Python runtime panicked during initialization. Run 'kain doctor' to verify Python installation."
+                        .to_string(),
+                ),
+            }
+        });
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(err) => Err(KainError::runtime(err.clone())),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -471,21 +561,10 @@ fn register_python_env(env: &mut Env) {
         .get_extension_state::<PythonScopeState>(PYTHON_EXTENSION_KEY)
         .is_none()
     {
-        Python::with_gil(|py| {
-            let scope = PyDict::new(py);
-            let builtins = py
-                .import("builtins")
-                .expect("failed to import Python builtins");
-            scope
-                .set_item("__builtins__", builtins)
-                .expect("failed to install Python builtins");
-            env.set_extension_state(
-                PYTHON_EXTENSION_KEY,
-                Arc::new(PythonScopeState {
-                    scope: RwLock::new(scope.into()),
-                }),
-            );
-        });
+        env.set_extension_state(
+            PYTHON_EXTENSION_KEY,
+            Arc::new(PythonScopeState::new_lazy()),
+        );
     }
 
     env.register_native_fn("py_eval", py_eval_native);
@@ -4822,8 +4901,11 @@ pub fn execute_python_source(env: &Env, source: &str) -> KainResult<Option<Value
 }
 
 fn python_scope_state(env: &Env) -> KainResult<Arc<PythonScopeState>> {
-    env.get_extension_state::<PythonScopeState>(PYTHON_EXTENSION_KEY)
-        .ok_or_else(|| KainError::runtime("Python runtime is not registered for this environment"))
+    let state = env
+        .get_extension_state::<PythonScopeState>(PYTHON_EXTENSION_KEY)
+        .ok_or_else(|| KainError::runtime("Python runtime is not registered for this environment"))?;
+    state.ensure_initialized()?;
+    Ok(state)
 }
 
 fn scope_dict_from_guard<'py>(py: Python<'py>, scope: &'py PyObject) -> KainResult<&'py PyDict> {
@@ -5816,7 +5898,9 @@ fn main() -> Int:
     }
 
     fn interpret_source_result(source: &str) -> KainResult<Value> {
-        let _guard = python_test_lock().lock().unwrap();
+        let _guard = python_test_lock()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         register();
 
         let tokens = Lexer::new(source).tokenize().unwrap();
@@ -5830,7 +5914,9 @@ fn main() -> Int:
     }
 
     fn interpret_source_result_with_filename(source: &str, filename: &str) -> KainResult<Value> {
-        let _guard = python_test_lock().lock().unwrap();
+        let _guard = python_test_lock()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         register();
 
         let tokens = Lexer::new(source).tokenize().unwrap();
@@ -5884,17 +5970,23 @@ fn main() -> Int:
     }
 
     fn numpy_available() -> bool {
-        let _guard = python_test_lock().lock().unwrap();
+        let _guard = python_test_lock()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         Python::with_gil(|py| py.import("numpy").is_ok())
     }
 
     fn torch_available() -> bool {
-        let _guard = python_test_lock().lock().unwrap();
+        let _guard = python_test_lock()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         Python::with_gil(|py| py.import("torch").is_ok())
     }
 
     fn trimesh_available() -> bool {
-        let _guard = python_test_lock().lock().unwrap();
+        let _guard = python_test_lock()
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         Python::with_gil(|py| py.import("trimesh").is_ok())
     }
 }

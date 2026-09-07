@@ -158,6 +158,15 @@ pub struct KainDiagnosticsConfigFile {
     pub store_ansi: Option<bool>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct KainPythonConfigFile {
+    pub home: Option<PathBuf>,
+    pub exe: Option<PathBuf>,
+    pub dll: Option<PathBuf>,
+    pub venv: Option<PathBuf>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KainToolingConfigFile {
@@ -165,6 +174,7 @@ pub struct KainToolingConfigFile {
     pub build: KainBuildConfigFile,
     pub ui: KainUiConfigFile,
     pub diagnostics: KainDiagnosticsConfigFile,
+    pub python: KainPythonConfigFile,
 }
 
 impl Default for KainToolingConfigFile {
@@ -174,6 +184,7 @@ impl Default for KainToolingConfigFile {
             build: KainBuildConfigFile::default(),
             ui: KainUiConfigFile::default(),
             diagnostics: KainDiagnosticsConfigFile::default(),
+            python: KainPythonConfigFile::default(),
         }
     }
 }
@@ -203,6 +214,14 @@ pub struct ResolvedKainDiagnosticsConfig {
     pub store_ansi: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+pub struct ResolvedKainPythonConfig {
+    pub home: Option<PathBuf>,
+    pub exe: Option<PathBuf>,
+    pub dll: Option<PathBuf>,
+    pub venv: Option<PathBuf>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ResolvedKainToolingConfig {
     pub source_path: Option<PathBuf>,
@@ -210,6 +229,7 @@ pub struct ResolvedKainToolingConfig {
     pub build: ResolvedKainBuildConfig,
     pub ui: ResolvedKainUiConfig,
     pub diagnostics: ResolvedKainDiagnosticsConfig,
+    pub python: ResolvedKainPythonConfig,
 }
 
 impl Default for ResolvedKainToolingConfig {
@@ -242,6 +262,7 @@ impl Default for ResolvedKainToolingConfig {
                 path: default_diagnostics_capture_path(source_path.as_deref()),
                 store_ansi: true,
             },
+            python: ResolvedKainPythonConfig::default(),
         }
     }
 }
@@ -379,6 +400,12 @@ pub fn load_kain_tooling_config(
         .diagnostics
         .store_ansi
         .unwrap_or(resolved.diagnostics.store_ansi);
+    resolved.python = ResolvedKainPythonConfig {
+        home: decoded.python.home,
+        exe: decoded.python.exe,
+        dll: decoded.python.dll,
+        venv: decoded.python.venv,
+    };
     apply_diagnostics_env_overrides(&mut resolved)?;
 
     Ok(resolved)

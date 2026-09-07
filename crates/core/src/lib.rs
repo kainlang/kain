@@ -21,6 +21,7 @@ pub mod low_level_memory_metadata;
 pub mod module_resolution;
 pub mod monomorphize;
 pub mod parser;
+pub mod python_discovery;
 pub mod realtime_app_bundle;
 pub mod runtime;
 pub mod runtime_contract;

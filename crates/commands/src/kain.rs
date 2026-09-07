@@ -675,6 +675,14 @@ pub enum KainCommand {
     Doctor {
         #[command(flatten)]
         repair: DoctorRepairArgs,
+
+        /// Explicitly set the active Python home directory in Kain configuration
+        #[arg(long = "set-python-path", value_name = "PATH")]
+        set_python_path: Option<PathBuf>,
+
+        /// Automatically detect and save a working Python home to Kain configuration
+        #[arg(long = "fix-python")]
+        fix_python: bool,
     },
 
     /// Clean generated .kain roots for the current workspace

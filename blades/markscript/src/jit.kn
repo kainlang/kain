@@ -731,15 +731,15 @@ pub fn jit_selftest() -> Int with Unsafe:
         return 1
 
     // Test 14: JMP forward skip
-    if run_jit_test("jmp forward", [7, 99, 12, 5, 7, 1, 0], 99) != 0:
+    if run_jit_test("jmp forward", [7, 99, 12, 6, 7, 1, 0], 99) != 0:
         return 1
 
     // Test 15: JZ skip on non-zero
-    if run_jit_test("jz non-zero", [7, 5, 13, 5, 7, 88, 0], 88) != 0:
+    if run_jit_test("jz non-zero", [7, 5, 13, 6, 7, 88, 0], 88) != 0:
         return 1
 
     // Test 16: JN skip on positive
-    if run_jit_test("jn positive", [7, 5, 20, 5, 7, 77, 0], 77) != 0:
+    if run_jit_test("jn positive", [7, 5, 20, 6, 7, 77, 0], 77) != 0:
         return 1
 
     // Test 17: Store then load same variable

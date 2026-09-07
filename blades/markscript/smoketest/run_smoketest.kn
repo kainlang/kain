@@ -1050,7 +1050,7 @@ fn main() -> Int:
         println("[FATAL] Runtime init failed: " + str(init_status))
         return 100 + init_status
 
-    let script_dir: String = "X:/blades/markscript/smoketest/"
+    let script_dir: String = "T:/toolchain/Kain/blades/markscript/smoketest/"
     let file_list: Array<String> = [
         script_dir + "scene_setup.md",
         script_dir + "animation_test.md",

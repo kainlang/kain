@@ -28470,7 +28470,7 @@
           "common": {},
           "selects": {
             "x86_64-pc-windows-msvc": {
-              "PYO3_PYTHON": "F:/Scoop/apps/python312/current/python.exe"
+              "PYO3_PYTHON": "C:/scoop/apps/python312/current/python.exe"
             },
             "x86_64-unknown-linux-gnu": {
               "PYO3_PYTHON": "/usr/bin/python3",
@@ -28572,7 +28572,7 @@
           "common": {},
           "selects": {
             "x86_64-pc-windows-msvc": {
-              "PYO3_PYTHON": "F:/Scoop/apps/python312/current/python.exe"
+              "PYO3_PYTHON": "C:/scoop/apps/python312/current/python.exe"
             },
             "x86_64-unknown-linux-gnu": {
               "PYO3_PYTHON": "/usr/bin/python3",
@@ -28582,6 +28582,7 @@
         },
         "links": "python"
       },
+      "license": "MIT OR Apache-2.0",
       "license": "MIT OR Apache-2.0",
       "license_ids": [
         "Apache-2.0",

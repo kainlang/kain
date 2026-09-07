@@ -500,6 +500,7 @@ static wchar_t* kain_py_resolve_python_home(void) {
 #ifdef _WIN32
     char* env_venv = NULL;
     char* env_home = NULL;
+    char* env_pyhome = NULL;
     size_t len;
     _dupenv_s(&env_venv, &len, "KAIN_PYTHON_VENV");
     if (env_venv && env_venv[0]) {
@@ -515,6 +516,15 @@ static wchar_t* kain_py_resolve_python_home(void) {
         return result;
     }
     if (env_home) free(env_home);
+    _dupenv_s(&env_pyhome, &len, "PYTHONHOME");
+    if (env_pyhome && env_pyhome[0]) {
+        if (GetFileAttributesA(env_pyhome) != INVALID_FILE_ATTRIBUTES) {
+            wchar_t* result = kain_py_utf8_to_wchar(env_pyhome);
+            free(env_pyhome);
+            return result;
+        }
+    }
+    if (env_pyhome) free(env_pyhome);
 #else
     char* env_venv = getenv("KAIN_PYTHON_VENV");
     if (env_venv && env_venv[0]) {
@@ -524,8 +534,30 @@ static wchar_t* kain_py_resolve_python_home(void) {
     if (env_home && env_home[0]) {
         return kain_py_utf8_to_wchar(env_home);
     }
+    char* env_pyhome = getenv("PYTHONHOME");
+    if (env_pyhome && env_pyhome[0] && access(env_pyhome, F_OK) == 0) {
+        return kain_py_utf8_to_wchar(env_pyhome);
+    }
 #endif
-    return kain_py_auto_detect_venv();
+    wchar_t* venv = kain_py_auto_detect_venv();
+    if (venv) return venv;
+#ifdef _WIN32
+    static const wchar_t* win_fallbacks[] = {
+        L"C:\\scoop\\apps\\python312\\current",
+        L"C:\\scoop\\apps\\python313\\current",
+        L"C:\\scoop\\apps\\python311\\current",
+        L"C:\\scoop\\apps\\python\\current",
+        L"C:\\Python312",
+        L"C:\\Python313",
+        L"C:\\Python311",
+    };
+    for (size_t i = 0; i < sizeof(win_fallbacks) / sizeof(win_fallbacks[0]); ++i) {
+        if (GetFileAttributesW(win_fallbacks[i]) != INVALID_FILE_ATTRIBUTES) {
+            return _wcsdup(win_fallbacks[i]);
+        }
+    }
+#endif
+    return NULL;
 }
 
 static void* kain_py_load_symbol(const char* name) {

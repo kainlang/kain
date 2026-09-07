@@ -3821,7 +3821,17 @@ pub fn main_entry() {
                 }
                 Some(Commands::Doctor {
                     repair: repair_args,
+                    set_python_path,
+                    fix_python,
                 }) => {
+                    if let Some(path) = set_python_path.as_ref() {
+                        handle_doctor_set_python_path(path);
+                        return;
+                    }
+                    if fix_python {
+                        handle_doctor_fix_python();
+                        return;
+                    }
                     if let Some(mode) = repair::selected_mode(&repair_args) {
                         let profile_label = repair::selected_profile_label(&repair_args);
                         match repair::target_kind(&repair_args) {
@@ -5098,8 +5108,8 @@ fn resolve_sync_stamp_path() -> Option<PathBuf> {
 
 fn load_managed_sync_stamp() -> Option<(PathBuf, DoctorManagedSyncStamp)> {
     let stamp_path = resolve_sync_stamp_path()?;
-    let raw = fs::read_to_string(&stamp_path).ok()?;
-    let stamp = serde_json::from_str::<DoctorManagedSyncStamp>(&raw).ok()?;
+    let stamp_text = fs::read_to_string(&stamp_path).ok()?;
+    let stamp = serde_json::from_str::<DoctorManagedSyncStamp>(&stamp_text).ok()?;
     Some((stamp_path, stamp))
 }
 
@@ -5400,6 +5410,8 @@ fn print_doctor(active_launcher: LauncherKind) {
         }
     }
 
+    print_doctor_python_status();
+
     if let Some(path) = current_exe.as_deref() {
         if is_repo_target_binary(path) {
             println!(" Warning: active kain comes from a repo target directory.");
@@ -5411,6 +5423,122 @@ fn print_doctor(active_launcher: LauncherKind) {
                 println!(
                     "          Refresh/install a stable PATH binary with `python3 install_kain.py` or source `~/.kain/generated/kain-env.sh`."
                 );
+            }
+        }
+    }
+}
+
+fn print_doctor_python_status() {
+    let python_diag = kain_core::python_discovery::diagnose_python();
+    println!(
+        "{} Python Runtime Status: {}",
+        p().status_info(""),
+        if python_diag.is_available {
+            "Available (Optional - loaded on-demand)"
+        } else {
+            "Not Available (Optional)"
+        }
+    );
+    if let Some(install) = &python_diag.installation {
+        println!("   - Home: {}", install.home.display());
+        if let Some(version) = &install.version {
+            println!("   - Version: {}", version);
+        }
+        if let Some(exe) = &install.exe {
+            println!("   - Executable: {}", exe.display());
+        }
+        if let Some(dll) = &install.dll {
+            println!("   - Library DLL: {}", dll.display());
+        }
+        if let Some(stdlib) = &install.stdlib {
+            println!("   - Standard Library: {}", stdlib.display());
+        }
+        println!("   - Source: {}", install.source.display_name());
+    } else {
+        println!("   - Status: No valid Python installation detected.");
+        println!("   - Note: Kain is fully standalone and does NOT require Python for standard compilation.");
+        println!("   - For 'std::python' interop, run `kain doctor --fix-python` or `kain doctor --set-python-path <path>`");
+    }
+
+    if !python_diag.stale_registry_entries.is_empty() {
+        println!("   ! Warning: Stale Windows Registry entries detected pointing to non-existent paths:");
+        for entry in &python_diag.stale_registry_entries {
+            println!("     * {}", entry);
+        }
+        println!("     Run `kain doctor --fix-python` to clean up stale registry entries and configure Python.");
+    }
+}
+
+fn handle_doctor_set_python_path(path: &Path) {
+    if !path.exists() {
+        eprintln!(" Error: Path '{}' does not exist on disk.", path.display());
+        std::process::exit(1);
+    }
+    match kain_core::python_discovery::save_python_home_to_config(path) {
+        Ok(cfg_path) => {
+            println!(
+                " Successfully saved Python home '{}' to config '{}'.",
+                path.display(),
+                cfg_path.display()
+            );
+            let diag = kain_core::python_discovery::diagnose_python();
+            if let Some(install) = &diag.installation {
+                println!(
+                    " Resolved Python version: {}",
+                    install.version.as_deref().unwrap_or("<unknown>")
+                );
+                if let Some(dll) = &install.dll {
+                    println!(" Resolved Python DLL: {}", dll.display());
+                }
+            }
+        }
+        Err(err) => {
+            eprintln!(" Failed to save Python path to config: {}", err);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_doctor_fix_python() {
+    println!(" Diagnosing and configuring Python runtime...");
+    let diag = kain_core::python_discovery::diagnose_python();
+    if let Some(install) = &diag.installation {
+        match kain_core::python_discovery::save_python_home_to_config(&install.home) {
+            Ok(cfg_path) => {
+                println!(
+                    " Successfully configured Python home: '{}' (saved to '{}').",
+                    install.home.display(),
+                    cfg_path.display()
+                );
+                if let Some(version) = &install.version {
+                    println!(" Python version: {}", version);
+                }
+                if let Some(exe) = &install.exe {
+                    println!(" Python executable: {}", exe.display());
+                }
+                if let Some(dll) = &install.dll {
+                    println!(" Python DLL: {}", dll.display());
+                }
+            }
+            Err(err) => {
+                eprintln!(" Failed to save Python configuration: {}", err);
+            }
+        }
+    } else {
+        eprintln!(" Could not auto-detect a valid Python installation on this system.");
+        eprintln!(" Please specify one explicitly with `kain doctor --set-python-path <path>`");
+    }
+
+    if cfg!(windows) && !diag.stale_registry_entries.is_empty() {
+        println!(" Cleaning up stale Windows Registry entries...");
+        match kain_core::python_discovery::clean_stale_windows_registry_entries() {
+            Ok(cleaned) => {
+                for key in cleaned {
+                    println!(" Removed stale registry key: {}", key);
+                }
+            }
+            Err(err) => {
+                eprintln!(" Warning: Failed to clean registry keys: {}", err);
             }
         }
     }
@@ -5549,6 +5677,10 @@ fn supported_config_keys() -> &'static [&'static str] {
         "diagnostics.capture",
         "diagnostics.path",
         "diagnostics.store-ansi",
+        "python.home",
+        "python.exe",
+        "python.dll",
+        "python.venv",
     ]
 }
 
@@ -5691,6 +5823,18 @@ fn apply_config_key_value(
         "diagnostics.store-ansi" => {
             config.diagnostics.store_ansi = Some(parse_config_bool(value)?);
         }
+        "python.home" => {
+            config.python.home = Some(PathBuf::from(value.trim()));
+        }
+        "python.exe" => {
+            config.python.exe = Some(PathBuf::from(value.trim()));
+        }
+        "python.dll" => {
+            config.python.dll = Some(PathBuf::from(value.trim()));
+        }
+        "python.venv" => {
+            config.python.venv = Some(PathBuf::from(value.trim()));
+        }
         _ => {
             return Err(format!(
                 "unknown Kain config key `{}`; expected one of {}",
@@ -5756,6 +5900,34 @@ fn run_config_show(json: bool) -> Result<(), String> {
         describe_diagnostic_capture_mode(active.diagnostics.capture),
         active.diagnostics.path.display(),
         active.diagnostics.store_ansi
+    );
+    println!(
+        "{} Python: home={} exe={} dll={} venv={}",
+        p().status_info(""),
+        active
+            .python
+            .home
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "<auto>".to_string()),
+        active
+            .python
+            .exe
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "<auto>".to_string()),
+        active
+            .python
+            .dll
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "<auto>".to_string()),
+        active
+            .python
+            .venv
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "<none>".to_string()),
     );
     Ok(())
 }

@@ -313,7 +313,33 @@ def resolve_policy(repo_root: Path) -> dict[str, object]:
 
 def resolve_command_path(name: str) -> Path | None:
     value = shutil.which(name)
-    return Path(value).resolve() if value else None
+    if value:
+        p = Path(value).resolve()
+        if p.name.lower() != "rustup.exe" or name.lower() == "rustup":
+            return p
+    if platform.system().lower() == "windows":
+        rustup_toolchains = Path("C:/scoop/persist/rustup/.rustup/toolchains")
+        if rustup_toolchains.exists():
+            for tc in sorted(rustup_toolchains.iterdir(), reverse=True):
+                cand = tc / "bin" / (name if name.endswith(".exe") else f"{name}.exe")
+                if cand.is_file():
+                    return cand.resolve()
+        for fallback_dir in (
+            Path("C:/scoop/shims"),
+            Path("C:/scoop/apps/rustup/current/.cargo/bin"),
+            Path.home() / ".cargo" / "bin",
+            Path("C:/scoop/apps/python312/current"),
+            Path("C:/scoop/apps/git/current/cmd"),
+            Path("C:/scoop/apps/git/current/bin"),
+        ):
+            candidate = fallback_dir / name
+            if candidate.is_file():
+                return candidate.resolve()
+            if not name.endswith(".exe"):
+                candidate_exe = fallback_dir / f"{name}.exe"
+                if candidate_exe.is_file():
+                    return candidate_exe.resolve()
+    return None
 
 
 def command_prints_path(command: Sequence[str]) -> Path | None:
@@ -354,6 +380,18 @@ def resolve_python_path() -> Path | None:
             resolved = command_prints_path([str(command)])
             if resolved:
                 return resolved
+
+    if platform.system().lower() == "windows":
+        for cand in (
+            Path("C:/scoop/apps/python312/current/python.exe"),
+            Path("C:/scoop/apps/python313/current/python.exe"),
+            Path("C:/scoop/apps/python311/current/python.exe"),
+            Path("C:/Python312/python.exe"),
+            Path("C:/Python313/python.exe"),
+            Path("C:/Python311/python.exe"),
+        ):
+            if cand.exists():
+                return cand.resolve()
     return None
 
 
@@ -392,6 +430,7 @@ def resolve_bash_path() -> Path | None:
         return command
     if platform.system().lower() == "windows":
         for candidate in (
+            Path("C:/scoop/apps/git/current/bin/bash.exe"),
             Path("F:/Scoop/apps/git/current/bin/bash.exe"),
             Path("C:/Program Files/Git/bin/bash.exe"),
             Path("C:/msys64/usr/bin/bash.exe"),
@@ -399,6 +438,22 @@ def resolve_bash_path() -> Path | None:
             if candidate.exists():
                 return candidate.resolve()
     return None
+
+
+def resolve_bazel_executable() -> str:
+    for name in ("bazel", "bazelisk"):
+        cmd = resolve_command_path(name)
+        if cmd:
+            return str(cmd)
+    if platform.system().lower() == "windows":
+        for cand in (
+            Path("C:/scoop/shims/bazel.exe"),
+            Path("C:/scoop/shims/bazelisk.exe"),
+            Path("C:/scoop/apps/bazelisk/current/bazelisk.exe"),
+        ):
+            if cand.exists():
+                return str(cand.resolve())
+    return "bazel"
 
 
 def resolve_sync_context(
@@ -747,9 +802,27 @@ def runtime_env(context: SyncContext) -> dict[str, str]:
     if context.clang_path:
         env["KAIN_CLANG_PATH"] = str(context.clang_path)
         env["PATH"] = prepend_path(env.get("PATH", ""), str(context.clang_path.parent))
+    if platform.system().lower() == "windows":
+        for shim_dir in (
+            "C:/scoop/shims",
+            "C:/scoop/apps/rustup/current/.cargo/bin",
+            str(Path.home() / ".cargo" / "bin"),
+            "C:/scoop/apps/python312/current",
+            "C:/scoop/apps/git/current/cmd",
+        ):
+            if Path(shim_dir).exists():
+                env["PATH"] = prepend_path(env.get("PATH", ""), shim_dir)
     bash_path = resolve_bash_path()
     if bash_path:
         env["BAZEL_SH"] = str(bash_path)
+    if "BAZELISK_HOME" in env:
+        try:
+            if not Path(env["BAZELISK_HOME"]).exists():
+                env["BAZELISK_HOME"] = str((Path.home() / ".cache" / "bazelisk").resolve())
+        except Exception:
+            env["BAZELISK_HOME"] = str((Path.home() / ".cache" / "bazelisk").resolve())
+    else:
+        env["BAZELISK_HOME"] = str((Path.home() / ".cache" / "bazelisk").resolve())
     return env
 
 
@@ -857,13 +930,14 @@ def git_lines(repo_root: Path, args: Sequence[str]) -> tuple[str, ...]:
 
 
 def cargo_metadata(repo_root: Path, env: dict[str, str]) -> dict[str, object]:
+    cargo_exe = str(resolve_command_path("cargo") or "cargo")
     result = run_capture(
-        ["cargo", "metadata", "--format-version", "1", "--no-deps"],
+        [cargo_exe, "metadata", "--format-version", "1", "--no-deps"],
         repo_root,
         env,
     )
     if result.exit_code != 0:
-        raise SyncError(f"cargo metadata failed with exit code {result.exit_code}")
+        raise SyncError(f"cargo metadata failed with exit code {result.exit_code}: {result.output_text}")
     try:
         payload = json.loads(result.output_text)
     except json.JSONDecodeError as error:
@@ -1284,7 +1358,7 @@ def cargo_bazel_repin(
         repin_env = dict(env)
         repin_env["CARGO_BAZEL_REPIN"] = "true"
         repin_args = [
-            "bazel",
+            resolve_bazel_executable(),
             "fetch",
             f"//:{binary_name}",
             f"--config={context.bazel_config}",
@@ -1403,7 +1477,7 @@ def run_bazel_build_target(context: SyncContext, binary_name: str) -> CommandRes
             )
 
     build_args = [
-        "bazel",
+        resolve_bazel_executable(),
         "build",
         f"//:{binary_name}",
         f"--config={context.bazel_config}",
@@ -1460,7 +1534,7 @@ def invoke_bazel_build(context: SyncContext, binary_name: str) -> str:
 def resolve_bazel_binary_path(context: SyncContext, binary_name: str) -> Path:
     result = run_capture(
         [
-            "bazel",
+            resolve_bazel_executable(),
             "info",
             "bazel-bin",
             f"--config={context.bazel_config}",
@@ -1804,7 +1878,7 @@ def persist_windows_user_env(context: SyncContext) -> None:
 def _resolve_bazel_output_dir(context: SyncContext) -> Path | None:
     """Run `bazel info bazel-bin` and return the output directory."""
     result = run_capture(
-        ["bazel", "info", "bazel-bin", f"--config={context.bazel_config}"],
+        [resolve_bazel_executable(), "info", "bazel-bin", f"--config={context.bazel_config}"],
         context.repo_root,
         bazel_env(context),
     )
@@ -1887,7 +1961,7 @@ def sync_runtime_library(
     if not skip_build:
         env = bazel_env(context)
         build_args = [
-            "bazel",
+            resolve_bazel_executable(),
             "build",
             "//runtime:native_core_runtime",
             f"--config={context.bazel_config}",
@@ -1916,12 +1990,15 @@ def sync_runtime_library(
         # Works with both clang-cl (llvm-lib) and MSVC (lib.exe).
         obj_dir = bazel_bin / "runtime" / "_objs" / "native_core_runtime_c"
         obj_files = sorted(obj_dir.glob("*.obj")) if obj_dir.exists() else []
+        dst_path = install_dir / runtime_lib_name
         if not obj_files:
+            if dst_path.exists() and dst_path.stat().st_size > 0:
+                print(f"  [runtime] {dst_path} ({dst_path.stat().st_size} bytes (cached))", flush=True)
+                return
             raise SyncError(
                 f"no .obj files found at {obj_dir}. "
                 f"Ensure bazel build //runtime:native_core_runtime completed successfully."
             )
-        dst_path = install_dir / runtime_lib_name
         temp_path = dst_path.with_name(f"{dst_path.name}.tmp.{os.getpid()}")
         lib_exe = _find_lib_exe()
         if lib_exe is None:
