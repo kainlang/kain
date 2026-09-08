@@ -23,7 +23,7 @@
 | Koka / Eff | Effects lattice. `Pure`, `IO`, `Async`, `GPU`, `Reactive`, `Unsafe`. |
 | Lisp | Hygienic macros. Code as data. DSL-friendly surface. |
 | React | JSX components. Typed props, local state, methods. Compiled to native. |
-| Slang / Vulkan / CUDA | GPU shaders unified with host code. One file emits SPIR-V, PTX, HLSL, WGSL. |
+| Slang / Vulkan / CUDA | GPU shaders unified with host code. One file emits SPIR-V, PTX, HLSL, WGSL, CUDA and even Unreal Shader Format (USF). |
 | Zig | `comptime` blocks. `build.kn` as the project authority. No Makefile, no CMake. |
 | SQLite | Amalgamation. `kain amalgamate` packs everything into one portable capsule. |
 | F* / Dafny | Formal verification. 500+ Z3 proof packs across 16 directories. 6,000+ proof artifacts. 380+ SMT-LIB2 files. 10,000+ CBMC assertions. Proofs ship with the compiler. |
