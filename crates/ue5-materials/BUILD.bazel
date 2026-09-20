@@ -24,7 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "ue5-materials",
-    version = "0.8.0",
+    version = "0.8.2",
     crate_name = "ue5_materials",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -44,7 +44,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
-    version = "0.8.0",
+    version = "0.8.2",
     crate = ":ue5-materials",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
@@ -62,7 +62,7 @@ rust_test(
 
 rust_binary(
     name = "uasset_scan",
-    version = "0.8.0",
+    version = "0.8.2",
     crate_name = "uasset_scan",
     crate_root = "src/bin/uasset_scan.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -84,7 +84,7 @@ rust_binary(
 
 rust_test(
     name = "test_world_space_operations_test",
-    version = "0.8.0",
+    version = "0.8.2",
     crate_name = "test_world_space_operations",
     crate_root = "tests/test_world_space_operations.rs",
     srcs = [

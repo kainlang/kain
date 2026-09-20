@@ -24,7 +24,7 @@ COMMON_COMPILE_DATA = glob(
 
 rust_library(
     name = "gpu",
-    version = "0.8.0",
+    version = "0.8.2",
     crate_name = "gpu",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
@@ -42,7 +42,7 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
-    version = "0.8.0",
+    version = "0.8.2",
     crate = ":gpu",
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
@@ -59,7 +59,7 @@ rust_test(
 
 rust_test(
     name = "hlsl_codegen_test",
-    version = "0.8.0",
+    version = "0.8.2",
     crate_name = "hlsl_codegen",
     crate_root = "tests/hlsl_codegen.rs",
     srcs = [
@@ -84,7 +84,7 @@ rust_test(
 
 rust_test(
     name = "ptx_codegen_test",
-    version = "0.8.0",
+    version = "0.8.2",
     crate_name = "ptx_codegen",
     crate_root = "tests/ptx_codegen.rs",
     srcs = [
@@ -109,7 +109,7 @@ rust_test(
 
 rust_test(
     name = "spirv_execute_test",
-    version = "0.8.0",
+    version = "0.8.2",
     crate_name = "spirv_execute",
     crate_root = "tests/spirv_execute.rs",
     srcs = [
@@ -134,7 +134,7 @@ rust_test(
 
 rust_test(
     name = "spirv_layout_test",
-    version = "0.8.0",
+    version = "0.8.2",
     crate_name = "spirv_layout",
     crate_root = "tests/spirv_layout.rs",
     srcs = [
@@ -159,7 +159,7 @@ rust_test(
 
 rust_test(
     name = "spirv_smoke_test",
-    version = "0.8.0",
+    version = "0.8.2",
     crate_name = "spirv_smoke",
     crate_root = "tests/spirv_smoke.rs",
     srcs = [
@@ -184,7 +184,7 @@ rust_test(
 
 rust_test(
     name = "wgsl_codegen_test",
-    version = "0.8.0",
+    version = "0.8.2",
     crate_name = "wgsl_codegen",
     crate_root = "tests/wgsl_codegen.rs",
     srcs = [
