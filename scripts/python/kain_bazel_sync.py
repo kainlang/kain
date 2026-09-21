@@ -444,7 +444,9 @@ def resolve_bazel_executable() -> str:
     for name in ("bazel", "bazelisk"):
         cmd = resolve_command_path(name)
         if cmd:
-            return str(cmd)
+            # Absolute native path: shutil.which under MSYS/Git-Bash yields
+            # POSIX-style paths Windows cannot execute directly.
+            return windows_native_path(cmd)
     if platform.system().lower() == "windows":
         for cand in (
             Path("C:/scoop/shims/bazel.exe"),
@@ -1667,6 +1669,19 @@ def launch_binary(
     built_binary_name = binary_name
     if decision.should_build:
         built_binary_name = invoke_bazel_build(context, binary_name)
+        # The build intentionally mutates watched tracking files
+        # (crates/cli/data/build_info.env gets a fresh SOURCE_DATE_EPOCH and
+        # build counter via bazel_build_tracking_args). Recompute the stamp
+        # post-build so the payload records the source state the binary was
+        # actually built from. Without this the sync loop compares its
+        # pre-build stamp against a post-build tree, observes a "change" it
+        # caused itself, rebuilds, and never converges.
+        source_data = source_stamp_data(
+            context.repo_root,
+            context.source_watch_paths,
+            context.source_filesystem_watch_paths,
+        )
+        current_source_stamp = str(source_data.get("stamp", ""))
         bazel_binary_path = resolve_bazel_binary_path(context, built_binary_name)
         if not bazel_binary_path.exists():
             raise SyncError(f"Bazel binary not found at {bazel_binary_path}")
@@ -1726,17 +1741,41 @@ def strip_forward_separator(forward_args: Sequence[str]) -> list[str]:
     return args
 
 
+def windows_native_path(value: Path | str) -> str:
+    """Render *value* in a form Windows CreateProcess can execute.
+
+    When this script runs under MSYS2/Git-Bash, ``shutil.which`` returns
+    POSIX-style paths (``/c/...``) that Windows cannot resolve. Convert a
+    leading ``/<drive>/`` prefix to ``<Drive>:/``; leave everything else
+    (including already-native ``C:/`` / ``C:\\`` paths) untouched.
+    """
+    text = str(value)
+    # Windows Python normalizes Path("/c/...") to "\\c\\..." on access via
+    # str(), so accept both slash styles for the MSYS drive prefix.
+    if len(text) > 3 and text[0] in ("/", "\\") and text[1].isalpha() and text[2] in ("/", "\\"):
+        drive = text[1].upper()
+        rest = text[2:].replace("/", "\\")
+        return f"{drive}:{rest}"
+    return text
+
+
 def rustc_command() -> list[str]:
     override = os.environ.get("RUSTC")
     if override:
         return [override]
     toolchain = os.environ.get("KAIN_RUST_TOOLCHAIN")
     if toolchain and resolve_command_path("rustup"):
-        return ["rustup", "run", toolchain, "rustc"]
-    if resolve_command_path("rustc"):
-        # Invoke by tool name instead of resolved rustup proxy path; rustup keys
-        # off argv[0] on Windows, and the full proxy path can look like rustup.
-        return ["rustc"]
+        rustup_exe = resolve_command_path("rustup")
+        # Absolute path so this works even when PATH is MSYS-style.
+        return [windows_native_path(rustup_exe), "run", toolchain, "rustc"]
+    resolved = resolve_command_path("rustc")
+    if resolved:
+        # Absolute path (not bare "rustc") so Windows process creation
+        # succeeds when the parent env carries MSYS-style PATH entries.
+        # argv[0] still ends in rustc.exe, which is what the rustup proxy
+        # keys off — never a path named rustup (excluded by
+        # resolve_command_path).
+        return [windows_native_path(resolved)]
     raise SyncError("rustc was not found in PATH or RUSTC; cannot build launcher shim")
 
 
@@ -1937,7 +1976,7 @@ def sync_runtime_library(
     *,
     target_triple: str | None = None,
     skip_build: bool = False,
-) -> None:
+) -> str:
     """Build the native C runtime as a static library and install it per-target.
 
     The library is compiled with -ffunction-sections -fdata-sections so the
@@ -1994,7 +2033,7 @@ def sync_runtime_library(
         if not obj_files:
             if dst_path.exists() and dst_path.stat().st_size > 0:
                 print(f"  [runtime] {dst_path} ({dst_path.stat().st_size} bytes (cached))", flush=True)
-                return
+                return effective_triple
             raise SyncError(
                 f"no .obj files found at {obj_dir}. "
                 f"Ensure bazel build //runtime:native_core_runtime completed successfully."
@@ -2135,9 +2174,9 @@ def _update_install_manifest(
     existing = read_json(manifest_path)
 
     host_triple = get_host_triple()
-    installed_targets: list[str] = list(
-        existing.get("installed_targets", [])
-    )
+    installed_targets: list[str] = [
+        entry for entry in existing.get("installed_targets", []) if isinstance(entry, str)
+    ]
     if installed_triple not in installed_targets:
         installed_targets.append(installed_triple)
         installed_targets.sort()

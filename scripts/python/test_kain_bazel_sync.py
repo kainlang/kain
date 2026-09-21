@@ -332,6 +332,8 @@ class KainBazelSyncTests(unittest.TestCase):
             with mock.patch.object(sync, "source_stamp_data", side_effect=stamps), mock.patch.object(
                 sync, "launch_binary", side_effect=fake_launch_binary
             ), mock.patch.object(
+                sync, "sync_runtime_library", return_value="x86_64-pc-windows-msvc"
+            ), mock.patch.object(
                 sync, "build_launcher_shim", return_value=root / "shim.exe"
             ), mock.patch.object(
                 sync, "install_launcher_files", return_value=[]
@@ -378,6 +380,8 @@ class KainBazelSyncTests(unittest.TestCase):
 
             with mock.patch.object(sync, "source_stamp_data", side_effect=stamps), mock.patch.object(
                 sync, "launch_binary", return_value=0
+            ), mock.patch.object(
+                sync, "sync_runtime_library", return_value="x86_64-pc-windows-msvc"
             ), mock.patch.object(
                 sync, "build_launcher_shim", return_value=root / "shim.exe"
             ), mock.patch.object(
@@ -542,6 +546,8 @@ class KainBazelSyncTests(unittest.TestCase):
                 "source_stamp_data",
                 return_value={"stamp": current_stamp, "dirty_count": 0, "watch_paths": (), "filesystem_watch_paths": ()},
             ), mock.patch.object(sync, "runtime_stamp", return_value="runtime"), mock.patch.object(
+                sync, "sync_runtime_library", return_value="x86_64-pc-windows-msvc"
+            ), mock.patch.object(
                 sync, "repo_head_sha", return_value="test-sha"
             ), mock.patch.object(
                 sync.subprocess, "run", side_effect=fake_run

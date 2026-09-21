@@ -1,0 +1,8 @@
+[package]
+name = "kain-target"
+version = "0.1.0"
+edition = "2021"
+description = "KAIN target-triple parsing, host platform description, and LLVM target descriptors"
+license = "MIT"
+
+[dependencies]

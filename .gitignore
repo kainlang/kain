@@ -390,3 +390,8 @@ runtime/native/extras/_stb-truetype/z3/RESEARCH_FINDINGS.md
 /packaging/linux/
 /packaging/darwin/
 *.db
+
+# kain-target crate lives under crates/target-triple/ — un-ignore it
+# (the **/*target*/ rule above is for build output dirs, not this crate).
+!/crates/target-triple/
+!/crates/target-triple/**
