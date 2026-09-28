@@ -1,0 +1,422 @@
+{
+  "shaders": [
+    {
+      "name": "InceptionKernel",
+      "stage": "compute",
+      "entry_point": "InceptionKernel",
+      "inputs": [
+        {
+          "name": "id",
+          "ty": "UVec3"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "src",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "dst",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "_pad",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Void"
+    },
+    {
+      "name": "MandelbulbMesh",
+      "stage": "mesh",
+      "entry_point": "MandelbulbMesh",
+      "inputs": [
+        {
+          "name": "out_positions",
+          "ty": "Vec3"
+        },
+        {
+          "name": "out_normals",
+          "ty": "Vec3"
+        },
+        {
+          "name": "out_indices",
+          "ty": "UInt"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "time",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "detail_level",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "_pad",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Void"
+    },
+    {
+      "name": "MandelbulbCull",
+      "stage": "task",
+      "entry_point": "MandelbulbCull",
+      "inputs": [],
+      "bindings": [
+        {
+          "name": "view_proj",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "draw_count",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        }
+      ],
+      "output_type": "Void"
+    },
+    {
+      "name": "UniversalRayGen",
+      "stage": "ray_gen",
+      "entry_point": "UniversalRayGen",
+      "inputs": [],
+      "bindings": [
+        {
+          "name": "frame",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "seed",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "_pad",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Vec4"
+    },
+    {
+      "name": "MandelbulbHit",
+      "stage": "closest_hit",
+      "entry_point": "MandelbulbHit",
+      "inputs": [],
+      "bindings": [
+        {
+          "name": "hit_distance",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "hit_normal_x",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "hit_normal_y",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "hit_normal_z",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "_pad",
+          "binding": 4,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Vec4"
+    },
+    {
+      "name": "CosmicMicrowaveBackground",
+      "stage": "miss",
+      "entry_point": "CosmicMicrowaveBackground",
+      "inputs": [],
+      "bindings": [
+        {
+          "name": "ray_dir_x",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "ray_dir_y",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "ray_dir_z",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "_pad",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Vec4"
+    },
+    {
+      "name": "FractalDensityTest",
+      "stage": "any_hit",
+      "entry_point": "FractalDensityTest",
+      "inputs": [],
+      "bindings": [
+        {
+          "name": "density",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "threshold",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "_pad",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Vec4"
+    },
+    {
+      "name": "TesseractIntersection",
+      "stage": "intersection",
+      "entry_point": "TesseractIntersection",
+      "inputs": [],
+      "bindings": [
+        {
+          "name": "tesseract_scale",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "rotation_angle",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "_pad",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Vec4"
+    },
+    {
+      "name": "FractalUtility",
+      "stage": "callable",
+      "entry_point": "FractalUtility",
+      "inputs": [],
+      "bindings": [
+        {
+          "name": "input_a",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "input_b",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "mode",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "_pad",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Vec4"
+    },
+    {
+      "name": "RasterFallback",
+      "stage": "vertex",
+      "entry_point": "RasterFallback",
+      "inputs": [
+        {
+          "name": "position",
+          "ty": "Vec3"
+        },
+        {
+          "name": "uv",
+          "ty": "Vec2"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "model",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "Vec4",
+          "kind": "uniform"
+        },
+        {
+          "name": "view",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "Vec4",
+          "kind": "uniform"
+        },
+        {
+          "name": "proj",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "Vec4",
+          "kind": "uniform"
+        },
+        {
+          "name": "_pad",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Vec4"
+    },
+    {
+      "name": "ProceduralReality",
+      "stage": "fragment",
+      "entry_point": "ProceduralReality",
+      "inputs": [
+        {
+          "name": "uv",
+          "ty": "Vec2"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "time",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "mouse",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "Vec2",
+          "kind": "uniform"
+        },
+        {
+          "name": "_pad",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Vec4"
+    },
+    {
+      "name": "IndirectController",
+      "stage": "compute",
+      "entry_point": "IndirectController",
+      "inputs": [
+        {
+          "name": "id",
+          "ty": "UVec3"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "indirect_buf",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "workload_size",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        }
+      ],
+      "output_type": "Void"
+    }
+  ]
+}

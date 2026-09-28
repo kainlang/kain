@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "target": "ks",
+  "compute_shader_count": 2,
+  "compute_shaders": [
+    {
+      "key": "shader::InceptionKernel::compute",
+      "shader": "InceptionKernel",
+      "module_name": "InceptionKernel__MandelbulbMesh__MandelbulbCull__UniversalRayGen__MandelbulbHit__CosmicMicrowaveBackground__FractalDensityTest__TesseractIntersection__FractalUtility__RasterFallback__ProceduralReality__IndirectController",
+      "stage": "compute",
+      "entry_point": "InceptionKernel",
+      "source": "kain-core",
+      "execution_domain": "tensor-stream",
+      "workgroup_size": [
+        32,
+        1,
+        1
+      ],
+      "dispatch_size": [
+        128,
+        1,
+        1
+      ],
+      "dynamic_shared_memory_bytes": 0,
+      "cuda_stream_policy": "default",
+      "cuda_graph_policy": "disabled",
+      "resource_binding_count": 3,
+      "tensor_binding_count": 2,
+      "stream_binding_count": 0,
+      "neural_node_count": 1,
+      "bindings": [
+        {
+          "key": "src",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "f32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 0,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_inceptionkernel_compute_src.bin"
+        },
+        {
+          "key": "dst",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "f32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "write",
+          "residency_role": "output",
+          "slot": 1,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_inceptionkernel_compute_dst.bin"
+        },
+        {
+          "key": "_pad",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "f32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read_write",
+          "residency_role": "scratch_state",
+          "slot": 2,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_inceptionkernel_compute_pad.bin"
+        }
+      ]
+    },
+    {
+      "key": "shader::IndirectController::compute",
+      "shader": "IndirectController",
+      "module_name": "InceptionKernel__MandelbulbMesh__MandelbulbCull__UniversalRayGen__MandelbulbHit__CosmicMicrowaveBackground__FractalDensityTest__TesseractIntersection__FractalUtility__RasterFallback__ProceduralReality__IndirectController",
+      "stage": "compute",
+      "entry_point": "IndirectController",
+      "source": "kain-core",
+      "execution_domain": "tensor-stream",
+      "workgroup_size": [
+        1,
+        1,
+        1
+      ],
+      "dispatch_size": [
+        1,
+        1,
+        1
+      ],
+      "dynamic_shared_memory_bytes": 0,
+      "cuda_stream_policy": "default",
+      "cuda_graph_policy": "disabled",
+      "resource_binding_count": 2,
+      "tensor_binding_count": 1,
+      "stream_binding_count": 1,
+      "neural_node_count": 1,
+      "bindings": [
+        {
+          "key": "indirect_buf",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "u32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "write",
+          "residency_role": "output",
+          "slot": 0,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_indirectcontroller_compute_indirect_buf.bin"
+        },
+        {
+          "key": "workload_size",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "uniform_buffer",
+          "element_type": "u32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "required_input",
+          "slot": 1,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_indirectcontroller_compute_workload_size.bin"
+        }
+      ]
+    }
+  ]
+}
