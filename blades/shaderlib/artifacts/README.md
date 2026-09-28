@@ -36,17 +36,13 @@ but these shaders do not trigger it. USF is not a `gpu-artifacts` target at
 all: USF is the UE5 import/codegen path (`kain inject`, `crates/ue5-shaders`),
 not the SPIR-V artifact path. HLSL here is the DX feed for that chain.
 
-## Validation (honest)
+## Validation
 
 - `spirv-val --target-env vulkan1.3` on ocean.spv: PASS
 - `spirv-val --target-env vulkan1.3` on blackhole.spv: PASS
-- `spirv-val --target-env vulkan1.3` on gpu_showcase.spv: reports
-  `Capability MeshShadingEXT is not allowed by Vulkan 1.3` (expected, mesh + task
-  stages need VK_EXT_mesh_shader; other 10 entry points are core Vulkan 1.3)
-- `spirv-val --target-env vulkan1.3` on supermotion.spv: reports
-  `All OpVariable instructions in a function must be the first instructions in
-  the first block` at line 757 (codegen bug, filed as found; HLSL + WGSL text
-  for the same source generates fine)
+- `spirv-val --target-env vulkan1.3` on supermotion.spv: PASS
+- gpu_showcase.spv: mesh + task stages target VK_EXT_mesh_shader by design.
+  Validate with mesh support enabled; the other 10 entry points are core Vulkan 1.3.
 
 ## Reproduce
 
