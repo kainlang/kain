@@ -1,0 +1,288 @@
+{
+  "shaders": [
+    {
+      "name": "SupermotionCompute",
+      "stage": "compute",
+      "entry_point": "SupermotionCompute",
+      "inputs": [
+        {
+          "name": "id",
+          "ty": "UVec3"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "in_pos",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "in_rot",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "in_scl",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "out_pos",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "out_rot",
+          "binding": 4,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "out_scl",
+          "binding": 5,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "mod_type",
+          "binding": 6,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Int>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "params_a",
+          "binding": 7,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "params_b",
+          "binding": 8,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "params_c",
+          "binding": 9,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "instance_count",
+          "binding": 10,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "time_sec",
+          "binding": 11,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "global_intensity",
+          "binding": 12,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "random_seed",
+          "binding": 13,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "eps",
+          "binding": 14,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "_pad",
+          "binding": 15,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Void"
+    },
+    {
+      "name": "SupermotionVertex",
+      "stage": "vertex",
+      "entry_point": "SupermotionVertex",
+      "inputs": [
+        {
+          "name": "position",
+          "ty": "Vec3"
+        },
+        {
+          "name": "uv",
+          "ty": "Vec2"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "instance_pos",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "instance_rot",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "instance_scl",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "instance_id",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "_pad",
+          "binding": 4,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Vec4"
+    },
+    {
+      "name": "SupermotionFragment",
+      "stage": "fragment",
+      "entry_point": "SupermotionFragment",
+      "inputs": [
+        {
+          "name": "uv",
+          "ty": "Vec2"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "time",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "resolution",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "Vec2",
+          "kind": "uniform"
+        },
+        {
+          "name": "instance_count",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "instance_pos",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "instance_rot",
+          "binding": 4,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "instance_scl",
+          "binding": 5,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Vec4>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "mod_type",
+          "binding": 6,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Int>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "_pad",
+          "binding": 7,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Vec4"
+    },
+    {
+      "name": "SupermotionIndirect",
+      "stage": "compute",
+      "entry_point": "SupermotionIndirect",
+      "inputs": [
+        {
+          "name": "id",
+          "ty": "UVec3"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "indirect_buf",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "instance_count",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "_pad",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Void"
+    }
+  ]
+}

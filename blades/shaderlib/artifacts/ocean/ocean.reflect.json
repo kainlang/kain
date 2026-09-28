@@ -1,0 +1,46 @@
+{
+  "shaders": [
+    {
+      "name": "OceanFragment",
+      "stage": "fragment",
+      "entry_point": "OceanFragment",
+      "inputs": [
+        {
+          "name": "uv",
+          "ty": "Vec2"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "time",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "Float",
+          "kind": "uniform"
+        },
+        {
+          "name": "resolution",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "Vec2",
+          "kind": "uniform"
+        },
+        {
+          "name": "mouse",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "Vec2",
+          "kind": "uniform"
+        },
+        {
+          "name": "_padding",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<Float>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Vec4"
+    }
+  ]
+}

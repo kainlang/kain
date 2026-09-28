@@ -1,53 +1,62 @@
-# gpu_showcase.kn - GPU Artifacts (Proof)
+# shaderlib artifacts (proof)
 
-Source: `blades/shaderlib/gpu_showcase.kn`
-Built: 2026-09-28 with `kain gpu-artifacts`
+One `.kn` file in, SPIR-V + HLSL + WGSL + Rust host + reflection + residency out.
+Built 2026-09-28 with `kain gpu-artifacts <file> -o artifacts/<name>/<name> --target all`.
 
-Build command:
+## Layout
+
 ```
-kain gpu-artifacts "blades/shaderlib/gpu_showcase.kn" -o "blades/shaderlib/artifacts/gpu_showcase" --target all
+artifacts/
+  gpu_showcase/   12 stages in one module (compute, mesh, task, raygen, closesthit, miss, anyhit, intersection, callable, vertex, fragment, indirect compute)
+  ocean/          fragment ray-traced ocean (OceanFragment)
+  blackhole/      fragment Schwarzschild raymarcher (BlackHoleFragment)
+  supermotion/    compute + vertex + fragment + indirect compute (full pipeline sample)
 ```
 
-Result: 10 files, 12 shader stages in one SPIR-V module (23,848 bytes, magic `03 02 23 07`).
+Each folder holds its own `.spv`, `.shader_bundle.json`, `.reflect.json`, `.gpu.rs`,
+derived text (`*.derived.hlsl`, `*.derived.wgsl` where emitted), and its own
+`kain_compute_residency.json` + staging `.bin`s (kept per-folder so nothing clobbers).
 
-## File map
+## What each source emitted
 
-| File | What it is |
-|------|------------|
-| `gpu_showcase.spv` | Canonical SPIR-V binary, all 12 entry points |
-| `gpu_showcase.shader_bundle.json` | Runtime catalog, includes SPIR-V bytes_hex + module name |
-| `gpu_showcase.reflect.json` | Per-shader reflection: stage, inputs, bindings @N, output type |
-| `gpu_showcase.gpu.rs` | Rust host wrappers (ShaderDesc + BindingDesc per kernel) |
-| `kain_compute_residency.json` | Compute plan: workgroup + dispatch + tensor bindings for the 2 compute kernels |
-| `kain_compute_residency_*.bin` | 4-byte staging payloads per compute binding (src/dst/pad, indirect_buf/workload_size) |
+| Source | SPIR-V | HLSL | WGSL | PTX | Residency |
+|--------|--------|------|------|-----|-----------|
+| gpu_showcase.kn | yes (23,848 B) | no | no | no | yes, 2 compute kernels |
+| ocean.kn | yes (41,272 B) | yes (OceanFragment) | no | no | n/a (fragment only) |
+| blackhole.kn | yes (22,480 B) | yes (BlackHoleFragment) | no | no | n/a (fragment only) |
+| supermotion_v2.kn | yes (60,152 B) | yes | yes | no | yes, 2 compute kernels |
 
-## Shaders in this module (from reflect.json)
+All four SPIR-V binaries carry magic `03 02 23 07`.
 
-1. InceptionKernel - compute, workgroup(32,1,1), subgroup(32), spec constants
-2. MandelbulbMesh - mesh (procedural fractal geometry)
-3. MandelbulbCull - task (meshlet culling)
-4. UniversalRayGen - ray_gen (Hopf fibration color)
-5. MandelbulbHit - closest_hit (orbit-trap color)
-6. CosmicMicrowaveBackground - miss (CMB dipole + starfield)
-7. FractalDensityTest - any_hit (density threshold)
-8. TesseractIntersection - intersection (4D hypercube projection)
-9. FractalUtility - callable (Julia param blend)
-10. RasterFallback - vertex (warp distortion fallback)
-11. ProceduralReality - fragment (4D Julia set, 256-iter loop)
-12. IndirectController - compute, workgroup(1,1,1), GPU-driven dispatch writer
+Why no WGSL/PTX on ocean + blackhole: fragment-only raymarchers lower to the
+HLSL path in this snapshot. WGSL appears once vertex + compute join the module
+(see supermotion). PTX is not emitted for any of these four in this snapshot;
+the PTX backend exists (`--target cuda`, `derived_ptx` in the bundle schema)
+but these shaders do not trigger it. USF is not a `gpu-artifacts` target at
+all: USF is the UE5 import/codegen path (`kain inject`, `crates/ue5-shaders`),
+not the SPIR-V artifact path. HLSL here is the DX feed for that chain.
 
-Compute kernels with residency entries:
-- `shader::InceptionKernel::compute` - workgroup [32,1,1], dispatch [128,1,1]
-- `shader::IndirectController::compute` - workgroup [1,1,1], dispatch [1,1,1]
+## Validation (honest)
 
-## Validation
+- `spirv-val --target-env vulkan1.3` on ocean.spv: PASS
+- `spirv-val --target-env vulkan1.3` on blackhole.spv: PASS
+- `spirv-val --target-env vulkan1.3` on gpu_showcase.spv: reports
+  `Capability MeshShadingEXT is not allowed by Vulkan 1.3` (expected, mesh + task
+  stages need VK_EXT_mesh_shader; other 10 entry points are core Vulkan 1.3)
+- `spirv-val --target-env vulkan1.3` on supermotion.spv: reports
+  `All OpVariable instructions in a function must be the first instructions in
+  the first block` at line 757 (codegen bug, filed as found; HLSL + WGSL text
+  for the same source generates fine)
 
-- SPIR-V magic: `03 02 23 07` OK, 23,848 bytes
-- `spirv-val --target-env vulkan1.3 gpu_showcase.spv` reports:
-  `Capability MeshShadingEXT is not allowed by Vulkan 1.3 specification (or requires extension)`
-  This is expected: the mesh + task stages need `VK_EXT_mesh_shader`. The remaining 10 execution models validate under core Vulkan 1.3.
-- No derived HLSL / WGSL / PTX text for this file: the mesh, task, and ray-tracing stages (raygen, closesthit, miss, anyhit, intersection, callable) are SPIR-V native and have no HLSL/WGSL lowering in this snapshot. Compute + vertex + fragment stages are covered by the SPIR-V path.
+## Reproduce
 
-## Why this is here
+```
+kain gpu-artifacts blades/shaderlib/gpu_showcase.kn -o blades/shaderlib/artifacts/gpu_showcase/gpu_showcase --target all
+kain gpu-artifacts blades/shaderlib/ocean.kn -o blades/shaderlib/artifacts/ocean/ocean --target all
+kain gpu-artifacts blades/shaderlib/blackhole.kn -o blades/shaderlib/artifacts/blackhole/blackhole --target all
+kain gpu-artifacts blades/shaderlib/supermotion_v2.kn -o blades/shaderlib/artifacts/supermotion/supermotion --target all
+spirv-val --target-env vulkan1.3 blades/shaderlib/artifacts/*/*.spv
+```
 
-Reddit r/graphicsprogramming proof thread: one `.kn` file in, LLVM host + SPIR-V + residency sidecars out. These files are force-added (the repo gitignores `*.spv`, `*.json`, `*.bin` by default).
+Note: the repo gitignores `*.spv`, `*.json`, `*.bin`, `*.hlsl`, `*.wgsl`, `*.ptx`
+by default. These files are force-added as Reddit proof.

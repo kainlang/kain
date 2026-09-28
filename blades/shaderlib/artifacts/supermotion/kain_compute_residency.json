@@ -1,0 +1,384 @@
+{
+  "schema_version": 1,
+  "target": "ks",
+  "compute_shader_count": 2,
+  "compute_shaders": [
+    {
+      "key": "shader::SupermotionCompute::compute",
+      "shader": "SupermotionCompute",
+      "module_name": "SupermotionCompute__SupermotionVertex__SupermotionFragment__SupermotionIndirect",
+      "stage": "compute",
+      "entry_point": "SupermotionCompute",
+      "source": "kain-core",
+      "execution_domain": "tensor-stream",
+      "workgroup_size": [
+        32,
+        1,
+        1
+      ],
+      "dispatch_size": [
+        1,
+        1,
+        1
+      ],
+      "dynamic_shared_memory_bytes": 0,
+      "cuda_stream_policy": "default",
+      "cuda_graph_policy": "disabled",
+      "resource_binding_count": 16,
+      "tensor_binding_count": 10,
+      "stream_binding_count": 0,
+      "neural_node_count": 1,
+      "bindings": [
+        {
+          "key": "in_pos",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "vec4",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 0,
+          "byte_length": 16,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_in_pos.bin"
+        },
+        {
+          "key": "in_rot",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "vec4",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 1,
+          "byte_length": 16,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_in_rot.bin"
+        },
+        {
+          "key": "in_scl",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "vec4",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 2,
+          "byte_length": 16,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_in_scl.bin"
+        },
+        {
+          "key": "out_pos",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "vec4",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "write",
+          "residency_role": "output",
+          "slot": 3,
+          "byte_length": 16,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_out_pos.bin"
+        },
+        {
+          "key": "out_rot",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "vec4",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "write",
+          "residency_role": "output",
+          "slot": 4,
+          "byte_length": 16,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_out_rot.bin"
+        },
+        {
+          "key": "out_scl",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "vec4",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "write",
+          "residency_role": "output",
+          "slot": 5,
+          "byte_length": 16,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_out_scl.bin"
+        },
+        {
+          "key": "mod_type",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "i32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 6,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_mod_type.bin"
+        },
+        {
+          "key": "params_a",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "vec4",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 7,
+          "byte_length": 16,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_params_a.bin"
+        },
+        {
+          "key": "params_b",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "vec4",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 8,
+          "byte_length": 16,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_params_b.bin"
+        },
+        {
+          "key": "params_c",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "vec4",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 9,
+          "byte_length": 16,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_params_c.bin"
+        },
+        {
+          "key": "instance_count",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "uniform_buffer",
+          "element_type": "u32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "required_input",
+          "slot": 10,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_instance_count.bin"
+        },
+        {
+          "key": "time_sec",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "uniform_buffer",
+          "element_type": "u32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "required_input",
+          "slot": 11,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_time_sec.bin"
+        },
+        {
+          "key": "global_intensity",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "uniform_buffer",
+          "element_type": "u32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "required_input",
+          "slot": 12,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_global_intensity.bin"
+        },
+        {
+          "key": "random_seed",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "uniform_buffer",
+          "element_type": "u32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "required_input",
+          "slot": 13,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_random_seed.bin"
+        },
+        {
+          "key": "eps",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "uniform_buffer",
+          "element_type": "u32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "required_input",
+          "slot": 14,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_eps.bin"
+        },
+        {
+          "key": "_pad",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "f32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read_write",
+          "residency_role": "scratch_state",
+          "slot": 15,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_supermotioncompute_compute_pad.bin"
+        }
+      ]
+    },
+    {
+      "key": "shader::SupermotionIndirect::compute",
+      "shader": "SupermotionIndirect",
+      "module_name": "SupermotionCompute__SupermotionVertex__SupermotionFragment__SupermotionIndirect",
+      "stage": "compute",
+      "entry_point": "SupermotionIndirect",
+      "source": "kain-core",
+      "execution_domain": "tensor-stream",
+      "workgroup_size": [
+        1,
+        1,
+        1
+      ],
+      "dispatch_size": [
+        1,
+        1,
+        1
+      ],
+      "dynamic_shared_memory_bytes": 0,
+      "cuda_stream_policy": "default",
+      "cuda_graph_policy": "disabled",
+      "resource_binding_count": 3,
+      "tensor_binding_count": 2,
+      "stream_binding_count": 0,
+      "neural_node_count": 1,
+      "bindings": [
+        {
+          "key": "indirect_buf",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "u32",
+          "shape": [
+            4
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "write",
+          "residency_role": "output",
+          "slot": 0,
+          "byte_length": 16,
+          "payload_file": "kain_compute_residency_shader_supermotionindirect_compute_indirect_buf.bin"
+        },
+        {
+          "key": "instance_count",
+          "contract": "kain.push",
+          "descriptor_kind": "uniform_buffer",
+          "element_type": "u32",
+          "shape": [],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 1,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_supermotionindirect_compute_instance_count.bin"
+        },
+        {
+          "key": "_pad",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "f32",
+          "shape": [
+            1
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read_write",
+          "residency_role": "scratch_state",
+          "slot": 2,
+          "byte_length": 4,
+          "payload_file": "kain_compute_residency_shader_supermotionindirect_compute_pad.bin"
+        }
+      ]
+    }
+  ]
+}
