@@ -31,7 +31,7 @@ pub struct ColumnSchema:
     name:     String
     col_type: String    // "String", "Int", "Float", "Bool"
     required: Bool
-    default:  String
+    default_value:  String
     min_val:  String    // empty = no constraint
     max_val:  String    // empty = no constraint
 
@@ -124,7 +124,7 @@ pub fn parse_schema(source: String) -> Schema:
                     let max_v = cell_string(dt, ri, 5)
                     push(cols, ColumnSchema {
                         name: cname, col_type: ctype, required: req,
-                        default: def, min_val: min_v, max_val: max_v
+                        default_value: def, min_val: min_v, max_val: max_v
                     })
                     push(schema.columns, cols[len(cols) - 1])
                     ri = ri + 1

@@ -1,4 +1,5 @@
 use std::memory
+use std::collections
 
 # --- RingBuffer (Circular Byte-Word Stream Buffer) ---
 
