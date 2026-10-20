@@ -38,6 +38,7 @@ import concurrent.futures
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -489,42 +490,72 @@ def ensure_toolchain(osinfo: dict, status: dict, allow_install: bool, dry: bool)
 
 # ---------------------------------------------------------------- runtime ---
 
-RUNTIME_SRC = REPO_ROOT / "runtime" / "native" / "src"
-RUNTIME_CORE = RUNTIME_SRC / "core"
-RUNTIME_PLATFORM = RUNTIME_SRC / "platform"
+RUNTIME_MANIFEST = REPO_ROOT / "runtime" / "native_core_runtime.toml"
 
-# Mirror of runtime/native/Makefile exclusions (bench + optional backends).
-SKIP_SUFFIXES = ("_benchmark.c",)
-SKIP_PREFIXES = ("python_runtime", "cuda_runtime")
-# Freestanding (bare-metal/QEMU, -nostdlib) stubs redefine core.c symbols
-# (string_new, print_*, rc_*, KAIN_alloc). In the hosted lib they are dups:
-# lld-link fails with duplicate symbol. Matches native_core_runtime.toml,
-# which does not list this file (it has its own freestanding target).
-SKIP_EXACT = ("freestanding_stubs.c",)
+_manifest_cache: dict | None = None
+
+
+def _manifest_str_arrays(text: str) -> dict[str, list[str]]:
+    """Parse top-level `key = [ "...", ... ]` string arrays from TOML text.
+    tomllib is 3.11+ but WSL ships 3.10; the manifest's lists are flat
+    one-string-per-line, so a tiny reader beats a dependency."""
+    out: dict[str, list[str]] = {}
+    cur: str | None = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("["):
+            cur = None  # [table] header ends any pending list
+            continue
+        if cur is None:
+            if "=" in line and "[" in line:
+                key = line.split("=", 1)[0].strip()
+                cur = key
+                out[cur] = []
+                out[cur].extend(re.findall(r'"([^"]*)"', line.split("[", 1)[1]))
+                if "]" in line:
+                    cur = None
+            continue
+        out[cur].extend(re.findall(r'"([^"]*)"', line))
+        if "]" in line:
+            cur = None
+    return out
+
+
+def read_runtime_manifest() -> dict[str, list[str]]:
+    global _manifest_cache
+    if _manifest_cache is None:
+        try:
+            text = RUNTIME_MANIFEST.read_text(encoding="utf-8")
+        except OSError:
+            die(f"runtime manifest missing: {RUNTIME_MANIFEST}")
+        _manifest_cache = _manifest_str_arrays(text)
+    return _manifest_cache
 
 
 def collect_runtime_sources(osinfo: dict) -> list[Path]:
-    srcs = []
-    if RUNTIME_CORE.exists():
-        for c in sorted(RUNTIME_CORE.glob("*.c")):
-            if c.name in SKIP_EXACT:
-                continue
-            if c.name.endswith(SKIP_SUFFIXES):
-                continue
-            if c.name.startswith(SKIP_PREFIXES):
-                continue
-            srcs.append(c)
-    plat = RUNTIME_PLATFORM / "platform.c"
-    if plat.exists():
-        srcs.append(plat)
+    """Source selection straight from native_core_runtime.toml: common
+    `sources` + the per-OS list. The compiler hashes exactly these files as
+    build inputs, so the prebuilt lib must contain exactly these -- no glob
+    guesswork (a glob subset once shipped undefined-symbol link failures:
+    cuda_runtime.c, ui/*.c, platform_library.c were all missing)."""
+    man = read_runtime_manifest()
+    names = list(man.get("sources", []))
     if osinfo["is_windows"]:
-        win = RUNTIME_PLATFORM / "win32" / "win32_shared.c"
-        if win.exists():
-            srcs.append(win)
+        names += man.get("windows_sources", [])
+    elif osinfo.get("is_macos"):
+        names += man.get("macos_sources", [])
     else:
-        lin = RUNTIME_PLATFORM / "linux" / "linux_shared.c"
-        if lin.exists():
-            srcs.append(lin)
+        names += man.get("linux_sources", [])
+    if not names:
+        die(f"no sources parsed from {RUNTIME_MANIFEST}")
+    srcs = []
+    for n in names:
+        p = REPO_ROOT / "runtime" / n
+        if not p.exists():
+            die(f"manifest lists missing source: {n}")
+        srcs.append(p)
     return srcs
 
 
@@ -537,16 +568,17 @@ def build_runtime(osinfo: dict, status: dict, jobs: int, dry: bool, verbose: boo
 
     srcs = collect_runtime_sources(osinfo)
     if not srcs:
-        die(f"no C sources found under {RUNTIME_SRC} -- repo checkout incomplete?")
+        die(f"no sources parsed from {RUNTIME_MANIFEST} -- repo checkout incomplete?")
     log(f"runtime: {len(srcs)} C files -> {libname}  ({jobs} jobs)")
 
     clang = status["clang"]
+    man = read_runtime_manifest()
     inc_root = REPO_ROOT / "runtime" / "native"
-    base_flags = ["-std=c11", "-O2",
-                  f"-I{inc_root / 'include'}",
-                  f"-I{inc_root / 'src' / 'core'}",
-                  f"-I{inc_root / 'src' / 'platform'}", "-g"]
+    inc_dirs = [REPO_ROOT / "runtime" / d for d in man.get("include_dirs", [])]
+    inc_dirs += [inc_root / "include", inc_root / "src" / "core", inc_root / "src" / "platform"]
+    base_flags = ["-std=c11", "-O2"] + [f"-I{d}" for d in inc_dirs] + ["-g"]
     if osinfo["is_windows"]:
+        base_flags += ["-D" + d for d in man.get("windows_defines", [])]
         base_flags += ["-D_CRT_SECURE_NO_WARNINGS", "-D_CRT_NONSTDC_NO_WARNINGS"]
         # MSVC-target clang needs MSVC + SDK headers for <string.h> etc.
         crt_incs, crt_note = find_windows_crt_includes()
@@ -562,9 +594,11 @@ def build_runtime(osinfo: dict, status: dict, jobs: int, dry: bool, verbose: boo
                 die("runtime: no MSVC headers AND no MinGW headers. Install VS Build Tools "
                     "(Desktop C++ workload) or MinGW-w64, then rerun.")
     else:
-        # Linux/macOS: expose GNU extensions (CPU_ZERO, pthread affinity) + PIC
-        # so the static lib links cleanly into PIE executables.
-        base_flags += ["-D_GNU_SOURCE", "-fPIC", "-pthread"]
+        # -fPIC/-pthread are compiler (not -D) flags; the manifest supplies
+        # the -D set (linux_defines carries _GNU_SOURCE/_POSIX_C_SOURCE).
+        plat_defines = man.get("macos_defines", []) if osinfo.get("is_macos") else man.get("linux_defines", [])
+        base_flags += ["-D" + d for d in plat_defines]
+        base_flags += ["-fPIC", "-pthread"]
 
     if dry:
         log(f"(dry-run) would compile {len(srcs)} files with {clang} and archive to {libpath}")
