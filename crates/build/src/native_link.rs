@@ -260,6 +260,11 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, String>
         cmd.arg("-nostdlib");
     }
 
+    // IR input precedes objects/archives: GNU ld resolves static
+    // archives lazily left-to-right, so an archive before its referrer
+    // contributes nothing (Linux undefined-reference failures).
+    cmd.arg(req.llvm_ir_path);
+
     let has_artifacts = !req.runtime_artifacts.loose_objects.is_empty()
         || !req.runtime_artifacts.static_archives.is_empty();
 
@@ -295,7 +300,6 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, String>
         cmd.arg(format!("-Wl,{}", flag));
     }
 
-    cmd.arg(req.llvm_ir_path);
     cmd.arg("-o").arg(req.output_path);
 
     // Add linker dead-stripping flags
@@ -348,6 +352,11 @@ fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, 
         cmd.arg("-nostdlib");
     }
 
+    // IR input precedes objects/archives: GNU ld resolves static
+    // archives lazily left-to-right, so an archive before its referrer
+    // contributes nothing (Linux undefined-reference failures).
+    cmd.arg(req.llvm_ir_path);
+
     let has_artifacts = !req.runtime_artifacts.loose_objects.is_empty()
         || !req.runtime_artifacts.static_archives.is_empty();
 
@@ -377,7 +386,6 @@ fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, 
         }
     }
 
-    cmd.arg(req.llvm_ir_path);
     cmd.arg("-o").arg(req.output_path);
 
     // Add linker dead-stripping flags
