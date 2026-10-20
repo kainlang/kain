@@ -694,7 +694,8 @@ def build_compiler(osinfo: dict, status: dict, jobs: int, dry: bool) -> Path:
         die(f"cargo build failed (exit {rc}). Fix the errors above and rerun; "
             "--skip-compiler to skip this step.")
     log(f"compiler OK in {(time.time() - t0) / 60:.1f} min")
-    exe = REPO_ROOT / "target" / "release" / ("kain.exe" if osinfo["is_windows"] else "kain")
+    # Respect CARGO_TARGET_DIR (e.g. isolated WSL target dir), not hardcoded target/.
+    exe = cargo_target_dir() / "release" / ("kain.exe" if osinfo["is_windows"] else "kain")
     if not exe.exists():
         die(f"cargo said OK but {exe} is missing?!")
     return exe
