@@ -496,12 +496,19 @@ RUNTIME_PLATFORM = RUNTIME_SRC / "platform"
 # Mirror of runtime/native/Makefile exclusions (bench + optional backends).
 SKIP_SUFFIXES = ("_benchmark.c",)
 SKIP_PREFIXES = ("python_runtime", "cuda_runtime")
+# Freestanding (bare-metal/QEMU, -nostdlib) stubs redefine core.c symbols
+# (string_new, print_*, rc_*, KAIN_alloc). In the hosted lib they are dups:
+# lld-link fails with duplicate symbol. Matches native_core_runtime.toml,
+# which does not list this file (it has its own freestanding target).
+SKIP_EXACT = ("freestanding_stubs.c",)
 
 
 def collect_runtime_sources(osinfo: dict) -> list[Path]:
     srcs = []
     if RUNTIME_CORE.exists():
         for c in sorted(RUNTIME_CORE.glob("*.c")):
+            if c.name in SKIP_EXACT:
+                continue
             if c.name.endswith(SKIP_SUFFIXES):
                 continue
             if c.name.startswith(SKIP_PREFIXES):
