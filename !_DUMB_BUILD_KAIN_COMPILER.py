@@ -541,10 +541,6 @@ def build_runtime(osinfo: dict, status: dict, jobs: int, dry: bool, verbose: boo
                   f"-I{inc_root / 'src' / 'platform'}", "-g"]
     if osinfo["is_windows"]:
         base_flags += ["-D_CRT_SECURE_NO_WARNINGS", "-D_CRT_NONSTDC_NO_WARNINGS"]
-    else:
-        # Linux/macOS: expose GNU extensions (CPU_ZERO, pthread affinity) + PIC
-        # so the static lib links cleanly into PIE executables.
-        base_flags += ["-D_GNU_SOURCE", "-fPIC", "-pthread"]
         # MSVC-target clang needs MSVC + SDK headers for <string.h> etc.
         crt_incs, crt_note = find_windows_crt_includes()
         if crt_incs:
@@ -558,6 +554,10 @@ def build_runtime(osinfo: dict, status: dict, jobs: int, dry: bool, verbose: boo
             else:
                 die("runtime: no MSVC headers AND no MinGW headers. Install VS Build Tools "
                     "(Desktop C++ workload) or MinGW-w64, then rerun.")
+    else:
+        # Linux/macOS: expose GNU extensions (CPU_ZERO, pthread affinity) + PIC
+        # so the static lib links cleanly into PIE executables.
+        base_flags += ["-D_GNU_SOURCE", "-fPIC", "-pthread"]
 
     if dry:
         log(f"(dry-run) would compile {len(srcs)} files with {clang} and archive to {libpath}")
