@@ -285,6 +285,7 @@ void kain_vulkan_surface_shim_shutdown(void) {
 #else /* !KAIN_RUNTIME_HAS_VULKAN_LOADER */
 
 #include "../../include/component_surface.h"
+#include <stddef.h>
 #include <stdint.h>
 
 int64_t kain_vulkan_runtime_capability(void) {

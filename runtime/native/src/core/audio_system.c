@@ -61,6 +61,12 @@
 #include <pthread.h>
 #include <time.h>
 #endif
+#ifdef __linux__
+/* ALSA types are used by the stream/MIDI slot structs below; poll() by the
+   Linux dispatch thread. Both must precede first use (not the backend body). */
+#include <poll.h>
+#include <alsa/asoundlib.h>
+#endif
 
 /* ─────────────────────────────────────────────────────────────────────────
  * Common State
@@ -1176,8 +1182,6 @@ static int64_t abi_audio_mac_midi_close(KainNativeMidiInputSlot* slot) {
  * ──────────────────────────────────────────────────────────────────────── */
 #ifdef __linux__
 
-#include <alsa/asoundlib.h>
-
 /* Enumerate playback PCM devices. We probe cards 0..7 with device 0.
    This is a Phase 1 simplification — a full enumeration would walk
    snd_card_next() + snd_ctl_open() per card. */
@@ -1496,7 +1500,7 @@ static int64_t abi_audio_linux_midi_open(
     char name[32];
     int err;
     snprintf(name, sizeof(name), "hw:%ld,0", (long)device_id);
-    err = snd_rawmidi_open(&slot->midi_in, NULL, name, SND_RAWMIDI_READ);
+    err = snd_rawmidi_open(&slot->midi_in, NULL, name, 0); /* mode 0 = blocking; direction comes from in_rmidi (ALSA has no SND_RAWMIDI_READ flag) */
     if (err < 0) {
         return abi_audio_fail(ABI_AUDIO_ERR_MIDI_NO_DEVICE, "no_device", snd_strerror(err));
     }
