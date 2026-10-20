@@ -104,6 +104,19 @@ kainHostPlatform kain_host_current_platform(void);
 
 // Human-readable name for a platform kind.
 const char* kain_host_platform_name(kainHostPlatform p);
+// -- Win32-backend framebuffer/input helpers --------------------------
+// Defined in kain_host_win32.c on every platform (live on _WIN32, stubbed
+// elsewhere) so ui_host_adapter.c can call them without platform ifs.
+uint32_t* kain_win32_framebuffer_ptr(void* state);
+int       kain_win32_framebuffer_width(void* state);
+int       kain_win32_framebuffer_height(void* state);
+int       kain_win32_framebuffer_stride_elems(void* state);
+void*     kain_win32_hwnd(void* state);
+int       kain_win32_is_running(void* state);
+int64_t   kain_win32_input_session_id(void* state);
+void      kain_win32_set_session_id(void* state, int64_t sid);
+void      kain_win32_set_input_session_id(void* state, int64_t sid);
+
 
 // ── Per-platform vtable declarations ───────────────────────────────
 // Each platform .c file defines one of these.

@@ -13,11 +13,19 @@
 //    microui.h/c          — Design inspiration (immediate-mode widget API)
 // ============================================================================
 
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 #include <windows.h>
+#else
+/* Linux/macOS: opaque handle stand-ins. The host struct below is only used
+   opaquely here (NULL check); real window handles never cross this TU. */
+typedef void* HWND;
+typedef void* HDC;
+typedef void* HBITMAP;
+#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -508,6 +516,7 @@ void ui_widget_begin_frame(KainUiWidgetContext* ctx)
     // Save previous mouse state
     ctx->mouse_down_prev = ctx->mouse_down;
 
+#ifdef _WIN32
     // Get current mouse position (Win32)
     POINT pt;
     if (GetCursorPos(&pt) && ScreenToClient(ctx->host->hwnd, &pt)) {
@@ -517,6 +526,11 @@ void ui_widget_begin_frame(KainUiWidgetContext* ctx)
 
     // Get mouse button state
     ctx->mouse_down = (GetKeyState(VK_LBUTTON) & 0x8000) ? 1 : 0;
+#else
+    // Non-Windows hosts drive the cursor through the vtable/event pump;
+    // retain the last known position and button state.
+    (void)ctx;
+#endif
 
     // Hit-test for hovered node
     ctx->hovered_node = abi_ui_hit_test(ctx->session_id, ctx->mouse_x, ctx->mouse_y);
@@ -1036,6 +1050,7 @@ int ui_textbox(KainUiWidgetContext* ctx, char* buf, int buf_size)
         int len = (int)strlen(buf);
         if (len < 0) len = 0;
 
+#ifdef _WIN32
         // Check printable keys (32-126)
         for (int k = 0x20; k <= 0x5A; k++) {
             int state = GetAsyncKeyState(k) & 0x8001;
@@ -1085,6 +1100,10 @@ int ui_textbox(KainUiWidgetContext* ctx, char* buf, int buf_size)
             changed = 1;
         }
         g_textbox_prev_keys[384] = ss;
+#else
+        // Non-Windows: keyboard arrives via the host event pump, not polling.
+        (void)len;
+#endif
     }
 
     // Draw
