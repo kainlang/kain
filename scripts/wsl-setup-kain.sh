@@ -8,7 +8,7 @@ echo "=== [1/5] apt update ==="
 sudo apt-get update -y
 
 echo "=== [2/5] base tools ==="
-sudo apt-get install -y wget lsb-release software-properties-common gnupg curl git build-essential python3 binutils pkg-config openssl libssl-dev
+sudo apt-get install -y wget lsb-release software-properties-common gnupg curl git build-essential python3 binutils pkg-config openssl libssl-dev libasound2-dev
 
 echo "=== [3/5] LLVM 21 repo ==="
 if [ ! -f /usr/bin/clang-21 ] && [ ! -f /usr/lib/llvm-21/bin/llvm-config ]; then
