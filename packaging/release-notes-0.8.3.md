@@ -14,7 +14,7 @@ and running `kain run hello.kn --target llvm` end-to-end (compile → link → r
 
 ```
 kain-0.8.3-windows-x64.zip  sha256 91675dc2aeafce46c811243849543f150ce6d61716d406defb4a461ce45bcaac
-kain-0.8.3-linux-x64.tar.gz sha256 b9448671bbdad0d780afedaf64e61a9fc71283542758126a40b1a776493af348
+kain-0.8.3-linux-x64.tar.gz sha256 c64b909cb10a06cf4d44816d868b983ec4fa0e6a808899c0b0c25babb9176202
 ```
 
 ### Quick start — Windows
@@ -26,8 +26,11 @@ kain-0.8.3-linux-x64.tar.gz sha256 b9448671bbdad0d780afedaf64e61a9fc712835427581
 ### Quick start — Linux
 
 1. `tar xzf kain-0.8.3-linux-x64.tar.gz` anywhere.
-2. Add its `bin/` to PATH.
-3. Run `kain --version`.
+2. `cd kain-0.8.3-linux-x64 && ./setup.sh` — installs the link toolchain
+   (clang, lld, libc dev, ALSA) via apt/dnf/pacman/apk/zypper, sets up PATH,
+   and verifies the install. (`./setup.sh --yes` for no prompts.)
+3. Open a new terminal (or `export PATH="$PWD/bin:$PATH"`).
+4. Run `kain --version`.
 
 ### Prerequisites (not bundled)
 

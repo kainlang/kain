@@ -96,13 +96,20 @@ def stage(src: Path, sdir: Path, ver: str, tag: str) -> None:
         c = src / f
         if c.exists():
             shutil.copy2(c, sdir / f)
+    if not is_win:
+        sh = REPO_ROOT / "packaging" / "setup.sh"
+        if sh.exists():
+            shutil.copy2(sh, sdir / "setup.sh")
+            print("  setup.sh (one-command prereq + PATH installer)")
     (sdir / "README-release.txt").write_text(
         f"Kain {ver} ({tag}) -- dumb-build portable distribution.\n"
         f"Built with !_DUMB_BUILD_KAIN_COMPILER.py (cargo release + clang C runtime).\n\n"
         f"Contents: bin/kain{ext} (+ kn alias, blade), lib/{libname},\n"
         f"stdlib/, runtime/ (manifest + C sources the compiler hashes at link time).\n\n"
         f"Prerequisites to USE (not bundled): clang 21 + a C archiver (ar/llvm-ar)\n"
-        f"on PATH. Linux also needs libasound2 (ALSA) for audio programs.\n\n"
+        f"on PATH. Linux also needs libasound2 (ALSA) for audio programs.\n"
+        f"Linux shortcut: run ./setup.sh from the extracted dir — it installs\n"
+        f"the toolchain/libs via your package manager and sets up PATH.\n\n"
         f"Quick start: add bin/ to PATH, then run: kain --version / kain doctor\n",
         encoding="utf-8")
     print(f"  stage done: {sdir}")
@@ -125,7 +132,7 @@ def archive(sdir: Path, outdir: Path, ver: str, tag: str) -> Path:
                     ti = tf.gettarinfo(str(f), arcname=str(Path(base) / f.relative_to(sdir)))
                     ti.uid = ti.gid = 0
                     ti.uname = ti.gname = ""
-                    if f.suffix == "" and (f.stat().st_mode & 0o111):
+                    if f.name == "setup.sh" or (f.suffix == "" and (f.stat().st_mode & 0o111)):
                         ti.mode = 0o755
                     with open(f, "rb") as fo:
                         tf.addfile(ti, fo)
