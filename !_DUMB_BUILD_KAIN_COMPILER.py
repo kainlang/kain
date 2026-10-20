@@ -961,7 +961,7 @@ def verify(osinfo: dict, install_dir: Path, dry: bool) -> bool:
                      ("manifest", install_dir / "install_manifest.json")):
         print(f"  {label}: {'OK' if p.exists() else 'MISSING'} ({p})")
     libdir = install_dir / "lib"
-    lib_ok = libdir.exists() and any(libdir.glob("kain_runtime.*"))
+    lib_ok = libdir.exists() and any(libdir.glob("*kain_runtime.*"))
     print(f"  runtime lib: {'OK' if lib_ok else 'MISSING'} ({libdir}) ")
     return ok and lib_ok
 
@@ -1059,6 +1059,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  path setup   : {'OFF (--no-path)' if args.no_path else 'ON'}")
     print(f"  auto-install : {'ON (--yes)' if allow_install else 'OFF (rerun with --yes to fix missing tools)'}")
     print("")
+
+    # WSL checkouts share target/ with native Windows cargo (same NTFS dir via
+    # /mnt). Different OS + rustc in one cache = E0514 poison. Isolate WSL
+    # unless the user already set CARGO_TARGET_DIR explicitly.
+    if osinfo["in_wsl"] and not os.environ.get("CARGO_TARGET_DIR"):
+        os.environ["CARGO_TARGET_DIR"] = str(REPO_ROOT / "target" / "wsl")
+        log(f"inside WSL: isolated cargo target dir -> {os.environ['CARGO_TARGET_DIR']}")
 
     # -- WSL branch (Windows host only) --
     if args.wsl is not None and not args.inside_wsl:
